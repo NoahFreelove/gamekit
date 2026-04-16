@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Cli.Tests</RootNamespace>
+    <AssemblyName>GameKit.Cli.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GameKit.Cli\GameKit.Cli.csproj" />
+    <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
+  </ItemGroup>
+</Project>

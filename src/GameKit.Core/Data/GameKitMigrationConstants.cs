@@ -34,5 +34,5 @@ public static class GameKitMigrationConstants
     /// and only one replica applies migrations at a time.
     /// Plan 06 integration test re-verifies this value against a live Postgres 17.9 container.
     /// </remarks>
-    public const long AdvisoryLockKey = -4919263824511932901L;
+    public const long AdvisoryLockKey = 1800940027L;
 }

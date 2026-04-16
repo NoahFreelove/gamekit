@@ -24,7 +24,7 @@ public class GameKitMigrationConstantsTests
     public void AdvisoryLockKey_IsPinnedBigint()
     {
         // Value is SELECT hashtext('gamekit.migrations')::bigint on Postgres 17.9.
-        // Plan 06 re-verifies against a live Testcontainers Postgres.
-        Assert.Equal(-4919263824511932901L, GameKitMigrationConstants.AdvisoryLockKey);
+        // Plan 07 AdvisoryLockKeyTests verified this against a live Testcontainers Postgres.
+        Assert.Equal(1800940027L, GameKitMigrationConstants.AdvisoryLockKey);
     }
 }

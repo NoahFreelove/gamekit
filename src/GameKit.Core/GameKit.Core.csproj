@@ -15,6 +15,12 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
 
+    <!-- Design-time EF Core tooling (dotnet ef migrations add/update) — not shipped in .nupkg -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
     <!-- DI scanning for IModelBuilderExtension / sibling strategies -->
     <PackageReference Include="Scrutor" />
 

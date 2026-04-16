@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 GameKit contributors
+
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build + Test (Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # MinVer needs full tag history
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Print environment
+        run: |
+          dotnet --info
+          docker --version
+          docker compose version
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release -warnaserror
+
+      - name: Unit tests (fast, no containers)
+        run: dotnet test --no-build --configuration Release --filter "Category!=Integration" --logger "trx" --results-directory TestResults/unit
+
+      - name: Integration tests (Testcontainers)
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+        run: dotnet test --no-build --configuration Release --filter "Category=Integration" --logger "trx" --results-directory TestResults/integration
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+          retention-days: 14
+
+  pack:
+    name: Pack (verify .nupkg output)
+    runs-on: ubuntu-24.04
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Pack all packable projects
+        run: dotnet pack --configuration Release --output ./artifacts
+
+      - name: Assert expected packages present
+        run: |
+          ls -la ./artifacts/
+          for pkg in GameKit.Core GameKit.Auth GameKit.Rankings GameKit.Matchmaking GameKit.Presence GameKit.Admin.UI GameKit.Cli; do
+            if ! ls ./artifacts/${pkg}.*.nupkg 2>/dev/null >/dev/null; then
+              echo "ERROR: Missing .nupkg for ${pkg}"
+              exit 1
+            fi
+          done
+          echo "All 7 expected packages produced."
+
+      - name: Upload nupkgs
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkgs
+          path: ./artifacts/*.*nupkg
+          retention-days: 30

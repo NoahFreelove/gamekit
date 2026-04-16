@@ -1,0 +1,40 @@
+version = 1
+SPDX-PackageName = "GameKit"
+SPDX-PackageSupplier = "GameKit contributors"
+SPDX-PackageDownloadLocation = "https://github.com/OWNER/gamekit"
+
+[[annotations]]
+path = "**/*.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["**/*.yml", "**/*.yaml"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["**/*.md", "LICENSE", ".gitignore", ".editorconfig", "GameKit.sln", "global.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["**/*.csproj", "**/*.props", "**/*.targets"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["**/Migrations/*.cs", "**/Migrations/*.Designer.cs", "**/Migrations/GameKitDbContextModelSnapshot.cs"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = "REUSE.toml"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"

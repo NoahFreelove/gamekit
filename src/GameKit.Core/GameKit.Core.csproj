@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>GameKit.Core</PackageId>
+    <Description>Core entities, DbContext infrastructure, fluent builder, and GDPR service for the GameKit self-hostable game-services library. Every sibling package depends on this.</Description>
+    <PackageTags>gamekit;game-services;ef-core;postgres;self-hosted;gpl</PackageTags>
+
+    <RootNamespace>GameKit.Core</RootNamespace>
+    <AssemblyName>GameKit.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- EF Core + Postgres provider (versions pinned centrally in Directory.Packages.props) -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+
+    <!-- DI scanning for IModelBuilderExtension / sibling strategies -->
+    <PackageReference Include="Scrutor" />
+
+    <!-- Caching primitive used by IPlayerDisplayNameResolver (Plan 05) -->
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+  </ItemGroup>
+
+</Project>

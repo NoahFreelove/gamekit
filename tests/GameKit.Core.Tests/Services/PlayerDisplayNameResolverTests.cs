@@ -15,18 +15,10 @@ namespace GameKit.Core.Tests.Services;
 
 public class PlayerDisplayNameResolverTests
 {
-    private static GameKitDbContext CreateInMemoryContext(string dbName)
-    {
-        var options = new DbContextOptionsBuilder<GameKitDbContext>()
-            .UseInMemoryDatabase(dbName)
-            .Options;
-        return new GameKitDbContext(options);
-    }
-
     [Fact]
     public void Resolve_Null_ReturnsDeletedPlayerDisplayName()
     {
-        using var ctx = CreateInMemoryContext(nameof(Resolve_Null_ReturnsDeletedPlayerDisplayName));
+        using var ctx = TestDbContextFactory.Create(nameof(Resolve_Null_ReturnsDeletedPlayerDisplayName));
         var opts = new GameKitOptions { DeletedPlayerDisplayName = "Deleted Player" };
         var cache = new MemoryCache(new MemoryCacheOptions());
 
@@ -39,7 +31,7 @@ public class PlayerDisplayNameResolverTests
     [Fact]
     public void Resolve_Null_UsesCustomTombstoneName()
     {
-        using var ctx = CreateInMemoryContext(nameof(Resolve_Null_UsesCustomTombstoneName));
+        using var ctx = TestDbContextFactory.Create(nameof(Resolve_Null_UsesCustomTombstoneName));
         var opts = new GameKitOptions { DeletedPlayerDisplayName = "Anonymous" };
         var cache = new MemoryCache(new MemoryCacheOptions());
 
@@ -52,7 +44,7 @@ public class PlayerDisplayNameResolverTests
     [Fact]
     public void Resolve_ExistingPlayer_ReturnsDisplayName()
     {
-        using var ctx = CreateInMemoryContext(nameof(Resolve_ExistingPlayer_ReturnsDisplayName));
+        using var ctx = TestDbContextFactory.Create(nameof(Resolve_ExistingPlayer_ReturnsDisplayName));
         var playerId = Guid.NewGuid();
         ctx.Players.Add(new Player
         {
@@ -74,7 +66,7 @@ public class PlayerDisplayNameResolverTests
     [Fact]
     public void Resolve_MissingPlayer_ReturnsTombstone()
     {
-        using var ctx = CreateInMemoryContext(nameof(Resolve_MissingPlayer_ReturnsTombstone));
+        using var ctx = TestDbContextFactory.Create(nameof(Resolve_MissingPlayer_ReturnsTombstone));
         var opts = new GameKitOptions { DeletedPlayerDisplayName = "Gone" };
         var cache = new MemoryCache(new MemoryCacheOptions());
 
@@ -87,7 +79,7 @@ public class PlayerDisplayNameResolverTests
     [Fact]
     public void Resolve_CachesResult()
     {
-        using var ctx = CreateInMemoryContext(nameof(Resolve_CachesResult));
+        using var ctx = TestDbContextFactory.Create(nameof(Resolve_CachesResult));
         var playerId = Guid.NewGuid();
         ctx.Players.Add(new Player
         {

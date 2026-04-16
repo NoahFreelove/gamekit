@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ASP.NET Core types (HttpContext, minimal APIs, RateLimiting) from shared framework — zero extra .nupkg weight -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- EF Core + Postgres provider (versions pinned centrally in Directory.Packages.props) -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
@@ -23,9 +28,6 @@
 
     <!-- DI scanning for IModelBuilderExtension / sibling strategies -->
     <PackageReference Include="Scrutor" />
-
-    <!-- Caching primitive used by IPlayerDisplayNameResolver (Plan 05) -->
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
   </ItemGroup>
 
 </Project>

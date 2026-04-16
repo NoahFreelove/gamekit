@@ -1,12 +1,29 @@
 .planning/
 
-# .NET
+# .NET build output
 bin/
 obj/
+artifacts/
+nupkgs/
+
+# IDE / editor
+.vs/
+.idea/
 *.user
 *.suo
-.vs/
+*.DotSettings.user
 
-# OS
+# Test output
+TestResults/
+coverage/
+
+# OS files
 .DS_Store
 Thumbs.db
+
+# Node (future tooling)
+**/node_modules/
+
+# Secrets / local overrides
+*.env
+appsettings.*.local.json

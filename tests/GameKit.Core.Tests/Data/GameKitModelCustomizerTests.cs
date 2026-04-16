@@ -33,17 +33,17 @@ public class GameKitModelCustomizerTests
             new TestExtension(() => extensionInvoked = true)
         };
 
-        // Build a context that uses our customizer with extensions
+        // Build a context that uses our customizer with extensions.
+        // We use Npgsql with a fake connection string — no live connection needed for model building.
+        TestableGameKitModelCustomizer.Extensions = extensions;
+
         var options = new DbContextOptionsBuilder<GameKitDbContext>()
-            .UseInMemoryDatabase("ModelCustomizerTest_" + Guid.NewGuid())
+            .UseNpgsql("Host=localhost;Database=unused;Username=test;Password=test")
             .ReplaceService<IModelCustomizer, TestableGameKitModelCustomizer>()
             .Options;
 
-        // Store the extensions for the testable customizer to pick up
-        TestableGameKitModelCustomizer.Extensions = extensions;
-
         using var ctx = new GameKitDbContext(options);
-        // Accessing the model triggers customizer
+        // Accessing the model triggers the customizer
         _ = ctx.Model;
 
         Assert.True(extensionInvoked, "Extension's ApplyTo was not invoked by the customizer.");
@@ -59,7 +59,7 @@ public class GameKitModelCustomizerTests
 
     /// <summary>
     /// A testable derivative that uses a static Extensions field since DI is not available
-    /// in InMemory tests.
+    /// in unit tests against a DbContext instantiated directly.
     /// </summary>
     internal sealed class TestableGameKitModelCustomizer : RelationalModelCustomizer
     {

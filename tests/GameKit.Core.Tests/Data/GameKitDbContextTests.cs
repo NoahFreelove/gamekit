@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 GameKit contributors
 
-using System.Linq;
 using GameKit.Core.Data;
 using GameKit.Core.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -11,10 +10,13 @@ namespace GameKit.Core.Tests.Data;
 
 public class GameKitDbContextTests
 {
+    /// <summary>
+    /// Creates a GameKitDbContext configured with Npgsql (no live connection needed for model inspection).
+    /// </summary>
     private static GameKitDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<GameKitDbContext>()
-            .UseInMemoryDatabase("GameKitDbContextTests_" + System.Guid.NewGuid())
+            .UseNpgsql("Host=localhost;Database=unused;Username=test;Password=test")
             .Options;
         return new GameKitDbContext(options);
     }

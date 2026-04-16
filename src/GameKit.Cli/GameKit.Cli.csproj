@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PackageId>GameKit.Cli</PackageId>
+    <Description>GameKit CLI — 'gamekit migrate' and (stub) 'gamekit admin create'. Installed as a dotnet tool.</Description>
+    <PackageTags>gamekit;dotnet-tool;migrations;cli</PackageTags>
+    <RootNamespace>GameKit.Cli</RootNamespace>
+    <AssemblyName>gamekit</AssemblyName>
+
+    <!-- Dotnet tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>gamekit</ToolCommandName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+    <PackageReference Include="Spectre.Console.Cli" />
+  </ItemGroup>
+</Project>

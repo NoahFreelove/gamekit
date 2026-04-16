@@ -42,7 +42,7 @@ public class PlayerTests
         // The required keyword on DisplayName means it must be set at construction
         var prop = typeof(Player).GetProperty(nameof(Player.DisplayName));
         Assert.NotNull(prop);
-        Assert.True(prop!.GetCustomAttributes().Any(a => a.GetType().Name == "RequiredMemberAttribute"));
+        Assert.Contains(prop!.GetCustomAttributes(true), a => a.GetType().Name == "RequiredMemberAttribute");
     }
 
     [Fact]

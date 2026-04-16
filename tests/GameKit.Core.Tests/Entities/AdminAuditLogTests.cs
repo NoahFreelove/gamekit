@@ -52,7 +52,7 @@ public class AdminAuditLogTests
 
         Assert.NotNull(actionProp);
         Assert.NotNull(targetTypeProp);
-        Assert.True(actionProp!.GetCustomAttributes().Any(a => a.GetType().Name == "RequiredMemberAttribute"));
-        Assert.True(targetTypeProp!.GetCustomAttributes().Any(a => a.GetType().Name == "RequiredMemberAttribute"));
+        Assert.Contains(actionProp!.GetCustomAttributes(true), a => a.GetType().Name == "RequiredMemberAttribute");
+        Assert.Contains(targetTypeProp!.GetCustomAttributes(true), a => a.GetType().Name == "RequiredMemberAttribute");
     }
 }

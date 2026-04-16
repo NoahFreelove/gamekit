@@ -14,10 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
-    <PackageReference Include="xunit.runner.visualstudio" />
-    <PackageReference Include="coverlet.collector" />
+    <!-- Common test packages (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio, coverlet.collector) inherited from tests/Directory.Build.props -->
     <PackageReference Include="Moq" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>

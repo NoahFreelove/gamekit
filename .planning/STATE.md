@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-04-16T15:20:10.686Z"
+last_updated: "2026-04-16T15:30:50.866Z"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # STATE: GameKit
@@ -26,13 +26,13 @@ progress:
 ## Current Position
 
 Phase: 01 (Foundation (Core + Migrations + Ops Defaults + GPL)) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 **Milestone:** v1 (initial 6-phase build-out)
 **Phase:** 1 — Foundation (Core + Migrations + Ops Defaults + GPL)
-**Plan:** 01-05 complete — Core Runtime Services + Fluent Builder API
+**Plan:** 01-06 complete — Sibling Csprojs + CLI + SampleGame
 **Status:** Executing Phase 01
 
-**Progress:** [███████░░░] 71%
+**Progress:** [█████████░] 86%
 
 **Pre-Flight Gate (Phase 1):**
 
@@ -54,6 +54,7 @@ Plan: 6 of 7
 | Phase 01 P03 | 9min | 3 tasks | 22 files |
 | Phase 01 P04 | 11min | 3 tasks | 16 files |
 | Phase 01 P05 | 14min | 2 tasks | 21 files |
+| Phase 01 P06 | 5min | 3 tasks | 20 files |
 
 ## Accumulated Context
 
@@ -108,9 +109,9 @@ None.
 
 ## Session Continuity
 
-**Last action:** Completed 01-05-PLAN.md — Core Runtime Services + Fluent Builder API
+**Last action:** Completed 01-06-PLAN.md — Sibling Csprojs + CLI + SampleGame
 
-**Next action:** Execute 01-06-PLAN.md (next plan in Phase 1)
+**Next action:** Execute 01-07-PLAN.md (final plan in Phase 1)
 
 **Context preserved:**
 
@@ -121,8 +122,10 @@ None.
 - 01-03-SUMMARY.md (Core entities + EF configs, 8 requirements: CORE-01/03/04/06/07/08/09/17)
 - 01-04-SUMMARY.md (DbContext + ModelCustomizer + MigrationRunner + CoreInitial migration, 5 requirements: CORE-02/04/11/13/14)
 - 01-05-SUMMARY.md (Core runtime services + fluent builder, 6 requirements: CORE-05/10/11/12/13/16)
+- 01-06-SUMMARY.md (5 sibling csprojs + CLI + SampleGame, 3 requirements: CORE-05/CORE-13/DIST-01)
 - All NuGet versions verified GA on net10.0 — Npgsql bumped to 10.0.2, Caching.Memory to 10.0.6
 - FrameworkReference Microsoft.AspNetCore.App added to Core csproj (replaces explicit Caching.Memory ref)
+- Spectre.Console.Cli 0.49.1 pinned centrally; full 9-project solution builds green
 
 ---
 *Initialized: 2026-04-15 at roadmap creation.*

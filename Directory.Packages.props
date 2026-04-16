@@ -33,6 +33,9 @@
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.11.0" />
     <PackageVersion Include="Testcontainers.Redis" Version="4.11.0" />
     <PackageVersion Include="Npgsql" Version="10.0.2" />
+
+    <!-- CLI framework (Apache-2.0 — GPL-compatible per FSF 13) -->
+    <PackageVersion Include="Spectre.Console.Cli" Version="0.49.1" />
   </ItemGroup>
 
   <ItemGroup>

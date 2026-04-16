@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>GameKit.Matchmaking</PackageId>
+    <Description>Matchmaking package for GameKit — Redis-backed queue, party-aware strategy, leader election. Phase 5 deliverable.</Description>
+    <PackageTags>gamekit;matchmaking;redis;queue;gpl</PackageTags>
+    <RootNamespace>GameKit.Matchmaking</RootNamespace>
+    <AssemblyName>GameKit.Matchmaking</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+  </ItemGroup>
+</Project>

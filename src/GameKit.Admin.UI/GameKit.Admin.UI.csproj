@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>GameKit.Admin.UI</PackageId>
+    <Description>Admin UI package for GameKit — Blazor Server Razor Class Library with player management, audit log, health dashboard. Phase 3 deliverable.</Description>
+    <PackageTags>gamekit;admin;blazor;dashboard;gpl</PackageTags>
+    <RootNamespace>GameKit.Admin.UI</RootNamespace>
+    <AssemblyName>GameKit.Admin.UI</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+  </ItemGroup>
+</Project>

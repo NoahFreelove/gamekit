@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>GameKit.Presence</PackageId>
+    <Description>Presence package for GameKit — Redis TTL-keyed heartbeat, online/offline/in-match status. Phase 6 deliverable.</Description>
+    <PackageTags>gamekit;presence;redis;heartbeat;gpl</PackageTags>
+    <RootNamespace>GameKit.Presence</RootNamespace>
+    <AssemblyName>GameKit.Presence</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>GameKit.Rankings</PackageId>
+    <Description>Rankings package for GameKit — windowed Glicko-2 default, seasonal reset, session-complete idempotency. Phase 4 deliverable.</Description>
+    <PackageTags>gamekit;rankings;glicko2;elo;leaderboard;gpl</PackageTags>
+    <RootNamespace>GameKit.Rankings</RootNamespace>
+    <AssemblyName>GameKit.Rankings</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -43,7 +43,10 @@ internal sealed class GdprDeleteService : IGdprDeleteService
         if (snapshot is null)
             throw new PlayerNotFoundException(playerId);
 
-        var before = JsonDocument.Parse(JsonSerializer.Serialize(snapshot));
+        // JsonDocument rents from ArrayPool — must dispose to avoid unbounded pool retention
+        // under sustained GDPR delete load. It is disposed after SaveChangesAsync has serialized
+        // the jsonb payload to Postgres.
+        using var before = JsonDocument.Parse(JsonSerializer.Serialize(snapshot));
 
         _ctx.AdminAuditLog.Add(new AdminAuditLog
         {

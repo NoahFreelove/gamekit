@@ -119,8 +119,8 @@
 - [x] **OPS-03**: Central Package Management (`Directory.Packages.props`) — versions consistent across all packages
 - [ ] **OPS-04**: Coordinated SemVer release train: all 6 packages stamp the same MinVer-derived version per release; sibling refs exact-pinned `[X.Y.Z]`
 - [ ] **OPS-05**: Runtime startup assertion: all GameKit packages report matching `GameKitVersion` constant; fail-fast on mismatch
-- [ ] **OPS-06**: CI clean-install integration test: install all 6 packages onto empty Postgres, run `Database.Migrate()`, assert no model snapshot drift
-- [ ] **OPS-07**: Runtime guard test: assert library performs zero outbound HTTP except via configured providers (no telemetry, no phone-home)
+- [x] **OPS-06**: CI clean-install integration test: install all 6 packages onto empty Postgres, run `Database.Migrate()`, assert no model snapshot drift
+- [x] **OPS-07**: Runtime guard test: assert library performs zero outbound HTTP except via configured providers (no telemetry, no phone-home)
 - [x] **OPS-08**: All integration tests use Testcontainers for Postgres + Redis (no shared-state fixtures, no skip-if-no-docker fallbacks)
 - [x] **OPS-09**: Cross-schema FK direction enforced in code review/docs: only `public` → `gamekit` allowed
 - [x] **OPS-10**: README explicitly enumerates anti-features (no AI, no cloud, no telemetry, no hosting, etc.) to set scope expectations

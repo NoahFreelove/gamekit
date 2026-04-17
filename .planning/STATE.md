@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-last_updated: "2026-04-16T15:30:50.866Z"
+status: planning
+last_updated: "2026-04-17T00:26:52.466Z"
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 7
-  completed_plans: 6
-  percent: 86
+  completed_plans: 7
+  percent: 100
 ---
 
 # STATE: GameKit
@@ -28,11 +28,11 @@ progress:
 Phase: 01 (Foundation (Core + Migrations + Ops Defaults + GPL)) — EXECUTING
 Plan: 7 of 7
 **Milestone:** v1 (initial 6-phase build-out)
-**Phase:** 1 — Foundation (Core + Migrations + Ops Defaults + GPL)
-**Plan:** 01-06 complete — Sibling Csprojs + CLI + SampleGame
-**Status:** Executing Phase 01
+**Phase:** 2
+**Plan:** Not started
+**Status:** Ready to plan
 
-**Progress:** [█████████░] 86%
+**Progress:** [██████████] 100%
 
 **Pre-Flight Gate (Phase 1):**
 
@@ -55,6 +55,7 @@ Plan: 7 of 7
 | Phase 01 P04 | 11min | 3 tasks | 16 files |
 | Phase 01 P05 | 14min | 2 tasks | 21 files |
 | Phase 01 P06 | 5min | 3 tasks | 20 files |
+| Phase 01 P07 | 23min | 5 tasks | 37 files |
 
 ## Accumulated Context
 
@@ -87,7 +88,7 @@ Plan: 7 of 7
 | GameSessionState stored as string (HasConversion<string>) not integer | 01-03 execution — stable across enum reorderings |
 | All entity Ids use ValueGeneratedNever (UUIDv7 from IIdGenerator, not DB) | 01-03 execution — per threat T-03-05 |
 | Explicit snake_case table names in EF configs (defensive, not relying on naming convention) | 01-03 execution — Plan 04 may add UseSnakeCaseNamingConvention |
-| Advisory lock key -4919263824511932901 accepted from RESEARCH.md (live Postgres verification skipped, Plan 06 re-verifies) | 01-04 execution — port 5432 conflict with local PostgreSQL |
+| Advisory lock key corrected to 1800940027 (live Postgres 17.9 verified via Testcontainers) | 01-07 execution — RESEARCH.md value was wrong |
 | Migration timestamp renamed to 20260415000000 for deterministic cross-package ordering | 01-04 execution — EF CLI generated current timestamp |
 | EF Core InMemory provider added to test project (Npgsql with fake conn string used for model tests) | 01-04 execution — InMemory can't handle jsonb column types |
 | FrameworkReference Microsoft.AspNetCore.App replaces explicit Caching.Memory PackageReference | 01-05 execution — NU1510 warning: transitive dep redundant |
@@ -109,9 +110,9 @@ None.
 
 ## Session Continuity
 
-**Last action:** Completed 01-06-PLAN.md — Sibling Csprojs + CLI + SampleGame
+**Last action:** Completed 01-07-PLAN.md — Tests + CI + License Check + CLAUDE.md Correction (Phase 1 Complete)
 
-**Next action:** Execute 01-07-PLAN.md (final plan in Phase 1)
+**Next action:** Transition to Phase 02
 
 **Context preserved:**
 
@@ -123,9 +124,11 @@ None.
 - 01-04-SUMMARY.md (DbContext + ModelCustomizer + MigrationRunner + CoreInitial migration, 5 requirements: CORE-02/04/11/13/14)
 - 01-05-SUMMARY.md (Core runtime services + fluent builder, 6 requirements: CORE-05/10/11/12/13/16)
 - 01-06-SUMMARY.md (5 sibling csprojs + CLI + SampleGame, 3 requirements: CORE-05/CORE-13/DIST-01)
+- 01-07-SUMMARY.md (Test suite + CI + license-check, 18 requirements verified)
 - All NuGet versions verified GA on net10.0 — Npgsql bumped to 10.0.2, Caching.Memory to 10.0.6
-- FrameworkReference Microsoft.AspNetCore.App added to Core csproj (replaces explicit Caching.Memory ref)
-- Spectre.Console.Cli 0.49.1 pinned centrally; full 9-project solution builds green
+- CLAUDE.md updated from stale .NET 9 to verified .NET 10 LTS pins
+- 141 tests (130 unit + 11 integration) all green; CI pipeline ready
+- AdvisoryLockKey corrected to 1800940027 (live Postgres 17.9 verified)
 
 ---
 *Initialized: 2026-04-15 at roadmap creation.*

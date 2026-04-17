@@ -108,9 +108,15 @@ None. All open questions from PROJECT.md were resolved before research completed
 
 None.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260416-tlm | Build Tic-Tac-Toe Duel sample app demonstrating Phase 1 GameKit | 2026-04-17 | 677260e | [260416-tlm-build-tic-tac-toe-duel-sample-app-demons](./quick/260416-tlm-build-tic-tac-toe-duel-sample-app-demons/) |
+
 ## Session Continuity
 
-**Last action:** Completed 01-07-PLAN.md — Tests + CI + License Check + CLAUDE.md Correction (Phase 1 Complete)
+**Last action:** 2026-04-17 — Completed quick task 260416-tlm: Tic-Tac-Toe Duel sample (rename SampleGame → TicTacToeDuel, add demo endpoints + HTML client)
 
 **Next action:** Transition to Phase 02
 

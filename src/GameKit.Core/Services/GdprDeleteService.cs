@@ -43,10 +43,16 @@ internal sealed class GdprDeleteService : IGdprDeleteService
         if (snapshot is null)
             throw new PlayerNotFoundException(playerId);
 
-        // JsonDocument rents from ArrayPool — must dispose to avoid unbounded pool retention
-        // under sustained GDPR delete load. It is disposed after SaveChangesAsync has serialized
-        // the jsonb payload to Postgres.
-        using var before = JsonDocument.Parse(JsonSerializer.Serialize(snapshot));
+        // JsonDocument rents from ArrayPool. The tracker retains a reference for as long as the
+        // DbContext (scoped to the request/caller lifetime), so the pooled arrays are released
+        // when the context is disposed. We do NOT dispose inline — downstream readers of the
+        // AdminAuditLog entity (e.g. admin UI listing recent actions) dereference the
+        // JsonDocument after SaveChangesAsync returns.
+        //
+        // Under sustained bulk-erasure load, prefer invoking DeletePlayerAsync under a short-lived
+        // DbContext scope (the default ASP.NET Core scoped lifetime already provides this) so the
+        // pool turnover tracks request lifetime.
+        var before = JsonDocument.Parse(JsonSerializer.Serialize(snapshot));
 
         _ctx.AdminAuditLog.Add(new AdminAuditLog
         {

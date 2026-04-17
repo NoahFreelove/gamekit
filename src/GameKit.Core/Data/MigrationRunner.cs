@@ -56,11 +56,25 @@ public static class MigrationRunner
             }
             finally
             {
-                await using var unlockCmd = connection.CreateCommand();
-                unlockCmd.CommandText = "SELECT pg_advisory_unlock(@k)";
-                var param = new NpgsqlParameter("k", GameKitMigrationConstants.AdvisoryLockKey);
-                unlockCmd.Parameters.Add(param);
-                await unlockCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                // Best-effort unlock. We pass CancellationToken.None because the outer token may
+                // have already fired (the reason we're in the finally) and we still want to try
+                // releasing the lock. If the unlock itself throws (e.g. connection broken by
+                // cancellation), the session-level advisory lock is released automatically when
+                // the connection is closed/returned to the pool below — so swallowing here is safe.
+                try
+                {
+                    await using var unlockCmd = connection.CreateCommand();
+                    unlockCmd.CommandText = "SELECT pg_advisory_unlock(@k)";
+                    var param = new NpgsqlParameter("k", GameKitMigrationConstants.AdvisoryLockKey);
+                    unlockCmd.Parameters.Add(param);
+                    await unlockCmd.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Intentionally swallowed: the session-level advisory lock is released when
+                    // the connection is closed (see outer finally). Do not mask the original
+                    // exception from MigrateAsync with an unlock failure.
+                }
             }
         }
         finally

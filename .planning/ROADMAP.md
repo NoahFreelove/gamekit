@@ -68,7 +68,15 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
   5. Attempting to authenticate with an unrecognized identity while already holding a session returns a `link-or-switch` challenge rather than silently merging.
   6. Rate-limiter integration tests confirm `/auth/login`, `/auth/refresh`, and `/auth/register` return 429 under burst load from a single client.
 
-**Plans**: TBD
+**Plans**: 8 plans
+- [ ] 02-01-test-scaffolding-PLAN.md — Wave 0 test projects, WireMock Steam/Discord mocks, AuthIntegrationFixture, Directory.Packages.props pins for Auth stack
+- [ ] 02-02-entities-migration-PLAN.md — PlayerIdentity/PlayerCredential/RefreshToken entities + EF configurations + AuthInitial migration under __ef_migrations_auth; UNIQUE(provider, external_id) is the D-14 race anchor
+- [ ] 02-03-options-builder-egress-PLAN.md — GameKitAuthOptions/JwtOptions/SteamOptions/DiscordOptions; AddAuth fluent extension; EgressAllowListHandler + named HttpClients (D-07/D-08/D-10); UseAuthentication ordering fix
+- [ ] 02-04-jwt-password-refresh-PLAN.md — IPasswordHasher + BCryptPasswordHasher; JwtIssuer with D-03 claims; IsGuestResolver (D-13); RefreshTokenService with Pattern 3 rotation + 45s grace + fingerprint gate + family revocation + audit log
+- [ ] 02-05-steam-discord-providers-PLAN.md — IOAuthProvider contract + SteamOAuthProvider + DiscordOAuthProvider (identify scope only); Scrutor discovery; auth scheme wiring for JwtBearer + Steam + Discord; mock-level forgery test
+- [ ] 02-06-guest-password-upgrade-PLAN.md — GuestOAuthProvider + PasswordOAuthProvider + GuestUpgradeService + IdentityLinker; concurrent-upgrade race test (success #4); cross-player collision test with ExternalIdHasher (success #5)
+- [ ] 02-07-endpoints-validation-ratelimit-PLAN.md — /auth/* minimal API endpoints + FluentValidation endpoint filter + rate-limit policies (login 10/min, refresh 60/min, register 5/min); WebApplicationFactory end-to-end tests for success #1, #3, #6 + end-to-end Steam forgery #2
+- [ ] 02-08-sample-app-updates-PLAN.md — TicTacToeDuel Program.cs AddAuth + startup hardening; HTML client X-GameKit-Device + JWT localStorage + 401-refresh-retry; README auth section with localStorage/XSS/signing-key disclaimers; human-verify checkpoint
 **UI hint**: no
 
 ### Phase 3: Admin UI
@@ -87,7 +95,15 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
   5. CSRF and CSP integration tests confirm mutations require a valid anti-CSRF token and that admin pages ship a CSP header blocking framing.
   6. A player JWT cannot authenticate into any admin endpoint (integration test asserts 404/403 regardless of valid player token).
 
-**Plans**: TBD
+**Plans**: 8 plans
+- [ ] 02-01-test-scaffolding-PLAN.md — Wave 0 test projects, WireMock Steam/Discord mocks, AuthIntegrationFixture, Directory.Packages.props pins for Auth stack
+- [ ] 02-02-entities-migration-PLAN.md — PlayerIdentity/PlayerCredential/RefreshToken entities + EF configurations + AuthInitial migration under __ef_migrations_auth; UNIQUE(provider, external_id) is the D-14 race anchor
+- [ ] 02-03-options-builder-egress-PLAN.md — GameKitAuthOptions/JwtOptions/SteamOptions/DiscordOptions; AddAuth fluent extension; EgressAllowListHandler + named HttpClients (D-07/D-08/D-10); UseAuthentication ordering fix
+- [ ] 02-04-jwt-password-refresh-PLAN.md — IPasswordHasher + BCryptPasswordHasher; JwtIssuer with D-03 claims; IsGuestResolver (D-13); RefreshTokenService with Pattern 3 rotation + 45s grace + fingerprint gate + family revocation + audit log
+- [ ] 02-05-steam-discord-providers-PLAN.md — IOAuthProvider contract + SteamOAuthProvider + DiscordOAuthProvider (identify scope only); Scrutor discovery; auth scheme wiring for JwtBearer + Steam + Discord; mock-level forgery test
+- [ ] 02-06-guest-password-upgrade-PLAN.md — GuestOAuthProvider + PasswordOAuthProvider + GuestUpgradeService + IdentityLinker; concurrent-upgrade race test (success #4); cross-player collision test with ExternalIdHasher (success #5)
+- [ ] 02-07-endpoints-validation-ratelimit-PLAN.md — /auth/* minimal API endpoints + FluentValidation endpoint filter + rate-limit policies (login 10/min, refresh 60/min, register 5/min); WebApplicationFactory end-to-end tests for success #1, #3, #6 + end-to-end Steam forgery #2
+- [ ] 02-08-sample-app-updates-PLAN.md — TicTacToeDuel Program.cs AddAuth + startup hardening; HTML client X-GameKit-Device + JWT localStorage + 401-refresh-retry; README auth section with localStorage/XSS/signing-key disclaimers; human-verify checkpoint
 **UI hint**: yes
 
 ### Phase 4: Rankings + Sessions Wiring + GDPR Export
@@ -106,7 +122,15 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
   5. `GET /api/players/{id}/export` returns a JSON bundle containing the player row, identities, credentials metadata (no password hash), sessions participated in, and rating history across all ladders; a contract test asserts the schema.
   6. A manual rank adjustment through the Phase 3 admin panel writes a before/after row to `admin_audit_log` and updates the player's rating in a single transaction.
 
-**Plans**: TBD
+**Plans**: 8 plans
+- [ ] 02-01-test-scaffolding-PLAN.md — Wave 0 test projects, WireMock Steam/Discord mocks, AuthIntegrationFixture, Directory.Packages.props pins for Auth stack
+- [ ] 02-02-entities-migration-PLAN.md — PlayerIdentity/PlayerCredential/RefreshToken entities + EF configurations + AuthInitial migration under __ef_migrations_auth; UNIQUE(provider, external_id) is the D-14 race anchor
+- [ ] 02-03-options-builder-egress-PLAN.md — GameKitAuthOptions/JwtOptions/SteamOptions/DiscordOptions; AddAuth fluent extension; EgressAllowListHandler + named HttpClients (D-07/D-08/D-10); UseAuthentication ordering fix
+- [ ] 02-04-jwt-password-refresh-PLAN.md — IPasswordHasher + BCryptPasswordHasher; JwtIssuer with D-03 claims; IsGuestResolver (D-13); RefreshTokenService with Pattern 3 rotation + 45s grace + fingerprint gate + family revocation + audit log
+- [ ] 02-05-steam-discord-providers-PLAN.md — IOAuthProvider contract + SteamOAuthProvider + DiscordOAuthProvider (identify scope only); Scrutor discovery; auth scheme wiring for JwtBearer + Steam + Discord; mock-level forgery test
+- [ ] 02-06-guest-password-upgrade-PLAN.md — GuestOAuthProvider + PasswordOAuthProvider + GuestUpgradeService + IdentityLinker; concurrent-upgrade race test (success #4); cross-player collision test with ExternalIdHasher (success #5)
+- [ ] 02-07-endpoints-validation-ratelimit-PLAN.md — /auth/* minimal API endpoints + FluentValidation endpoint filter + rate-limit policies (login 10/min, refresh 60/min, register 5/min); WebApplicationFactory end-to-end tests for success #1, #3, #6 + end-to-end Steam forgery #2
+- [ ] 02-08-sample-app-updates-PLAN.md — TicTacToeDuel Program.cs AddAuth + startup hardening; HTML client X-GameKit-Device + JWT localStorage + 401-refresh-retry; README auth section with localStorage/XSS/signing-key disclaimers; human-verify checkpoint
 **UI hint**: no
 
 ### Phase 5: Matchmaking + Parties
@@ -125,7 +149,15 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
   5. Per-player enqueue rate limiting returns 429 on a client spamming `/mm/queue` and does not poison the queue with duplicate tickets.
   6. The Phase 3 Admin UI queue-depth + health panels display live Redis state (queue counts per pool, lease count, leader identity) sourced from Redis, not from Postgres reconciliation mirrors.
 
-**Plans**: TBD
+**Plans**: 8 plans
+- [ ] 02-01-test-scaffolding-PLAN.md — Wave 0 test projects, WireMock Steam/Discord mocks, AuthIntegrationFixture, Directory.Packages.props pins for Auth stack
+- [ ] 02-02-entities-migration-PLAN.md — PlayerIdentity/PlayerCredential/RefreshToken entities + EF configurations + AuthInitial migration under __ef_migrations_auth; UNIQUE(provider, external_id) is the D-14 race anchor
+- [ ] 02-03-options-builder-egress-PLAN.md — GameKitAuthOptions/JwtOptions/SteamOptions/DiscordOptions; AddAuth fluent extension; EgressAllowListHandler + named HttpClients (D-07/D-08/D-10); UseAuthentication ordering fix
+- [ ] 02-04-jwt-password-refresh-PLAN.md — IPasswordHasher + BCryptPasswordHasher; JwtIssuer with D-03 claims; IsGuestResolver (D-13); RefreshTokenService with Pattern 3 rotation + 45s grace + fingerprint gate + family revocation + audit log
+- [ ] 02-05-steam-discord-providers-PLAN.md — IOAuthProvider contract + SteamOAuthProvider + DiscordOAuthProvider (identify scope only); Scrutor discovery; auth scheme wiring for JwtBearer + Steam + Discord; mock-level forgery test
+- [ ] 02-06-guest-password-upgrade-PLAN.md — GuestOAuthProvider + PasswordOAuthProvider + GuestUpgradeService + IdentityLinker; concurrent-upgrade race test (success #4); cross-player collision test with ExternalIdHasher (success #5)
+- [ ] 02-07-endpoints-validation-ratelimit-PLAN.md — /auth/* minimal API endpoints + FluentValidation endpoint filter + rate-limit policies (login 10/min, refresh 60/min, register 5/min); WebApplicationFactory end-to-end tests for success #1, #3, #6 + end-to-end Steam forgery #2
+- [ ] 02-08-sample-app-updates-PLAN.md — TicTacToeDuel Program.cs AddAuth + startup hardening; HTML client X-GameKit-Device + JWT localStorage + 401-refresh-retry; README auth section with localStorage/XSS/signing-key disclaimers; human-verify checkpoint
 **UI hint**: no
 
 ### Phase 6: Presence + OpenAPI + Distribution
@@ -144,7 +176,15 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
   5. A CI release-train job stamps all 6 packages (`Core`, `Auth`, `Rankings`, `Matchmaking`, `Presence`, `Admin.UI`) with the same MinVer-derived version, exact-pins sibling references `[X.Y.Z]`, and a runtime startup assertion fails fast on any `GameKitVersion` constant mismatch across loaded assemblies.
   6. The production-readiness ops guide documents bare-metal, container, and air-gapped deployment recipes including three-role Postgres provisioning, Redis AOF configuration, JWT key management, and disaster-recovery procedures; CS1591-as-error passes across all 6 shipped packages.
 
-**Plans**: TBD
+**Plans**: 8 plans
+- [ ] 02-01-test-scaffolding-PLAN.md — Wave 0 test projects, WireMock Steam/Discord mocks, AuthIntegrationFixture, Directory.Packages.props pins for Auth stack
+- [ ] 02-02-entities-migration-PLAN.md — PlayerIdentity/PlayerCredential/RefreshToken entities + EF configurations + AuthInitial migration under __ef_migrations_auth; UNIQUE(provider, external_id) is the D-14 race anchor
+- [ ] 02-03-options-builder-egress-PLAN.md — GameKitAuthOptions/JwtOptions/SteamOptions/DiscordOptions; AddAuth fluent extension; EgressAllowListHandler + named HttpClients (D-07/D-08/D-10); UseAuthentication ordering fix
+- [ ] 02-04-jwt-password-refresh-PLAN.md — IPasswordHasher + BCryptPasswordHasher; JwtIssuer with D-03 claims; IsGuestResolver (D-13); RefreshTokenService with Pattern 3 rotation + 45s grace + fingerprint gate + family revocation + audit log
+- [ ] 02-05-steam-discord-providers-PLAN.md — IOAuthProvider contract + SteamOAuthProvider + DiscordOAuthProvider (identify scope only); Scrutor discovery; auth scheme wiring for JwtBearer + Steam + Discord; mock-level forgery test
+- [ ] 02-06-guest-password-upgrade-PLAN.md — GuestOAuthProvider + PasswordOAuthProvider + GuestUpgradeService + IdentityLinker; concurrent-upgrade race test (success #4); cross-player collision test with ExternalIdHasher (success #5)
+- [ ] 02-07-endpoints-validation-ratelimit-PLAN.md — /auth/* minimal API endpoints + FluentValidation endpoint filter + rate-limit policies (login 10/min, refresh 60/min, register 5/min); WebApplicationFactory end-to-end tests for success #1, #3, #6 + end-to-end Steam forgery #2
+- [ ] 02-08-sample-app-updates-PLAN.md — TicTacToeDuel Program.cs AddAuth + startup hardening; HTML client X-GameKit-Device + JWT localStorage + 401-refresh-retry; README auth section with localStorage/XSS/signing-key disclaimers; human-verify checkpoint
 **UI hint**: no
 
 ## Progress

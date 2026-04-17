@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using GameKit.Core.Builder;
+using TicTacToeDuel.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,7 +16,13 @@ builder.Services.AddGameKit(opts =>
 
 var app = builder.Build();
 
+// Serve wwwroot/index.html at "/" — must come before UseGameKit / MapGameKit so the
+// static handler runs before any endpoint matching.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseGameKit();
-app.MapGameKit();
+app.MapGameKit();   // /api/players (RequireAuthorization — 401 in Phase 1)
+app.MapDemo();      // /demo/* (anonymous — demo only)
 
 app.Run();

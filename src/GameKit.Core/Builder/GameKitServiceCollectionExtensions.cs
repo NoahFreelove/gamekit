@@ -47,6 +47,12 @@ public static class GameKitServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentPlayer, HttpContextCurrentPlayer>();
 
+        // Register the authorization services so endpoints that call .RequireAuthorization()
+        // (e.g. GET /api/players, WR-05) have a policy evaluator available. Phase 1 ships
+        // no authentication handler, so the default-deny behavior is intentional: the
+        // endpoint 401s until Phase 2 (GameKit.Auth) wires a handler.
+        services.AddAuthorization();
+
         services.AddMemoryCache();
         services.AddScoped<IPlayerDisplayNameResolver, PlayerDisplayNameResolver>();
 

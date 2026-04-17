@@ -42,7 +42,12 @@ public static class PlayerEndpoints
                 .ToListAsync(ct);
 
             return Results.Ok(rows);
-        });
+        })
+        // Require an authenticated principal. Phase 1 does not ship an authentication handler,
+        // so — with the default-deny policy set up by UseGameKit() — this endpoint returns 401
+        // until Phase 2 wires GameKit.Auth. Exposing player ids + ban status publicly was a
+        // pre-auth security concern flagged in review (WR-05).
+        .RequireAuthorization();
 
         return group;
     }

@@ -34,6 +34,11 @@ public static class GameKitApplicationBuilderExtensions
                 .GetResult();
         }
 
+        // Register authorization middleware so endpoints carrying .RequireAuthorization()
+        // metadata (WR-05) are evaluated. Phase 1 has no authentication handler; the default
+        // policy denies — the endpoint returns 401 until Phase 2 wires GameKit.Auth.
+        app.UseAuthorization();
+
         return app;
     }
 

@@ -16,35 +16,35 @@ namespace GameKit.Core.Tests.Services;
 public class PlayerDisplayNameResolverTests
 {
     [Fact]
-    public void Resolve_Null_ReturnsDeletedPlayerDisplayName()
+    public async Task ResolveAsync_Null_ReturnsDeletedPlayerDisplayName()
     {
-        using var ctx = TestDbContextFactory.Create(nameof(Resolve_Null_ReturnsDeletedPlayerDisplayName));
+        using var ctx = TestDbContextFactory.Create(nameof(ResolveAsync_Null_ReturnsDeletedPlayerDisplayName));
         var opts = new GameKitOptions { DeletedPlayerDisplayName = "Deleted Player" };
         var cache = new MemoryCache(new MemoryCacheOptions());
 
         var resolver = new PlayerDisplayNameResolver(ctx, opts, cache);
-        var result = resolver.Resolve(null);
+        var result = await resolver.ResolveAsync(null);
 
         Assert.Equal("Deleted Player", result);
     }
 
     [Fact]
-    public void Resolve_Null_UsesCustomTombstoneName()
+    public async Task ResolveAsync_Null_UsesCustomTombstoneName()
     {
-        using var ctx = TestDbContextFactory.Create(nameof(Resolve_Null_UsesCustomTombstoneName));
+        using var ctx = TestDbContextFactory.Create(nameof(ResolveAsync_Null_UsesCustomTombstoneName));
         var opts = new GameKitOptions { DeletedPlayerDisplayName = "Anonymous" };
         var cache = new MemoryCache(new MemoryCacheOptions());
 
         var resolver = new PlayerDisplayNameResolver(ctx, opts, cache);
-        var result = resolver.Resolve(null);
+        var result = await resolver.ResolveAsync(null);
 
         Assert.Equal("Anonymous", result);
     }
 
     [Fact]
-    public void Resolve_ExistingPlayer_ReturnsDisplayName()
+    public async Task ResolveAsync_ExistingPlayer_ReturnsDisplayName()
     {
-        using var ctx = TestDbContextFactory.Create(nameof(Resolve_ExistingPlayer_ReturnsDisplayName));
+        using var ctx = TestDbContextFactory.Create(nameof(ResolveAsync_ExistingPlayer_ReturnsDisplayName));
         var playerId = Guid.NewGuid();
         ctx.Players.Add(new Player
         {
@@ -58,28 +58,28 @@ public class PlayerDisplayNameResolverTests
         var cache = new MemoryCache(new MemoryCacheOptions());
 
         var resolver = new PlayerDisplayNameResolver(ctx, opts, cache);
-        var result = resolver.Resolve(playerId);
+        var result = await resolver.ResolveAsync(playerId);
 
         Assert.Equal("Alice", result);
     }
 
     [Fact]
-    public void Resolve_MissingPlayer_ReturnsTombstone()
+    public async Task ResolveAsync_MissingPlayer_ReturnsTombstone()
     {
-        using var ctx = TestDbContextFactory.Create(nameof(Resolve_MissingPlayer_ReturnsTombstone));
+        using var ctx = TestDbContextFactory.Create(nameof(ResolveAsync_MissingPlayer_ReturnsTombstone));
         var opts = new GameKitOptions { DeletedPlayerDisplayName = "Gone" };
         var cache = new MemoryCache(new MemoryCacheOptions());
 
         var resolver = new PlayerDisplayNameResolver(ctx, opts, cache);
-        var result = resolver.Resolve(Guid.NewGuid());
+        var result = await resolver.ResolveAsync(Guid.NewGuid());
 
         Assert.Equal("Gone", result);
     }
 
     [Fact]
-    public void Resolve_CachesResult()
+    public async Task ResolveAsync_CachesResult()
     {
-        using var ctx = TestDbContextFactory.Create(nameof(Resolve_CachesResult));
+        using var ctx = TestDbContextFactory.Create(nameof(ResolveAsync_CachesResult));
         var playerId = Guid.NewGuid();
         ctx.Players.Add(new Player
         {
@@ -95,7 +95,7 @@ public class PlayerDisplayNameResolverTests
         var resolver = new PlayerDisplayNameResolver(ctx, opts, cache);
 
         // First call populates cache
-        var first = resolver.Resolve(playerId);
+        var first = await resolver.ResolveAsync(playerId);
         Assert.Equal("Bob", first);
 
         // Remove from DB — cache should still return Bob
@@ -103,7 +103,7 @@ public class PlayerDisplayNameResolverTests
         ctx.Players.Remove(player);
         ctx.SaveChanges();
 
-        var second = resolver.Resolve(playerId);
+        var second = await resolver.ResolveAsync(playerId);
         Assert.Equal("Bob", second);
     }
 }

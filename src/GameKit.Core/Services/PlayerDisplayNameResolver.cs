@@ -2,6 +2,8 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using GameKit.Core.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -27,21 +29,24 @@ internal sealed class PlayerDisplayNameResolver : IPlayerDisplayNameResolver
     }
 
     /// <inheritdoc />
-    public string Resolve(Guid? playerId)
+    public async ValueTask<string> ResolveAsync(Guid? playerId, CancellationToken cancellationToken = default)
     {
         if (playerId is null)
             return _opts.DeletedPlayerDisplayName;
 
         var key = $"player_name:{playerId.Value:N}";
-        return _cache.GetOrCreate(key, entry =>
-        {
-            entry.SlidingExpiration = TimeSpan.FromMinutes(5);
-            var name = _ctx.Players
-                .AsNoTracking()
-                .Where(p => p.Id == playerId.Value)
-                .Select(p => p.DisplayName)
-                .FirstOrDefault();
-            return name ?? _opts.DeletedPlayerDisplayName;
-        }) ?? _opts.DeletedPlayerDisplayName;
+        if (_cache.TryGetValue(key, out string? cached) && cached is not null)
+            return cached;
+
+        var name = await _ctx.Players
+            .AsNoTracking()
+            .Where(p => p.Id == playerId.Value)
+            .Select(p => p.DisplayName)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var result = name ?? _opts.DeletedPlayerDisplayName;
+        _cache.Set(key, result, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(5) });
+        return result;
     }
 }

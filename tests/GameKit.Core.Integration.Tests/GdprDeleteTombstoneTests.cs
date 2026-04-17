@@ -113,9 +113,9 @@ public class GdprDeleteTombstoneTests
 
             // Resolver returns tombstone for null
             var resolver = scope.ServiceProvider.GetRequiredService<IPlayerDisplayNameResolver>();
-            Assert.Equal("Deleted Player", resolver.Resolve(null));
+            Assert.Equal("Deleted Player", await resolver.ResolveAsync(null));
             // Resolver returns Bob for player B
-            Assert.Equal("Bob", resolver.Resolve(playerB));
+            Assert.Equal("Bob", await resolver.ResolveAsync(playerB));
 
             // Audit log entry written
             var auditRows = await ctx.AdminAuditLog

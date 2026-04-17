@@ -2,6 +2,8 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GameKit.Core.Services;
 
@@ -13,5 +15,7 @@ namespace GameKit.Core.Services;
 public interface IPlayerDisplayNameResolver
 {
     /// <summary>Returns the live display name, or the configured tombstone when <paramref name="playerId"/> is null or missing.</summary>
-    string Resolve(Guid? playerId);
+    /// <param name="playerId">Player id to resolve; null returns the tombstone.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    ValueTask<string> ResolveAsync(Guid? playerId, CancellationToken cancellationToken = default);
 }

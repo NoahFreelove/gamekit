@@ -1,0 +1,192 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (c) 2026 GameKit contributors -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tic-Tac-Toe Duel — GameKit Phase 1 Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { margin-bottom: 0.25rem; }
+    .banner { background: #fff4c2; border: 1px solid #d9b800; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; margin: 1rem 0; }
+    .players { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .player { border: 1px solid #ccc; border-radius: 6px; padding: 0.75rem; }
+    .player h3 { margin: 0 0 0.5rem 0; font-size: 1rem; }
+    .player input { width: 100%; padding: 0.4rem; box-sizing: border-box; }
+    .player button { margin-top: 0.5rem; padding: 0.4rem 0.75rem; cursor: pointer; }
+    .player .id { display: block; margin-top: 0.4rem; font-family: monospace; font-size: 0.75rem; color: #555; word-break: break-all; }
+    .controls { margin: 1rem 0; display: flex; gap: 0.5rem; }
+    .controls button { padding: 0.5rem 1rem; cursor: pointer; }
+    .controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .grid { display: grid; grid-template-columns: repeat(3, 80px); grid-template-rows: repeat(3, 80px); gap: 4px; margin: 1rem 0; }
+    .cell { font-size: 2em; background: #f4f4f4; border: 1px solid #999; cursor: pointer; }
+    .cell:disabled { cursor: not-allowed; }
+    .cell:hover:not(:disabled) { background: #e4e4e4; }
+    .status { padding: 0.5rem 0; font-weight: bold; }
+    .status.error { color: #b00; }
+    footer { margin-top: 2rem; font-size: 0.8rem; color: #666; }
+    code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>Tic-Tac-Toe Duel</h1>
+  <div style="color:#666">GameKit Phase 1 executable demo</div>
+
+  <div class="banner">
+    <strong>DEV DEMO</strong> — <code>/demo/players/register</code> is temporary; Phase 2 replaces it with <code>GameKit.Auth</code>.
+  </div>
+
+  <section class="players">
+    <div class="player" data-team="0">
+      <h3>Player X</h3>
+      <input type="text" placeholder="display name" />
+      <button type="button" data-action="register">Register</button>
+      <span class="id"></span>
+    </div>
+    <div class="player" data-team="1">
+      <h3>Player O</h3>
+      <input type="text" placeholder="display name" />
+      <button type="button" data-action="register">Register</button>
+      <span class="id"></span>
+    </div>
+  </section>
+
+  <div class="controls">
+    <button type="button" id="start" disabled>Start game</button>
+    <button type="button" id="new" style="display:none">New game</button>
+  </div>
+
+  <div class="status" id="status">Register both players to begin.</div>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    GPL-3.0-or-later — see repo root <code>LICENSE</code>.
+  </footer>
+
+  <script>
+    const players = { 0: { id: null, name: null }, 1: { id: null, name: null } };
+    let gameId = null;
+    let currentState = null;
+
+    const statusEl = document.getElementById('status');
+    const gridEl = document.getElementById('grid');
+    const startBtn = document.getElementById('start');
+    const newBtn = document.getElementById('new');
+
+    function setStatus(msg, isError) {
+      statusEl.textContent = msg;
+      statusEl.classList.toggle('error', !!isError);
+    }
+
+    async function api(method, path, body) {
+      const res = await fetch(path, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      let payload = null;
+      try { payload = await res.json(); } catch { /* ignore */ }
+      if (!res.ok) {
+        const err = (payload && payload.error) || (payload && payload.detail) || res.statusText;
+        throw new Error(err);
+      }
+      return payload;
+    }
+
+    async function registerPlayer(team) {
+      const row = document.querySelector(`.player[data-team="${team}"]`);
+      const input = row.querySelector('input');
+      const name = input.value.trim();
+      if (!name) { setStatus('Enter a display name first.', true); return; }
+      try {
+        const res = await api('POST', '/demo/players/register', { displayName: name });
+        players[team] = { id: res.id, name: res.displayName };
+        row.querySelector('.id').textContent = `id: ${res.id}`;
+        row.querySelector('button').textContent = 'Registered';
+        row.querySelector('button').disabled = true;
+        input.disabled = true;
+        if (players[0].id && players[1].id) {
+          startBtn.disabled = false;
+          setStatus('Both players registered. Click "Start game".');
+        }
+      } catch (e) {
+        setStatus(`Register failed: ${e.message}`, true);
+      }
+    }
+
+    async function startGame() {
+      if (!players[0].id || !players[1].id) return;
+      try {
+        const state = await api('POST', '/demo/games', { playerXId: players[0].id, playerOId: players[1].id });
+        gameId = state.id;
+        currentState = state;
+        startBtn.disabled = true;
+        newBtn.style.display = 'none';
+        render(state);
+      } catch (e) {
+        setStatus(`Start failed: ${e.message}`, true);
+      }
+    }
+
+    async function makeMove(row, col) {
+      if (!currentState || currentState.outcome !== 'InProgress') return;
+      const turn = currentState.whoseTurn; // "X" or "O"
+      const team = turn === 'X' ? 0 : 1;
+      const playerId = players[team].id;
+      try {
+        const state = await api('POST', `/demo/games/${gameId}/moves`, { playerId, row, col });
+        currentState = state;
+        render(state);
+      } catch (e) {
+        setStatus(`Move rejected: ${e.message}`, true);
+      }
+    }
+
+    function render(state) {
+      gridEl.innerHTML = '';
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'cell';
+          btn.dataset.row = r;
+          btn.dataset.col = c;
+          const val = state.cells[r][c];
+          btn.textContent = val === 1 ? 'X' : val === 2 ? 'O' : '';
+          btn.disabled = val !== 0 || state.outcome !== 'InProgress';
+          btn.addEventListener('click', () => makeMove(r, c));
+          gridEl.appendChild(btn);
+        }
+      }
+
+      const x = state.participants.find(p => p.team === 0);
+      const o = state.participants.find(p => p.team === 1);
+
+      if (state.outcome === 'InProgress') {
+        const who = state.whoseTurn === 'X' ? x : o;
+        setStatus(`${who.displayName}'s turn (${state.whoseTurn})`);
+      } else if (state.outcome === 'Draw') {
+        setStatus(`Draw. (session ${state.state})`);
+        newBtn.style.display = '';
+      } else if (state.outcome === 'XWins') {
+        setStatus(`${x.displayName} wins! (session ${state.state})`);
+        newBtn.style.display = '';
+      } else if (state.outcome === 'OWins') {
+        setStatus(`${o.displayName} wins! (session ${state.state})`);
+        newBtn.style.display = '';
+      }
+    }
+
+    document.querySelectorAll('.player button[data-action="register"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const team = parseInt(btn.closest('.player').dataset.team, 10);
+        registerPlayer(team);
+      });
+    });
+    startBtn.addEventListener('click', startGame);
+    newBtn.addEventListener('click', startGame);
+  </script>
+</body>
+</html>

@@ -25,7 +25,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameKit.Cli", "src\GameKit.
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5D20AA90-6969-D8BD-9DCD-8634F4692FDA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleGame", "samples\SampleGame\SampleGame.csproj", "{50625367-18F0-4D1B-8FD7-3E6C9812F7CF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TicTacToeDuel", "samples\TicTacToeDuel\TicTacToeDuel.csproj", "{50625367-18F0-4D1B-8FD7-3E6C9812F7CF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameKit.TestFixtures", "tests\GameKit.TestFixtures\GameKit.TestFixtures.csproj", "{26DEDACB-52DD-423A-923A-1DFDCA17765B}"
 EndProject

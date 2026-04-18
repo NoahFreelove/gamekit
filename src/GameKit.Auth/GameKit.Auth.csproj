@@ -7,6 +7,14 @@
     <AssemblyName>GameKit.Auth</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <!--
+      ASP.NET Core types (Authentication primitives, IApplicationBuilder) from the shared framework.
+      The JwtBearer handler ships as a separate NuGet package in .NET 10 (it was pulled out of the
+      shared framework in .NET 8) — see PackageReference below.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
@@ -14,6 +22,26 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+
+    <!-- Named-HttpClient resilience pipelines (Polly v8 under the hood) for provider HTTP calls -->
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+
+    <!-- Password hashing (AUTH-09) + JWT signing (AUTH-10) — plan 02-04 -->
+    <PackageReference Include="BCrypt.Net-Next" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+
+    <!-- OAuth providers (plan 02-05) + Scrutor-based IOAuthProvider discovery. NOTE: -->
+    <!-- AspNet.Security.OpenId.Steam is intentionally NOT referenced (CONTEXT D-09 — -->
+    <!-- GameKit ships an in-house SteamOpenIdVerifier). See Directory.Packages.props.  -->
+    <PackageReference Include="AspNet.Security.OAuth.Discord" />
+    <PackageReference Include="Scrutor" />
+
+    <!-- HTTP request validation (plan 02-07). FluentValidation 12 + DI extensions for the   -->
+    <!-- ValidationEndpointFilter<T> generic filter; no MVC auto-validation coupling.         -->
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
 
     <!-- Design-time EF Core tooling (dotnet ef migrations add/update) — not shipped in .nupkg -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">

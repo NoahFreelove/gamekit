@@ -3,6 +3,8 @@
 
 using GameKit.Core.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace GameKit.Core.Data;
 
@@ -21,6 +23,15 @@ namespace GameKit.Core.Data;
 public sealed class GameKitDbContext : DbContext
 {
     /// <summary>Constructs the context with the supplied options. Standard EF pooling-friendly signature.</summary>
+    /// <remarks>
+    /// When the context is built via <c>AddDbContext&lt;GameKitDbContext&gt;((sp, opts) =&gt; opts.
+    /// UseApplicationServiceProvider(sp))</c> (the DI runtime path), <see cref="OnModelCreating"/>
+    /// resolves the registered <see cref="IModelBuilderExtension"/> collection from the app service
+    /// provider and applies sibling-package entity configurations. When the context is constructed
+    /// directly (design-time factories, ad-hoc migration contexts), no application service provider
+    /// is attached, the extension lookup returns null, and the model stays Core-only — matching
+    /// the per-package migration boundary.
+    /// </remarks>
     public GameKitDbContext(DbContextOptions<GameKitDbContext> options) : base(options)
     {
     }
@@ -46,8 +57,20 @@ public sealed class GameKitDbContext : DbContext
         // (PlayerConfiguration, GameSessionConfiguration, SessionParticipantConfiguration, AdminAuditLogConfiguration).
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(GameKitDbContext).Assembly);
 
-        // Sibling-package IModelBuilderExtensions are applied by GameKitModelCustomizer AFTER this method,
-        // via ReplaceService<IModelCustomizer, GameKitModelCustomizer>().
+        // Resolve sibling-package model-builder extensions from the application service provider
+        // when one is attached (runtime DI path uses UseApplicationServiceProvider(sp) —
+        // wired by AddGameKit). Migration and design-time paths construct the context directly
+        // without an app provider, so this lookup returns null and the model stays Core-only —
+        // preserving the per-package migration boundary (PITFALLS #3).
+        var appProvider = this.GetService<IDbContextOptions>()
+            .FindExtension<CoreOptionsExtension>()?
+            .ApplicationServiceProvider;
+        if (appProvider is not null)
+        {
+            foreach (var extension in appProvider.GetServices<IModelBuilderExtension>())
+                extension.ApplyTo(modelBuilder);
+        }
+
         base.OnModelCreating(modelBuilder);
     }
 }

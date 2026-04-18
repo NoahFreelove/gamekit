@@ -185,17 +185,31 @@ public class GameKitBuilderTests
     }
 
     [Fact]
-    public void AddGameKit_ReplacesModelCustomizer()
+    public void AddGameKit_DbContext_AppliesRegisteredModelBuilderExtensions()
     {
+        // Sibling packages contribute entities by registering IModelBuilderExtension —
+        // the DI-constructed GameKitDbContext receives them via constructor injection
+        // (FOLLOW-UP-02-03-01 fix). No ReplaceService<IModelCustomizer> is needed.
         var services = new ServiceCollection();
         services.AddGameKit(opts => opts.ConnectionString = TestConnectionString);
 
-        // Verify IModelCustomizer is replaced with GameKitModelCustomizer
+        var ext = new RecordingExtension();
+        services.AddSingleton<IModelBuilderExtension>(ext);
+
         var sp = services.BuildServiceProvider();
         using var scope = sp.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<GameKitDbContext>();
-        var customizer = ctx.GetService<IModelCustomizer>();
-        Assert.IsType<GameKitModelCustomizer>(customizer);
+
+        // Force model creation.
+        _ = ctx.Model;
+
+        Assert.True(ext.ApplyInvoked, "IModelBuilderExtension.ApplyTo must be invoked during OnModelCreating.");
+    }
+
+    private sealed class RecordingExtension : IModelBuilderExtension
+    {
+        public bool ApplyInvoked { get; private set; }
+        public void ApplyTo(ModelBuilder modelBuilder) => ApplyInvoked = true;
     }
 
     [Fact]

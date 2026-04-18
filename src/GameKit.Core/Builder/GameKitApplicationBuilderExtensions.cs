@@ -73,6 +73,9 @@ public static class GameKitApplicationBuilderExtensions
 
     private static GameKitDbContext BuildMigrationContext(string connectionString, IServiceProvider appServices)
     {
+        // Core-only migration context. The single-arg GameKitDbContext ctor does not receive the
+        // IEnumerable<IModelBuilderExtension>, so sibling package entities are absent from the
+        // model — matching the Core migration snapshot (per-package migration boundary, PITFALLS #3).
         var optionsBuilder = new DbContextOptionsBuilder<GameKitDbContext>()
             .UseNpgsql(connectionString, npg =>
             {
@@ -80,11 +83,7 @@ public static class GameKitApplicationBuilderExtensions
                 npg.MigrationsHistoryTable(
                     GameKitMigrationConstants.MigrationsHistoryTable,
                     GameKitMigrationConstants.SchemaName);
-            })
-            .ReplaceService<IModelCustomizer, GameKitModelCustomizer>()
-            // Wires the app DI into EF so GameKitModelCustomizer can resolve
-            // IEnumerable<IModelBuilderExtension> from sibling packages.
-            .UseApplicationServiceProvider(appServices);
+            });
 
         return new GameKitDbContext(optionsBuilder.Options);
     }

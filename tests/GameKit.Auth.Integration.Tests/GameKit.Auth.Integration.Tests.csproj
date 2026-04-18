@@ -15,6 +15,7 @@
          Microsoft.AspNetCore.App framework reference above (Phase 1 NU1510
          precedent; same pattern as GameKit.Core.Integration.Tests would use
          if it declared FrameworkReference — Plan 02-01 Task 3 fix). -->
+    <PackageReference Include="Moq" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="WireMock.Net" />

@@ -5,12 +5,6 @@ using System;
 
 namespace TicTacToeDuel.Http;
 
-/// <summary>Request body for <c>POST /demo/players/register</c>.</summary>
-public sealed record RegisterPlayerRequest(string DisplayName);
-
-/// <summary>Response body for <c>POST /demo/players/register</c>.</summary>
-public sealed record RegisterPlayerResponse(Guid Id, string DisplayName);
-
 /// <summary>Request body for <c>POST /demo/games</c>.</summary>
 public sealed record CreateGameRequest(Guid PlayerXId, Guid PlayerOId);
 

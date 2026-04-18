@@ -6,7 +6,6 @@ using GameKit.Core.Data;
 using GameKit.Core.RateLimiting;
 using GameKit.Core.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GameKit.Core.Builder;
@@ -60,15 +59,18 @@ public static class GameKitServiceCollectionExtensions
 
         services.AddSingleton<IGameKitRateLimitPolicies, GameKitRateLimitPolicies>();
 
-        services.AddDbContext<GameKitDbContext>(dbOpts =>
+        // UseApplicationServiceProvider wires the app DI into EF so GameKitDbContext.OnModelCreating
+        // can resolve IEnumerable<IModelBuilderExtension> from sibling packages (FOLLOW-UP-02-03-01
+        // resolution). Migration contexts that construct the DbContext directly (without this flag)
+        // stay Core-only because the app provider is absent there.
+        services.AddDbContext<GameKitDbContext>((sp, dbOpts) =>
             dbOpts.UseNpgsql(opts.ConnectionString, npg =>
-                {
-                    npg.MigrationsAssembly(typeof(GameKitDbContext).Assembly.FullName);
-                    npg.MigrationsHistoryTable(
-                        GameKitMigrationConstants.MigrationsHistoryTable,
-                        GameKitMigrationConstants.SchemaName);
-                })
-                .ReplaceService<IModelCustomizer, GameKitModelCustomizer>());
+            {
+                npg.MigrationsAssembly(typeof(GameKitDbContext).Assembly.FullName);
+                npg.MigrationsHistoryTable(
+                    GameKitMigrationConstants.MigrationsHistoryTable,
+                    GameKitMigrationConstants.SchemaName);
+            }).UseApplicationServiceProvider(sp));
 
         return new GameKitBuilder(services, opts);
     }

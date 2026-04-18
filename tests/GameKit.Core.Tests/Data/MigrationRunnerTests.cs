@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 GameKit contributors
 
+using System.Linq;
 using System.Reflection;
 using GameKit.Core.Data;
 using Xunit;
@@ -18,27 +19,28 @@ public class MigrationRunnerTests
     [Fact]
     public void MigrateWithLockAsync_MethodExists()
     {
-        var method = typeof(MigrationRunner).GetMethod("MigrateWithLockAsync", BindingFlags.Public | BindingFlags.Static);
-        Assert.NotNull(method);
+        var methods = typeof(MigrationRunner).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => m.Name == "MigrateWithLockAsync").ToArray();
+        Assert.NotEmpty(methods);
     }
 
     [Fact]
     public void MigrateWithLockAsync_AcceptsGameKitDbContextParameter()
     {
-        var method = typeof(MigrationRunner).GetMethod("MigrateWithLockAsync", BindingFlags.Public | BindingFlags.Static);
-        Assert.NotNull(method);
-
-        var parameters = method!.GetParameters();
-        Assert.True(parameters.Length >= 1);
-        Assert.Equal(typeof(GameKitDbContext), parameters[0].ParameterType);
+        // Two public overloads: (ctx, ct) and (ctx, lockKey, ct). Both start with GameKitDbContext.
+        var methods = typeof(MigrationRunner).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => m.Name == "MigrateWithLockAsync").ToArray();
+        Assert.NotEmpty(methods);
+        Assert.All(methods, m => Assert.Equal(typeof(GameKitDbContext), m.GetParameters()[0].ParameterType));
     }
 
     [Fact]
     public void MigrateWithLockAsync_ReturnsTask()
     {
-        var method = typeof(MigrationRunner).GetMethod("MigrateWithLockAsync", BindingFlags.Public | BindingFlags.Static);
-        Assert.NotNull(method);
-        Assert.Equal(typeof(System.Threading.Tasks.Task), method!.ReturnType);
+        var methods = typeof(MigrationRunner).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => m.Name == "MigrateWithLockAsync").ToArray();
+        Assert.NotEmpty(methods);
+        Assert.All(methods, m => Assert.Equal(typeof(System.Threading.Tasks.Task), m.ReturnType));
     }
 
     [Fact]

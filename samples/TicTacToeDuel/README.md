@@ -1,63 +1,190 @@
-# Tic-Tac-Toe Duel — GameKit Phase 1 Sample
+# Tic-Tac-Toe Duel — GameKit Phase 2 Sample
 
-Executable demo of the Phase 1 GameKit.Core surface. This is **not** a tutorial on
-building a game — it is a smoke-test backend that exercises real Postgres persistence,
-the `GameSession` state machine, the JSONB metadata column, and
-`IPlayerDisplayNameResolver` through a tiny browser client.
+Executable demo that exercises **both** `GameKit.Core` (Phase 1 — persistence + session
+lifecycle) **and** `GameKit.Auth` (Phase 2 — JWT issuance + refresh rotation +
+Steam/Discord/Guest/Password providers) from a single ASP.NET Core app.
+
+The HTML client at `wwwroot/index.html` drives `/auth/*` + `/demo/games/*` directly
+from the browser so the full flow (guest → upgrade → play → logout) is visible
+end-to-end.
 
 ## Prerequisites
 
 - .NET 10 SDK (the repo pins `SDK 10.0.106` via `global.json`)
 - Docker (for the Postgres + Redis stack defined in the repo's `docker-compose.yml`)
+- OpenSSL (any recent version — used by `scripts/gen-test-rsa-pem.sh`)
 
 ## Run
 
 ```bash
+# 1. Generate a throwaway RSA key pair for local JWT signing/validation.
+./scripts/gen-test-rsa-pem.sh
+
+# 2. Start Postgres + Redis.
 docker compose up -d
+
+# 3. Run the sample (listens on http://localhost:5000 per Properties/launchSettings.json).
 dotnet run --project samples/TicTacToeDuel
 # then open http://localhost:5000
 ```
 
-On first start the GameKit migrations run under an advisory lock and the `gamekit`
-schema is created. This is expected and takes a few seconds.
+On first start the `GameKit` + `GameKit.Auth` migrations run under advisory locks and
+the `gamekit` schema is created. This is expected and takes a few seconds.
 
 ## What it demonstrates
 
-- Registering `Player` rows through `GameKitDbContext`
-- Creating `GameSession` + two `SessionParticipant` rows (Team 0 = X, Team 1 = O) with
-  ids minted by `IIdGenerator` and timestamps from `IClock`
-- Persisting and mutating a 3x3 board in `GameSession.Metadata` (JSONB) across moves
-- Driving a session through the `Pending -> Active -> Completed` lifecycle via
-  `GameSession.Start(now)` / `GameSession.Complete(now)`
-- Recording `SessionResult.Win` / `Loss` / `Draw` per participant on terminal outcome
-- Resolving display names via `IPlayerDisplayNameResolver` (so GDPR-deleted players
-  automatically render as the configured "Deleted Player" tombstone)
+- `AddGameKit().AddAuth(...)` fluent composition with JWT + Steam + Discord options
+  read from `appsettings.Development.json`
+- Strict middleware ordering:
+  `UseRouting → UseRateLimiter → UseGameKitAuth → UseGameKit → Map*`
+  (RESEARCH §8.12 #6 — deviating causes authenticated endpoints to 401 even with a
+  valid Bearer token)
+- The full `/auth/*` HTTP surface (`/login/guest`, `/login/password`, `/register`,
+  `/refresh`, `/logout`, `/me`) driven from a browser with `Authorization: Bearer`
+  + `X-GameKit-Device` headers
+- Client-side 401 → `/auth/refresh` → retry-once token-rotation UX
+- D-12 guest-upgrade-in-place (register while authenticated as guest promotes the
+  same player id — no duplicate Player row)
+- Phase-1 game loop (`POST /demo/games`, `POST /demo/games/{id}/moves`,
+  `GET /demo/games/{id}`) with `IPlayerDisplayNameResolver` rendering
 
-## Explicitly NOT a Phase-1 concern: authentication
+## Phase 2: Authentication
 
-`POST /demo/players/register` is **deliberately unauthenticated**. It exists so the
-sample can demonstrate session lifecycle without waiting on Phase 2. It will be
-removed / replaced by `GameKit.Auth` in Phase 2. **Do not ship this pattern.**
+The HTML client stores JWTs in `localStorage` and carries two request headers on every
+`/auth/*` and `/demo/*` call:
+
+- `Authorization: Bearer <access_token>`
+- `X-GameKit-Device: <uuid>` — generated once per browser via `crypto.randomUUID()`
+  and persisted in `localStorage`
+
+The old `POST /demo/players/register` endpoint (Phase 1) has been **removed**. Player
+creation happens exclusively through `GameKit.Auth`:
+
+| Method | Path                          | Notes                                                                 |
+| ------ | ----------------------------- | --------------------------------------------------------------------- |
+| POST   | `/auth/login/guest`           | No body — issues an anonymous JWT                                     |
+| POST   | `/auth/register`              | `{ username, password }` — upgrades caller's guest JWT if present (D-12) |
+| POST   | `/auth/login/password`        | `{ username, password }`                                              |
+| POST   | `/auth/refresh`               | `{ refreshToken }` + `X-GameKit-Device` header                        |
+| POST   | `/auth/logout`                | `{ refreshToken }` — revokes the caller's family                      |
+| GET    | `/auth/me`                    | Requires Bearer JWT                                                   |
+| GET    | `/auth/challenge/{provider}`  | 302 to Steam OpenID OP or Discord OAuth2                              |
+| GET    | `/auth/callback/{provider}`   | Server-side OpenID / OAuth2 assertion verification                    |
+
+### Client token storage (localStorage) — security note
+
+The HTML client stores JWTs in `localStorage` so the browser-reload UX works.
+**This is XSS-vulnerable** — if any script executing on the page can read
+`localStorage`, the access + refresh tokens are stolen. Acceptable trade-off for a
+demo; production apps should pick one of:
+
+- HTTP-only `Secure` + `SameSite=Strict` cookies set server-side (changes the API
+  contract — `GameKit.Auth` returns tokens in the response body for portability, so
+  your shell endpoint would re-wrap them into a `Set-Cookie` header).
+- A native token cache (Android/iOS keychain, Electron preload script).
+- A Service-Worker-mediated split: refresh in a background context, access-only in
+  the page's JS.
+
+A yellow banner at the top of `index.html` surfaces this to anyone who opens the
+sample so the trade-off is visible, not implicit.
+
+### Signing-key hygiene
+
+`appsettings.Development.json` references
+`samples/TicTacToeDuel/keys/dev-priv.pem` + `dev-pub.pem`.
+
+- **Never** commit a real private key to git. `samples/TicTacToeDuel/keys/.gitignore`
+  excludes `*.pem`; `scripts/gen-test-rsa-pem.sh` prints a "local development only"
+  warning on every run.
+- In production, the private key file **must** be mode `0600` and owned by the
+  process user. Anyone who reads this file can forge tokens indistinguishable from
+  the server's.
+- Rotate: generate a new `Kid`, switch issuance to the new key, and keep the old
+  public key in the validator's `IssuerSigningKeys` collection for the
+  refresh-token lifetime (30 days by default) so existing sessions still verify.
+
+### Customizing the egress allow-list
+
+`GameKit.Auth` only talks to hosts on
+`GameKitAuthOptions.AllowedProviderHosts`. Defaults cover Steam + Discord
+(`steamcommunity.com`, `api.steampowered.com`, `discord.com`, `discordapp.com`);
+if you proxy OAuth through another host, add it:
+
+```csharp
+.AddAuth(auth =>
+{
+    // ... existing options ...
+    auth.AllowedProviderHosts.Add("id.internal.example.com");
+});
+```
+
+An off-list outbound call throws `EgressViolationException` — loud failure, not
+silent leak (T-02-14 mitigation).
+
+### Optional: wire Discord OAuth
+
+`appsettings.Development.json` ships `DISCORD_CLIENT_ID_PLACEHOLDER` +
+`DISCORD_CLIENT_SECRET_PLACEHOLDER` by default. With those placeholders, the Discord
+authentication scheme **skips registration** at startup so `/auth/challenge/discord`
+returns 400 `unknown_provider` instead of throwing. To exercise the Discord flow
+locally:
+
+1. Create a Discord application at <https://discord.com/developers/applications>.
+2. Under **OAuth2 → General**, add redirect URL `http://localhost:5000/auth/callback/discord`.
+3. Replace the placeholders in `appsettings.Development.json`:
+
+   ```json
+   "Discord": {
+     "ClientId": "<real client id>",
+     "ClientSecret": "<real client secret>",
+     "CallbackPath": "/auth/callback/discord"
+   }
+   ```
+
+The guest and password providers need no external credentials.
+
+### Optional: wire Steam OpenID
+
+Steam OpenID 2.0 does not require a client secret — the OP (`steamcommunity.com/openid`)
+verifies assertions server-side via `check_authentication`. The realm (`Steam.Realm`
+in `appsettings.Development.json`) must match the scheme + host the browser reaches
+your app on (defaults to `http://localhost:5000/`). `Steam.ApiKey` is optional; set it
+from <https://steamcommunity.com/dev/apikey> if you want Steam's `GetPlayerSummaries`
+to resolve display names.
 
 ## Endpoints used
 
-| Method | Path | Body | Returns |
-|--------|------|------|---------|
-| POST | `/demo/players/register` | `{ displayName }` | `{ id, displayName }` |
-| POST | `/demo/games` | `{ playerXId, playerOId }` | full game state |
-| POST | `/demo/games/{id}/moves` | `{ playerId, row, col }` | updated state |
-| GET  | `/demo/games/{id}` | — | current state |
+**Phase 2 `/auth/*`** — see table above.
 
-The `/api/players` endpoint from `MapGameKit()` returns `401` — this is intentional
-(Phase 1 has no authentication handler; Phase 2's `GameKit.Auth` wires one).
+**Phase 1 `/demo/*`** (game loop):
+
+| Method | Path                      | Body                       | Returns       |
+| ------ | ------------------------- | -------------------------- | ------------- |
+| POST   | `/demo/games`             | `{ playerXId, playerOId }` | full game     |
+| POST   | `/demo/games/{id}/moves`  | `{ playerId, row, col }`   | updated state |
+| GET    | `/demo/games/{id}`        | —                          | current state |
+
+`/api/players` (from `MapGameKit()`) now requires a valid Bearer JWT — Phase 2's
+`UseGameKitAuth()` wires the `JwtBearer` handler.
 
 ## Troubleshooting
 
+- **Startup error `Missing GameKit:Auth:Jwt:PrivateKeyPemPath` / file not found:**
+  Run `./scripts/gen-test-rsa-pem.sh` first. The path in `appsettings.Development.json`
+  is relative to the repo root; `dotnet run --project samples/TicTacToeDuel` runs with
+  the sample directory as the content root, but the relative path walks up to the
+  repo root where the `samples/TicTacToeDuel/keys/` directory lives.
 - **Port 5432 already in use:** override `ConnectionStrings:GameKit` in
   `appsettings.Development.json` or stop your existing Postgres.
 - **Migrations run at first startup:** expected; the advisory-lock migration runner
-  serializes the schema change.
-- **`401` on `/api/players`:** expected in Phase 1 — auth gate for Phase 2.
+  serializes the schema change for both `Core` and `Auth` packages.
+- **`401` on every `/api/players` or `/auth/me` call even after login:** check the
+  middleware order in `Program.cs` matches
+  `UseRouting → UseRateLimiter → UseGameKitAuth → UseGameKit → Map*`.
+- **`EgressViolationException` in logs:** you're calling an external host not on the
+  allow-list. Either add the host (see "Customizing the egress allow-list" above) or
+  check that `SteamOptions.Realm` / `DiscordOptions.ClientId` point at the intended
+  service.
 
 ---
 

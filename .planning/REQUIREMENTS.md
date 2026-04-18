@@ -29,22 +29,22 @@
 
 ### Authentication (Auth Package)
 
-- [ ] **AUTH-01**: Library ships as `GameKit.Auth` NuGet package
+- [x] **AUTH-01**: Library ships as `GameKit.Auth` NuGet package
 - [x] **AUTH-02**: `player_identities` entity (provider, external_id, display_name, avatar_url, metadata, timestamps) with unique `(provider, external_id)` constraint
 - [x] **AUTH-03**: `player_credentials` entity (player_id PK, password_hash, updated_at) — separate from identities
 - [x] **AUTH-04**: `refresh_tokens` entity with hashed token (SHA-256), issued_at, expires_at, revoked_at, `replaced_by` chain
-- [ ] **AUTH-05**: `IOAuthProvider` interface — pluggable
-- [ ] **AUTH-06**: Steam OAuth provider (in-house OpenID 2.0, server-side `check_authentication` round-trip)
-- [ ] **AUTH-07**: Discord OAuth provider (`identify` scope only, no scope creep)
-- [ ] **AUTH-08**: Guest provider (anonymous account creation)
-- [ ] **AUTH-09**: Username/Password provider with BCrypt.Net-Next password hashing
-- [ ] **AUTH-10**: JWT issuance via `Microsoft.AspNetCore.Authentication.JwtBearer` with configurable issuer/audience/secret/lifetimes
-- [ ] **AUTH-11**: Refresh token rotation with reuse-attack detection (using `replaced_by` chain to revoke entire family)
-- [ ] **AUTH-12**: Reuse-interval grace window (30–60s) with client-fingerprint check to prevent mobile-resume false positives
-- [ ] **AUTH-13**: Guest → real account upgrade in a SERIALIZABLE transaction, protected by unique constraint
-- [ ] **AUTH-14**: Identity link/switch challenge policy (explicit user choice when login matches existing player)
-- [ ] **AUTH-15**: Rate limits applied to `/auth/login`, `/auth/refresh`, `/auth/register`
-- [ ] **AUTH-16**: `IPasswordHasher` interface allowing future Argon2 sibling package without breaking change
+- [x] **AUTH-05**: `IOAuthProvider` interface — pluggable
+- [x] **AUTH-06**: Steam OAuth provider (in-house OpenID 2.0, server-side `check_authentication` round-trip)
+- [x] **AUTH-07**: Discord OAuth provider (`identify` scope only, no scope creep)
+- [x] **AUTH-08**: Guest provider (anonymous account creation)
+- [x] **AUTH-09**: Username/Password provider with BCrypt.Net-Next password hashing
+- [x] **AUTH-10**: JWT issuance via `Microsoft.AspNetCore.Authentication.JwtBearer` with configurable issuer/audience/secret/lifetimes
+- [x] **AUTH-11**: Refresh token rotation with reuse-attack detection (using `replaced_by` chain to revoke entire family)
+- [x] **AUTH-12**: Reuse-interval grace window (30–60s) with client-fingerprint check to prevent mobile-resume false positives
+- [x] **AUTH-13**: Guest → real account upgrade in a SERIALIZABLE transaction, protected by unique constraint
+- [x] **AUTH-14**: Identity link/switch challenge policy (explicit user choice when login matches existing player)
+- [x] **AUTH-15**: Rate limits applied to `/auth/login`, `/auth/refresh`, `/auth/register`
+- [x] **AUTH-16**: `IPasswordHasher` interface allowing future Argon2 sibling package without breaking change
 
 ### Admin UI (Admin.UI Package)
 
@@ -180,7 +180,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | CORE-01..17 | Phase 1 | Pending |
 | OPS-01, OPS-02, OPS-03, OPS-06, OPS-07, OPS-08, OPS-09, OPS-10 | Phase 1 | Pending |
 | DIST-01 (initial: Postgres/Redis + roles) | Phase 1 | Pending |
-| AUTH-01..16 | Phase 2 | Pending |
+| AUTH-01..16 | Phase 2 | Complete (2026-04-18) |
 | ADMIN-01..12 | Phase 3 | Pending |
 | RANK-01..14 | Phase 4 | Pending |
 | MATCH-01..15 | Phase 5 | Pending |

@@ -17,65 +17,30 @@ using TicTacToeDuel.Game;
 namespace TicTacToeDuel.Http;
 
 /// <summary>
-/// Phase-1 demo endpoints for TicTacToeDuel. Deliberately anonymous — auth arrives in Phase 2
-/// (GameKit.Auth). Do NOT copy the <c>/demo/players/register</c> pattern into production code.
+/// Phase-2 demo endpoints for TicTacToeDuel. Player registration has moved to
+/// <c>GameKit.Auth</c> (<c>/auth/register</c>, <c>/auth/login/guest</c>, <c>/auth/login/password</c>);
+/// only the game-session endpoints live here now. The Phase-1 anonymous
+/// player-register route was intentionally removed when <c>GameKit.Auth</c> landed
+/// (plan 02-08).
 /// </summary>
 public static class DemoEndpoints
 {
-    /// <summary>Maps the <c>/demo/*</c> endpoint group (players register, games create/get/move).</summary>
+    /// <summary>Maps the <c>/demo/*</c> endpoint group (game create / get / move).</summary>
     public static IEndpointRouteBuilder MapDemo(this IEndpointRouteBuilder routes)
     {
         ArgumentNullException.ThrowIfNull(routes);
 
         var group = routes.MapGroup("/demo").WithTags("TicTacToeDuel.Demo");
 
-        // TEMPORARY DEMO ENDPOINT — will be replaced by GameKit.Auth in Phase 2.
-        // Inserts a Player row directly. No password, no OAuth, no rate-limiting.
-        // DO NOT copy this pattern into production code.
-        group.MapPost("/players/register", RegisterPlayerAsync);
-
+        // The Phase-1 anonymous player-register route was removed in Phase 2 (plan 02-08).
+        // Clients now drive /auth/register + /auth/login/guest + /auth/login/password
+        // directly; the resulting JWT carries `sub` = player id for use in the game
+        // endpoints below.
         group.MapPost("/games", CreateGameAsync);
         group.MapGet("/games/{id:guid}", GetGameAsync);
         group.MapPost("/games/{id:guid}/moves", ApplyMoveAsync);
 
         return routes;
-    }
-
-    private static async Task<IResult> RegisterPlayerAsync(
-        RegisterPlayerRequest req,
-        GameKitDbContext db,
-        IClock clock,
-        IIdGenerator ids,
-        CancellationToken ct)
-    {
-        if (req is null || string.IsNullOrWhiteSpace(req.DisplayName))
-            return Results.BadRequest(new { error = "displayName is required" });
-
-        var name = req.DisplayName.Trim();
-        if (name.Length is < 1 or > 50)
-            return Results.BadRequest(new { error = "displayName must be 1..50 characters" });
-
-        var id = ids.NewId();
-        db.Players.Add(new Player
-        {
-            Id = id,
-            DisplayName = name,
-            CreatedAt = clock.UtcNow,
-        });
-
-        try
-        {
-            await db.SaveChangesAsync(ct).ConfigureAwait(false);
-        }
-        catch (DbUpdateException ex)
-        {
-            return Results.Problem(
-                title: "failed to register player",
-                detail: ex.InnerException?.Message ?? ex.Message,
-                statusCode: StatusCodes.Status500InternalServerError);
-        }
-
-        return Results.Ok(new RegisterPlayerResponse(id, name));
     }
 
     private static async Task<IResult> CreateGameAsync(

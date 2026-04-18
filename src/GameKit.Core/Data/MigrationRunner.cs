@@ -28,8 +28,22 @@ public static class MigrationRunner
     /// </summary>
     /// <param name="context">The <see cref="GameKitDbContext"/> to migrate.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    public static Task MigrateWithLockAsync(
+        GameKitDbContext context,
+        CancellationToken cancellationToken = default)
+        => MigrateWithLockAsync(context, GameKitMigrationConstants.AdvisoryLockKey, cancellationToken);
+
+    /// <summary>
+    /// Sibling-package overload — applies migrations under a caller-supplied advisory-lock key.
+    /// Each package pins its own distinct key (<c>hashtext('gamekit.&lt;package&gt;.migrations')::bigint</c>)
+    /// so Core/Auth/Rankings/… do not deadlock on a shared lock during startup.
+    /// </summary>
+    /// <param name="context">A <see cref="GameKitDbContext"/> configured with the package's migrations assembly + history table.</param>
+    /// <param name="advisoryLockKey">The package's pinned <c>pg_advisory_lock</c> key.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public static async Task MigrateWithLockAsync(
         GameKitDbContext context,
+        long advisoryLockKey,
         CancellationToken cancellationToken = default)
     {
         var connection = context.Database.GetDbConnection();
@@ -45,7 +59,7 @@ public static class MigrationRunner
             await using (var lockCmd = connection.CreateCommand())
             {
                 lockCmd.CommandText = "SELECT pg_advisory_lock(@k)";
-                var param = new NpgsqlParameter("k", GameKitMigrationConstants.AdvisoryLockKey);
+                var param = new NpgsqlParameter("k", advisoryLockKey);
                 lockCmd.Parameters.Add(param);
                 await lockCmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -65,7 +79,7 @@ public static class MigrationRunner
                 {
                     await using var unlockCmd = connection.CreateCommand();
                     unlockCmd.CommandText = "SELECT pg_advisory_unlock(@k)";
-                    var param = new NpgsqlParameter("k", GameKitMigrationConstants.AdvisoryLockKey);
+                    var param = new NpgsqlParameter("k", advisoryLockKey);
                     unlockCmd.Parameters.Add(param);
                     await unlockCmd.ExecuteNonQueryAsync(CancellationToken.None).ConfigureAwait(false);
                 }

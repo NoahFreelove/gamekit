@@ -39,6 +39,20 @@
 
     <!-- CLI framework (Apache-2.0 — GPL-compatible per FSF 13) -->
     <PackageVersion Include="Spectre.Console.Cli" Version="0.49.1" />
+
+    <!-- Auth stack (Phase 2 — verified GA on net10.0 on 2026-04-18 per 02-RESEARCH.md §4, §8.13) -->
+    <!-- NOTE: the Steam contrib OpenID provider is intentionally NOT pinned per D-09            -->
+    <!-- (02-CONTEXT.md). GameKit ships an in-house SteamOpenIdVerifier; the contrib package     -->
+    <!-- must not be added as a dependency. See .planning/STATE.md Decisions Locked.             -->
+    <PackageVersion Include="AspNet.Security.OAuth.Discord" Version="10.0.0" />
+    <PackageVersion Include="BCrypt.Net-Next" Version="4.1.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.5.0" />
+    <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.3.0" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
+
+    <!-- Auth test stack -->
+    <PackageVersion Include="WireMock.Net" Version="2.2.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

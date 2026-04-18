@@ -10,5 +10,6 @@
     <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="WireMock.Net" />
   </ItemGroup>
 </Project>

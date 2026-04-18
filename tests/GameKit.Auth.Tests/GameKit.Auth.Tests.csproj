@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Auth.Tests</RootNamespace>
+    <AssemblyName>GameKit.Auth.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Moq" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
+  </ItemGroup>
+</Project>

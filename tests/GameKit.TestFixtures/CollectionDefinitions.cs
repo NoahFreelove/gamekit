@@ -17,3 +17,14 @@ public sealed class RedisCollection : ICollectionFixture<RedisFixture> { }
 [CollectionDefinition("PostgresAndRedis")]
 public sealed class PostgresAndRedisCollection
     : ICollectionFixture<PostgresFixture>, ICollectionFixture<RedisFixture> { }
+
+/// <summary>
+/// xUnit collection for Phase-2 Auth integration tests. Bundles Postgres + Redis + WireMock
+/// into a single shared-fixture scope so container startup cost is paid once per run.
+/// Test classes reference it via <c>[Collection("Auth")]</c>.
+/// </summary>
+[CollectionDefinition("Auth")]
+public sealed class AuthCollection
+    : ICollectionFixture<PostgresFixture>,
+      ICollectionFixture<RedisFixture>,
+      ICollectionFixture<WireMockFixture> { }

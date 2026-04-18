@@ -9,4 +9,16 @@
   <ItemGroup>
     <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- EF Core + Postgres provider (versions pinned centrally in Directory.Packages.props) -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+
+    <!-- Design-time EF Core tooling (dotnet ef migrations add/update) — not shipped in .nupkg -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
 </Project>

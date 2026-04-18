@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-04-17T03:24:56.842Z"
+status: executing
+last_updated: "2026-04-18T18:02:23Z"
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  total_plans: 15
+  completed_plans: 9
+  percent: 60
 ---
 
 # STATE: GameKit
@@ -21,23 +21,24 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 01 — Foundation (Core + Migrations + Ops Defaults + GPL)
+**Current Focus:** Phase 02 — Authentication
 
 ## Current Position
 
-Phase: 01 (Foundation (Core + Migrations + Ops Defaults + GPL)) — EXECUTING
-Plan: 7 of 7
+Phase: 02 (Authentication) — EXECUTING
+Plan: 2 of 8 complete
 **Milestone:** v1 (initial 6-phase build-out)
 **Phase:** 2
-**Plan:** Not started
-**Status:** Ready to plan
+**Plan:** 02-02 complete; 02-03 next
+**Status:** Ready to execute plan 02-03
 
-**Progress:** [██████████] 100%
+**Progress:** [█████████░] 60%
 
 **Pre-Flight Gate (Phase 1):**
 
 - [x] Verify `Npgsql.EntityFrameworkCore.PostgreSQL` `net10.0` TFM GA on NuGet — 10.0.1 verified GA
-- [ ] Verify `AspNet.Security.OpenId.Steam` 10.0.x + `AspNet.Security.OAuth.Discord` 10.0.x `net10.0` TFM (blocks Phase 2, not Phase 1 start, but track now)
+- [x] Verify `AspNet.Security.OAuth.Discord` 10.0.x `net10.0` TFM — 10.0.0 verified GA 2026-04-18 (nuspec explicit `net10.0`)
+- [N/A] `AspNet.Security.OpenId.Steam` — intentionally NOT pinned per D-09 (in-house SteamOpenIdVerifier replaces contrib package)
 - [x] Verify `Testcontainers.PostgreSql`, `Testcontainers.Redis`, `Polly`, `FluentValidation` 12, `Scrutor`, `MinVer` 7, `Microsoft.SourceLink.GitHub` all resolve on `net10.0` — all GA, pinned in Directory.Packages.props
 - [x] Record workarounds (preview pins, compatibility shims) in STATE before first migration is authored — NO workarounds needed, all packages GA
 
@@ -56,6 +57,8 @@ Plan: 7 of 7
 | Phase 01 P05 | 14min | 2 tasks | 21 files |
 | Phase 01 P06 | 5min | 3 tasks | 20 files |
 | Phase 01 P07 | 23min | 5 tasks | 37 files |
+| Phase 02 P01 | 6min | 3 tasks | 15 files |
+| Phase 02 P02 | 14min | 3 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -95,6 +98,15 @@ Plan: 7 of 7
 | PlayerDisplayNameResolver registered as Scoped (not Singleton per plan) | 01-05 execution — depends on scoped GameKitDbContext |
 | GDPR ExecuteDeleteAsync round-trip test deferred to Plan 07 Testcontainers integration tests | 01-05 execution — InMemory provider does not support bulk operations |
 | InMemory test factory with custom ModelCustomizer for JsonDocument value converters | 01-05 execution — InMemory can't handle jsonb/JsonDocument natively |
+| BCrypt.Net-Next pin bumped 4.0.3 -> 4.1.0 (RESEARCH §4 verified net10.0 TFM) | 02-01 execution |
+| Microsoft.Extensions.Http.Resilience 10.5.0 pinned for named-HttpClient resilience pipelines | 02-01 execution |
+| AspNet.Security.OpenId.Steam intentionally NOT pinned — in-house SteamOpenIdVerifier replaces contrib package (D-09) | 02-01 execution |
+| AuthMigrationConstants.AdvisoryLockKey = -298890956L (live Postgres 17.9 hashtext('gamekit.auth.migrations')::bigint) — distinct from Core's 1800940027L | 02-02 execution |
+| Negative advisory-lock keys acceptable — hashtext returns int4; ::bigint preserves sign; Postgres advisory locks accept any bigint | 02-02 execution |
+| AuthMigrationModelCustomizer (top-level public) — reused by design-time EF CLI + runtime test Auth migration contexts; applies Auth configs directly + ExcludeFromMigrations on Core entities | 02-02 execution |
+| EF internal service provider does NOT forward IEnumerable<IModelBuilderExtension> to ReplaceService customizer constructor injection — use AuthMigrationModelCustomizer for migration-time, test-local AuthRuntimeQueryCustomizer for query-time (flagged for 02-03 audit) | 02-02 execution |
+| Auth migration timestamp 20260418000000 (Phase 1 deterministic-timestamp convention) | 02-02 execution |
+| Explicit migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS citext") duplicates Npgsql:PostgresExtension annotation for defensive auditability in Auth migration | 02-02 execution |
 
 ### Open Questions
 
@@ -116,10 +128,14 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-04-17 — Captured Phase 2 (Authentication) context: 14 locked decisions across JWT, fingerprint, egress, guest upgrade
+**Last action:** 2026-04-18T18:02:23Z — Plan 02-02 complete: three Auth entities (PlayerIdentity/PlayerCredential/RefreshToken), their EF configurations, AuthModelBuilderExtension, AuthMigrationConstants (AdvisoryLockKey=-298890956L live-verified), AuthDesignTimeDbContextFactory + AuthMigrationModelCustomizer, 20260418000000_AuthInitial migration + Auth-only snapshot, plus three integration tests (AuthAdvisoryLockKey, AuthSchema, PlayerIdentityUnique — all green). Auth integration suite: 8/8 pass. No regressions elsewhere (Core unit 130/130, Core integration 9/9).
 
-**Next action:** `/gsd-plan-phase 2`
-**Resume file:** .planning/phases/02-authentication/02-CONTEXT.md
+**Next action:** Execute plan 02-03 (GameKitAuthOptions/JwtOptions/SteamOptions/DiscordOptions + AddAuth fluent extension + EgressAllowListHandler)
+**Resume file:** .planning/phases/02-authentication/02-03-PLAN.md
+**Stopped at:** Completed 02-02-PLAN.md
+**Blockers:** None
+
+**Follow-up flagged (for 02-03):** Audit `GameKitModelCustomizer` DI-resolution for sibling-package `IEnumerable<IModelBuilderExtension>` at runtime query time. EF's internal service provider path did NOT forward app-registered extensions to `ReplaceService`d customizer constructor injection in 02-02 tests (required a local AuthRuntimeQueryCustomizer in `PlayerIdentityUniqueTests.cs` as a workaround). If 02-03's AddAuth fluent extension + corresponding `AddGameKit` need `UseApplicationServiceProvider` wiring, add it there so the workaround can be removed.
 
 **Context preserved:**
 
@@ -132,10 +148,12 @@ None.
 - 01-05-SUMMARY.md (Core runtime services + fluent builder, 6 requirements: CORE-05/10/11/12/13/16)
 - 01-06-SUMMARY.md (5 sibling csprojs + CLI + SampleGame, 3 requirements: CORE-05/CORE-13/DIST-01)
 - 01-07-SUMMARY.md (Test suite + CI + license-check, 18 requirements verified)
+- 02-01-SUMMARY.md (Wave-0 test scaffolding — 2 test projects + WireMock fixture + AuthCollection; Directory.Packages.props Auth pins; AssemblyInfo InternalsVisibleTo + AuthMarker)
+- 02-02-SUMMARY.md (Auth entities + EF configs + AuthInitial migration + three integration tests; AUTH-02/03/04/11 requirements satisfied)
 - All NuGet versions verified GA on net10.0 — Npgsql bumped to 10.0.2, Caching.Memory to 10.0.6
 - CLAUDE.md updated from stale .NET 9 to verified .NET 10 LTS pins
-- 141 tests (130 unit + 11 integration) all green; CI pipeline ready
-- AdvisoryLockKey corrected to 1800940027 (live Postgres 17.9 verified)
+- 148 tests green: 131 unit (130 Core + 1 Auth smoke) + 17 integration (9 Core + 8 Auth) — CI pipeline ready
+- AdvisoryLockKey values: Core = 1800940027 (positive), Auth = -298890956 (negative); both verified against live Postgres 17.9
 
 ---
 *Initialized: 2026-04-15 at roadmap creation.*

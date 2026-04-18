@@ -30,9 +30,9 @@
 ### Authentication (Auth Package)
 
 - [ ] **AUTH-01**: Library ships as `GameKit.Auth` NuGet package
-- [ ] **AUTH-02**: `player_identities` entity (provider, external_id, display_name, avatar_url, metadata, timestamps) with unique `(provider, external_id)` constraint
-- [ ] **AUTH-03**: `player_credentials` entity (player_id PK, password_hash, updated_at) — separate from identities
-- [ ] **AUTH-04**: `refresh_tokens` entity with hashed token (SHA-256), issued_at, expires_at, revoked_at, `replaced_by` chain
+- [x] **AUTH-02**: `player_identities` entity (provider, external_id, display_name, avatar_url, metadata, timestamps) with unique `(provider, external_id)` constraint
+- [x] **AUTH-03**: `player_credentials` entity (player_id PK, password_hash, updated_at) — separate from identities
+- [x] **AUTH-04**: `refresh_tokens` entity with hashed token (SHA-256), issued_at, expires_at, revoked_at, `replaced_by` chain
 - [ ] **AUTH-05**: `IOAuthProvider` interface — pluggable
 - [ ] **AUTH-06**: Steam OAuth provider (in-house OpenID 2.0, server-side `check_authentication` round-trip)
 - [ ] **AUTH-07**: Discord OAuth provider (`identify` scope only, no scope creep)

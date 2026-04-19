@@ -28,3 +28,23 @@ public sealed class AuthCollection
     : ICollectionFixture<PostgresFixture>,
       ICollectionFixture<RedisFixture>,
       ICollectionFixture<WireMockFixture> { }
+
+/// <summary>
+/// xUnit collection for Phase-3 Admin UI integration tests. Bundles Postgres + Redis into a
+/// shared-fixture scope; no WireMock since the admin surface has zero outbound HTTP. Test
+/// classes opt in via <c>[Collection("Admin")]</c>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Mirrors the Phase-2 <see cref="AuthCollection"/> shape. The composite
+/// <see cref="AdminIntegrationFixture"/> type still exists and may be constructed by hand by
+/// plans 03-04 / 03-07 / 03-13 inside their WebApplicationFactory bootstrap code (matches
+/// <see cref="AuthIntegrationFixture"/> usage); xUnit 2.9 does NOT support fixture-into-fixture
+/// constructor injection on <see cref="ICollectionFixture{TFixture}"/>, so registering the
+/// composite directly here would fail with "unresolved constructor arguments" at test discovery.
+/// </para>
+/// </remarks>
+[CollectionDefinition("Admin")]
+public sealed class AdminCollection
+    : ICollectionFixture<PostgresFixture>,
+      ICollectionFixture<RedisFixture> { }

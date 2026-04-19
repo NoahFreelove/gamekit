@@ -1,12 +1,37 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
   <PropertyGroup>
     <PackageId>GameKit.Admin.UI</PackageId>
     <Description>Admin UI package for GameKit — Blazor Server Razor Class Library with player management, audit log, health dashboard. Phase 3 deliverable.</Description>
     <PackageTags>gamekit;admin;blazor;dashboard;gpl</PackageTags>
     <RootNamespace>GameKit.Admin.UI</RootNamespace>
     <AssemblyName>GameKit.Admin.UI</AssemblyName>
+    <!-- Required for Blazor Server RCL: link against ASP.NET Core shared framework -->
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
   </PropertyGroup>
+
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- W5 (CLAUDE.md GameKit.Admin.UI block): Admin.UI -> Auth ProjectReference. Admin migration
+         customizer references AuthMigrationConstants for the live-verified advisory-lock distinctness
+         test, and the AdminMigrationModelCustomizer must ExcludeFromMigrations Auth's three entities. -->
     <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\GameKit.Auth\GameKit.Auth.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 </Project>

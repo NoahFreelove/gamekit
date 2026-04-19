@@ -38,6 +38,7 @@ GameKit is a self-hostable, GPL-licensed open-source .NET library that gives gam
 | Entity Framework Core | **10.0.6** | ORM + migrations | GA on `net10.0`; per-package migrations pattern (PITFALLS.md #3) |
 | Npgsql.EntityFrameworkCore.PostgreSQL | **10.0.1** | Postgres provider (jsonb, arrays, range types) | GA on `net10.0`, released 2026-03-12 |
 | StackExchange.Redis | **2.8.41** | Redis client for matchmaking + presence | Latest stable on `net10.0` |
+| MudBlazor | **9.3.0** | Blazor Server component library (Admin UI) | MIT; `net10.0` TFM GA on nuget.org 2026-04-18 |
 | Microsoft.AspNetCore.Authentication.JwtBearer | 10.0 (shared framework) | JWT validation middleware | Phase 2 scope |
 | BCrypt.Net-Next | 4.0.3 | Password hashing (default) | Phase 2 scope |
 | xUnit + Testcontainers + Moq | xUnit 2.9.2; Testcontainers 4.11.0; Moq 4.20.72 | Testing | Standard |
@@ -84,6 +85,21 @@ GameKit is a self-hostable, GPL-licensed open-source .NET library that gives gam
 ### `GameKit.Rankings`
 ### `GameKit.Presence`
 ### `GameKit.Admin.UI`
+
+| Package | Version | Source | Purpose |
+|---------|---------|--------|---------|
+| **MudBlazor** | **9.3.0** | MIT (GPL-compatible) | Blazor Server component library — `MudDataGrid`, `MudDialog`, `MudSnackbar`, `MudForm`, `MudAutocomplete`, `MudLayout`. `net10.0` TFM confirmed GA on nuget.org 2026-04-18 (see `.planning/phases/03-admin-ui/03-RESEARCH.md` §Version verification). Acknowledged cost: ~1.8 MB static assets added to the consumer's `_content/MudBlazor/` per D-14. |
+| **StackExchange.Redis** | 2.8.41 | MIT | Health panel Postgres + Redis probe — `IConnectionMultiplexer.GetDatabase().PingAsync()`. Already pinned repo-wide from Phase 1. |
+| **FluentValidation** + **FluentValidation.DependencyInjectionExtensions** | 12.1.1 | Apache-2.0 | Admin form validators: ban reason (3–512 chars, D-09), create-admin username/password/role. Already pinned from Phase 2. |
+| **Microsoft.AspNetCore.Antiforgery** | 10.0 (shared framework) | MIT | CSRF token generation + `IAntiforgery.ValidateRequestAsync`. Not a NuGet pin — shipped in `Microsoft.AspNetCore.App`. |
+| **Microsoft.AspNetCore.Authentication.Cookies** | 10.0 (shared framework) | MIT | Admin cookie auth scheme `"GameKitAdmin"` (D-02). Not a NuGet pin — shipped in `Microsoft.AspNetCore.App`. |
+
+**Out of scope for `GameKit.Admin.UI`:** no `NetEscapades.AspNetCore.SecurityHeaders`, no `NWebsec`, no `MR.EntityFrameworkCore.KeysetPagination`, no `Microsoft.AspNetCore.Identity`. Rationale in `.planning/phases/03-admin-ui/03-RESEARCH.md` §Explicitly NOT added as dependencies.
+
+**Dependency direction (Phase 3):** `GameKit.Admin.UI` declares a `ProjectReference` to `GameKit.Auth` because the admin package consumes `IPasswordHasher` + ban-enforcement integration points + the Auth audit writer pattern. In v1 the Admin UI **cannot be installed without Auth** — this is a documented coupling, not a bug. Revisit only if a consumer credibly needs admin ops (CRUD players, audit, health) on a Core-only install.
+
+**Route / `MountPath` scope:** `GameKitAdminOptions.MountPath` (default `/admin`) relocates only the admin **HTTP API prefix** (`/admin/api/*`). The Blazor Server admin console is served at `/admin/*` by `MapRazorComponents<App>()` with static Razor `@page` routes; MudBlazor static assets at `_content/MudBlazor/*` are root-relative. Dynamic Blazor-route rewriting is a potential v2 feature.
+
 ### `tests/*` (not shipped)
 ### Repo-root (Directory.Build.props / Packages.props)
 ## Key Open-Question Decisions Made Here

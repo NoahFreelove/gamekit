@@ -95,15 +95,20 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
   5. CSRF and CSP integration tests confirm mutations require a valid anti-CSRF token and that admin pages ship a CSP header blocking framing.
   6. A player JWT cannot authenticate into any admin endpoint (integration test asserts 404/403 regardless of valid player token).
 
-**Plans**: 8 plans
-- [ ] 02-01-PLAN.md — Wave 0 test projects, WireMock Steam/Discord mocks, AuthIntegrationFixture, Directory.Packages.props pins for Auth stack
-- [ ] 02-02-PLAN.md — PlayerIdentity/PlayerCredential/RefreshToken entities + EF configurations + AuthInitial migration under __ef_migrations_auth; UNIQUE(provider, external_id) is the D-14 race anchor
-- [ ] 02-03-PLAN.md — GameKitAuthOptions/JwtOptions/SteamOptions/DiscordOptions; AddAuth fluent extension; EgressAllowListHandler + named HttpClients (D-07/D-08/D-10); UseAuthentication ordering fix
-- [ ] 02-04-PLAN.md — IPasswordHasher + BCryptPasswordHasher; JwtIssuer with D-03 claims; IsGuestResolver (D-13); RefreshTokenService with Pattern 3 rotation + 45s grace + fingerprint gate + family revocation + audit log
-- [ ] 02-05-PLAN.md — IOAuthProvider contract + SteamOAuthProvider + DiscordOAuthProvider (identify scope only); Scrutor discovery; auth scheme wiring for JwtBearer + Steam + Discord; mock-level forgery test
-- [ ] 02-06-PLAN.md — GuestOAuthProvider + PasswordOAuthProvider + GuestUpgradeService + IdentityLinker; concurrent-upgrade race test (success #4); cross-player collision test with ExternalIdHasher (success #5)
-- [ ] 02-07-PLAN.md — /auth/* minimal API endpoints + FluentValidation endpoint filter + rate-limit policies (login 10/min, refresh 60/min, register 5/min); WebApplicationFactory end-to-end tests for success #1, #3, #6 + end-to-end Steam forgery #2
-- [ ] 02-08-PLAN.md — TicTacToeDuel Program.cs AddAuth + startup hardening; HTML client X-GameKit-Device + JWT localStorage + 401-refresh-retry; README auth section with localStorage/XSS/signing-key disclaimers; human-verify checkpoint
+**Plans**: 13 plans
+- [x] 03-01-PLAN.md — Wave 0 test projects, AdminIntegrationFixture + cookie/CSRF helpers + FakePlayerJwtIssuer, Directory.Packages.props MudBlazor 9.3.0 pin, CLAUDE.md GameKit.Admin.UI section
+- [x] 03-02-PLAN.md — AdminUser entity + EF configuration + AdminInitial migration under __ef_migrations_admin with live-verified advisory lock + AdminMigrationHostedService + design-time factory
+- [x] 03-03-PLAN.md — RCL csproj rewrite (Microsoft.NET.Sdk.Razor + MudBlazor) + GameKitAdminOptions tree + AdminRoles/AdminPolicies/AdminAuthenticationSchemeConstants + marker type
+- [ ] 03-04-PLAN.md — AdminCookieEvents (404 in Prod / 302 in Dev / 403 on access-denied) + gamekit:admin:login sliding-window rate-limit 5/min/IP
+- [ ] 03-05-PLAN.md — AdminCspNonceMiddleware (128-bit per-request nonce + strict CSP policy) + AntiforgeryValidationFilter + ValidationEndpointFilter copy
+- [ ] 03-06-PLAN.md — IAdminAuditWriter + IAdminAuthService + IPlayerSearchService + IPlayerBanService + IAdminUserService + IHealthProbeService + ErrorRateRingBuffer + SuperadminGateHostedService + AddGameKitAdmin fluent builder + AdminTestHost
+- [ ] 03-07-PLAN.md — /admin/api/* minimal-API surface (12 endpoints) + 6 DTOs + 4 FluentValidation validators + login/search/antiforgery integration tests
+- [ ] 03-08-PLAN.md — Blazor shell: App.razor (nonce-aware) + Routes + MainLayout + LoginLayout + TopNav + SideNav + shared components + GameKitAdminTheme (UI-SPEC §Color) + global CSS
+- [ ] 03-09-PLAN.md — Blazor pages: Login + Dashboard + PlayerSearch + PlayerDetail + Audit + Matches + Health + QueueDepth + RankAdjust + Admins + 5 dialog components (ban/unban/gdpr/create-admin/delete-admin) per UI-SPEC §1–§13
+- [ ] 03-10-PLAN.md — Phase 2 ban-enforcement patches: BannedCheckHelper (SHA-256 reason hash) + 4 provider patches + RefreshTokenService family-revoke patch + BanEnforcementTests (D-03)
+- [ ] 03-11-PLAN.md — `dotnet gamekit admin create` CLI command (Spectre.Console flags + interactive + auto-promote first admin to superadmin + Console.ReadKey intercept)
+- [ ] 03-12-PLAN.md — TicTacToeDuel sample wiring: AddGameKitAdmin + UseGameKitAdmin + MapGameKitAdmin("/admin") + README Admin UI section + human-verify 20-step walkthrough
+- [ ] 03-13-PLAN.md — E2E ROADMAP SC coverage: RoadmapScenarioTests (SC#1) + ProductionGateTests (SC#2) + CrossSchemeIsolationTests (SC#6) + CspAndAntiforgeryTests (SC#5) + PanelRenderTests (SC#4) + MountPathTests
 **UI hint**: yes
 
 ### Phase 4: Rankings + Sessions Wiring + GDPR Export
@@ -193,7 +198,7 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
 |-------|----------------|--------|-----------|
 | 1. Foundation (Core + Migrations + Ops Defaults + GPL) | 7/7 | Complete | 2026-04-18 |
 | 2. Authentication | 8/8 | Complete | 2026-04-18 |
-| 3. Admin UI | 0/? | Not started | - |
+| 3. Admin UI | 3/13 | In progress | - |
 | 4. Rankings + Sessions Wiring + GDPR Export | 0/? | Not started | - |
 | 5. Matchmaking + Parties | 0/? | Not started | - |
 | 6. Presence + OpenAPI + Distribution | 0/? | Not started | - |

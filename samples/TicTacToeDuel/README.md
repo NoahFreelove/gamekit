@@ -152,6 +152,54 @@ your app on (defaults to `http://localhost:5000/`). `Steam.ApiKey` is optional; 
 from <https://steamcommunity.com/dev/apikey> if you want Steam's `GetPlayerSummaries`
 to resolve display names.
 
+## Admin UI
+
+The sample mounts the GameKit Admin console at `/admin`. Bootstrap the first admin before signing in.
+
+### Bootstrap
+
+With Postgres running (via `docker-compose up`), run:
+
+```bash
+dotnet gamekit admin create -u root -p choose-a-strong-password
+```
+
+The first admin created on an empty `admin_users` table is automatically promoted to **superadmin** regardless of the `--role` flag. This resolves the chicken-and-egg "who creates the first admin" bootstrap.
+
+After running the command, start the sample:
+
+```bash
+dotnet run --project samples/TicTacToeDuel
+```
+
+Browse to `https://localhost:5001/admin/login` and sign in.
+
+### Production vs development behavior
+
+- **Production:** an unauthenticated request to `/admin` returns **404** (ROADMAP SC #2). The admin UI only becomes reachable after sign-in. In Production, if no superadmin is configured, the app fails to start with a clear error pointing at `dotnet gamekit admin create`.
+- **Development/Staging:** an unauthenticated request redirects to `/admin/login`. The login page shows an inline "No admin configured yet" state when `admin_users` is empty, with the same bootstrap hint.
+
+### What you can do
+
+Signed in as an admin, you can:
+- **Players** — search by id, display name, or `provider:external_id`
+- **Player detail** — ban (writes audit log), unban, GDPR delete (superadmin-only)
+- **Audit log** — view every admin action with before/after JSON
+- **Health** — Postgres + Redis connectivity + recent error rate
+- **Admins** (superadmin-only) — list + create + delete admin accounts
+
+Panels for Matchmaking (`Queue depth`) and Rankings (`Rank adjust`) are placeholders until those sibling packages ship (Phases 4 + 5). They detect the missing package at runtime and render installation guidance.
+
+### Security posture
+
+- Admin cookie scheme is **separate** from the player JWT scheme — a valid player token cannot authenticate into `/admin/*` (ROADMAP SC #6).
+- **Strict CSP** with per-request nonce on every `/admin/*` response.
+- **Antiforgery** required on every mutation (POST / DELETE / PATCH).
+- Admin login is **rate-limited** at 5 attempts / minute / IP.
+- Banned players cannot sign in via any provider; their refresh-token family is revoked on the next refresh attempt.
+
+See `.planning/phases/03-admin-ui/03-CONTEXT.md` for the full Phase 3 decision log.
+
 ## Endpoints used
 
 **Phase 2 `/auth/*`** — see table above.

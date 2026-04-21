@@ -1,0 +1,104 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §13 Delete admin dialog — one-step confirmation (no retype), danger color,
+    copy: "Delete admin \"{username}\"? This cannot be undone. The audit log records this
+    action." Issues DELETE /admin/api/admins/{id} with the W9 PRESCRIPTIVE CSRF header.
+
+    Server enforces the last-superadmin guard via LastSuperadminException → 409; the UI
+    surfaces the message inline if the guard fires despite the client-side disable.
+*@
+@namespace GameKit.Admin.UI.Components.Dialogs
+@using System.Net
+@using GameKit.Admin.UI.Authentication
+@using Microsoft.AspNetCore.Antiforgery
+@inject HttpClient Http
+@inject IAntiforgery Antiforgery
+@inject IHttpContextAccessor HttpContextAccessor
+
+<MudDialog>
+    <TitleContent>
+        <span>Delete admin "@Username"?</span>
+    </TitleContent>
+    <DialogContent>
+        <div class="gk-dialog-danger-stripe gk-dialog-danger-stripe-solid"></div>
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="gk-dialog-body">
+            Delete admin "@Username"? This cannot be undone. The audit log records this action.
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" role="alert">@_errorMessage</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="@_submitting">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="SubmitAsync" Disabled="@_submitting">
+            @if (_submitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                <span>Deleting…</span>
+            }
+            else
+            {
+                <span>Delete admin</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+
+    [Parameter, EditorRequired] public Guid AdminId { get; set; }
+    [Parameter, EditorRequired] public string Username { get; set; } = string.Empty;
+
+    private bool _submitting;
+    private string? _errorMessage;
+    private AntiforgeryTokenSet? _tokens;
+
+    protected override void OnInitialized()
+    {
+        var ctx = HttpContextAccessor.HttpContext
+            ?? throw new InvalidOperationException("No HttpContext — dialog must render within a Blazor Server request.");
+        _tokens = Antiforgery.GetAndStoreTokens(ctx);
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private async Task SubmitAsync()
+    {
+        _submitting = true;
+        _errorMessage = null;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Delete, $"/admin/api/admins/{AdminId}");
+            if (_tokens?.RequestToken is { } token)
+            {
+                request.Headers.Add(AdminAuthenticationSchemeConstants.CsrfHeaderName, token);
+            }
+            var resp = await Http.SendAsync(request);
+
+            if (resp.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.OK)
+            {
+                MudDialog?.Close(DialogResult.Ok(true));
+                return;
+            }
+            _errorMessage = resp.StatusCode switch
+            {
+                HttpStatusCode.Conflict => "Cannot delete the last superadmin. Create another superadmin first.",
+                HttpStatusCode.NotFound => "Admin not found. The page may be out of date.",
+                HttpStatusCode.Forbidden => "This action requires superadmin. Ask another admin to perform it.",
+                _ => $"Delete failed: server returned {(int)resp.StatusCode}. Try again.",
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            _errorMessage = $"Delete failed: {ex.Message}. Try again.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

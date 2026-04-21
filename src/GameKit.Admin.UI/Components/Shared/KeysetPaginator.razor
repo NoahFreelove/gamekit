@@ -1,0 +1,53 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §Component Inventory — keyset "Load more" button below every list grid
+    (CONTEXT D-12: keyset / cursor pagination, no offset/limit, no infinite scroll).
+
+    Copy (UI-SPEC §4 Player search pagination):
+      - HasMore == true  → "Load {PageSize} more"
+      - HasMore == false → "End of results" (button disabled)
+
+    The host component owns loading-spinner state; this paginator only renders the button.
+*@
+<div class="gk-keyset-paginator">
+    <MudButton Variant="Variant.Outlined"
+               Color="Color.Default"
+               Disabled="@(!HasMore || IsLoading)"
+               OnClick="InvokeLoadMoreAsync"
+               FullWidth="true">
+        @if (IsLoading)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+            <span>Loading…</span>
+        }
+        else if (HasMore)
+        {
+            <span>Load @PageSize more</span>
+        }
+        else
+        {
+            <span>End of results</span>
+        }
+    </MudButton>
+</div>
+
+@code {
+    /// <summary>True when more results are available; false disables the button with "End of results".</summary>
+    [Parameter, EditorRequired] public bool HasMore { get; set; }
+
+    /// <summary>Optional spinner state — when true, button shows a progress spinner + "Loading…" label.</summary>
+    [Parameter] public bool IsLoading { get; set; }
+
+    /// <summary>Page size embedded in the button copy ("Load N more"). Default 50 per CONTEXT D-12.</summary>
+    [Parameter] public int PageSize { get; set; } = 50;
+
+    /// <summary>Invoked when the operator clicks the button and more results are available.</summary>
+    [Parameter] public EventCallback OnLoadMore { get; set; }
+
+    private async Task InvokeLoadMoreAsync()
+    {
+        if (!HasMore || IsLoading) return;
+        if (OnLoadMore.HasDelegate) await OnLoadMore.InvokeAsync();
+    }
+}

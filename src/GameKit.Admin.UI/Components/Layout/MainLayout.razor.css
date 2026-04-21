@@ -1,0 +1,10 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/* UI-SPEC §Layout Shell — content area: outer padding lg (24px on all sides);
+ * max-width is NOT set (data-dense admin tool uses the full viewport). */
+.gk-content {
+    padding: var(--gk-space-6);
+    min-height: 100vh;
+    background-color: var(--gk-color-bg);
+}

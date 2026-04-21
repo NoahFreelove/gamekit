@@ -115,11 +115,25 @@ public static class AuthEndpoints
             fingerprint: fingerprint,
             cancellationToken: ct).ConfigureAwait(false);
 
-        return result.Success
-            ? Results.Ok(new TokenResponse(result.Tokens!.AccessJwt, result.Tokens!.RawRefresh))
-            : Results.Json(
-                new AuthErrorResponse(result.ErrorCode ?? "invalid_credentials", provider),
-                statusCode: StatusCodes.Status401Unauthorized);
+        if (result.Success)
+            return Results.Ok(new TokenResponse(result.Tokens!.AccessJwt, result.Tokens!.RawRefresh));
+
+        // D-03 ban enforcement: BannedCheckHelper returns ErrorCode of shape "banned:<16hex>".
+        // Surface as 403 Forbidden with a problem-shaped body the player + admin can work with:
+        // error = "banned" (stable machine-readable discriminator), reason_hash = 16-char hex
+        // so the admin can cross-reference the audit log without leaking the plaintext reason.
+        var errorCode = result.ErrorCode ?? "invalid_credentials";
+        if (errorCode.StartsWith("banned:", StringComparison.Ordinal))
+        {
+            var reasonHash = errorCode["banned:".Length..];
+            return Results.Json(
+                new AuthErrorResponse("banned", provider, reasonHash),
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Json(
+            new AuthErrorResponse(errorCode, provider),
+            statusCode: StatusCodes.Status401Unauthorized);
     }
 
     private static async Task<IResult> RefreshAsync(
@@ -178,11 +192,21 @@ public static class AuthEndpoints
             .ConfigureAwait(false);
         if (!result.Success)
         {
-            var status = result.ErrorCode == "username_taken"
+            var errorCode = result.ErrorCode ?? "bad_request";
+            // D-03: BannedCheckHelper.CheckAsync runs inside RegisterAsync too (future-proof for
+            // refactors that might reuse Player rows); surface same shape as login path.
+            if (errorCode.StartsWith("banned:", StringComparison.Ordinal))
+            {
+                var reasonHash = errorCode["banned:".Length..];
+                return Results.Json(
+                    new AuthErrorResponse("banned", "password", reasonHash),
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+            var status = errorCode == "username_taken"
                 ? StatusCodes.Status409Conflict
                 : StatusCodes.Status400BadRequest;
             return Results.Json(
-                new AuthErrorResponse(result.ErrorCode ?? "bad_request"),
+                new AuthErrorResponse(errorCode),
                 statusCode: status);
         }
         return Results.Ok(new TokenResponse(result.Tokens!.AccessJwt, result.Tokens!.RawRefresh));
@@ -288,11 +312,20 @@ public static class AuthEndpoints
             var result = await steamProvider
                 .CompleteLoginAsync(verification.SteamId64!, null, null, fingerprint, ct)
                 .ConfigureAwait(false);
-            return result.Success
-                ? BrowserTokenBridge(result.Tokens!.AccessJwt, result.Tokens!.RawRefresh)
-                : Results.Json(
-                    new AuthErrorResponse("login_failed", "steam"),
-                    statusCode: StatusCodes.Status401Unauthorized);
+            if (result.Success)
+                return BrowserTokenBridge(result.Tokens!.AccessJwt, result.Tokens!.RawRefresh);
+            // D-03 ban enforcement mirrored on the callback path.
+            var steamErrorCode = result.ErrorCode ?? "login_failed";
+            if (steamErrorCode.StartsWith("banned:", StringComparison.Ordinal))
+            {
+                var reasonHash = steamErrorCode["banned:".Length..];
+                return Results.Json(
+                    new AuthErrorResponse("banned", "steam", reasonHash),
+                    statusCode: StatusCodes.Status403Forbidden);
+            }
+            return Results.Json(
+                new AuthErrorResponse(steamErrorCode, "steam"),
+                statusCode: StatusCodes.Status401Unauthorized);
         }
 
         if (string.Equals(provider, "discord", StringComparison.OrdinalIgnoreCase))

@@ -9,8 +9,13 @@ app.Configure(config =>
 {
     config.SetApplicationName("gamekit");
     config.AddCommand<MigrateCommand>("migrate")
-        .WithDescription("Apply pending GameKit migrations against the configured Postgres database.");
-    config.AddCommand<AdminCreateCommand>("admin")
-        .WithDescription("(Phase 3 — stub) Create the first admin user.");
+        .WithDescription("Apply GameKit migrations (Core + Auth + Admin) against the configured Postgres.");
+
+    config.AddBranch("admin", admin =>
+    {
+        admin.SetDescription("Admin operations (superadmin bootstrap, admin CRUD).");
+        admin.AddCommand<AdminCreateCommand>("create")
+            .WithDescription("Create an admin user (interactive or flag-driven). First admin auto-promoted to superadmin.");
+    });
 });
 return await app.RunAsync(args);

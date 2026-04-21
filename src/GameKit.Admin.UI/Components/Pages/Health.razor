@@ -1,0 +1,85 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §10 Health panel — 3 status tiles (Postgres / Redis / Error rate) with refresh
+    button + auto-refresh caption. Polls every GameKitAdminOptions.Panel.RefreshInterval
+    via System.Threading.Timer; disposes via IAsyncDisposable so the timer stops when the
+    circuit tears down.
+*@
+@page "/admin/health"
+@attribute [Authorize(Policy = AdminPolicies.Admin)]
+@implements IAsyncDisposable
+@inject IHealthProbeService HealthSvc
+@inject GameKitAdminOptions Options
+
+<h1 class="gk-page-heading">Health</h1>
+
+<MudPaper Class="gk-dashboard-card" Elevation="0">
+    <div class="gk-health-header">
+        <MudText Typo="Typo.h6">Status</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.caption" Color="Color.Default">
+            Auto-refresh every @((int)Options.Panel.RefreshInterval.TotalSeconds)s
+        </MudText>
+        <MudButton Variant="Variant.Text"
+                   Size="Size.Small"
+                   StartIcon="@Icons.Material.Filled.Refresh"
+                   OnClick="RefreshAsync"
+                   Disabled="@_refreshing">Refresh</MudButton>
+    </div>
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="4">
+            <HealthTileView Tile="_report?.Postgres" Label="Postgres" CheckedAt="_report?.CheckedAt" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <HealthTileView Tile="_report?.Redis" Label="Redis" CheckedAt="_report?.CheckedAt" />
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <HealthTileView Tile="_report?.ErrorRate" Label="Error rate" CheckedAt="_report?.CheckedAt" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private HealthReport? _report;
+    private Timer? _timer;
+    private bool _refreshing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        _timer = new Timer(
+            _ => _ = InvokeAsync(RefreshAsync),
+            null,
+            Options.Panel.RefreshInterval,
+            Options.Panel.RefreshInterval);
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+        try
+        {
+            _report = await HealthSvc.ProbeAsync(CancellationToken.None);
+            StateHasChanged();
+        }
+        catch
+        {
+            // Keep the last-known report on failure; the refresh button remains available.
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_timer is not null)
+        {
+            await _timer.DisposeAsync();
+        }
+    }
+}

@@ -1,0 +1,14 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/* UI-SPEC §Top nav — brand mark padding + user-menu header layout. */
+.gk-brand {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    padding-right: var(--gk-space-4);
+}
+
+.gk-user-menu-header {
+    padding: var(--gk-space-2) var(--gk-space-4);
+    color: var(--gk-color-text-secondary);
+}

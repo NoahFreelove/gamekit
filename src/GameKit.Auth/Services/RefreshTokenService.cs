@@ -159,6 +159,21 @@ internal sealed class RefreshTokenService : IRefreshTokenService
             throw new UnauthorizedException("refresh_revoked");
         }
 
+        // Ban check (D-03): refuse to rotate for banned players; revoke the family so subsequent attempts
+        // also fail. Uses the existing RevokeFamilyInScope helper with its exact parameter order
+        // (familyId, reason, playerId, ct). Transaction `tx` and variable `current` are in scope here.
+        var bannedPlayer = await _ctx.Set<GameKit.Core.Entities.Player>()
+            .AsNoTracking()
+            .FirstAsync(p => p.Id == current.PlayerId, cancellationToken)
+            .ConfigureAwait(false);
+        if (bannedPlayer.IsBanned)
+        {
+            await RevokeFamilyInScope(current.FamilyId, "player_banned", current.PlayerId, cancellationToken)
+                .ConfigureAwait(false);
+            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+            throw new UnauthorizedException("player_banned");
+        }
+
         // Happy path: rotate.
         var rawChild = GenerateRaw();
         var childHash = Sha256Hex(rawChild);

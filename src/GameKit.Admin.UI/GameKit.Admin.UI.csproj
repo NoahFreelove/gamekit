@@ -11,6 +11,10 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- Ships _framework/blazor.web.js for the consumer's MapStaticAssets() pipeline.
+         Without this, Blazor Server interactivity silently fails (404 on the framework JS,
+         OnClick/binding never fire) — discovered during Phase 3 plan 03-12 walkthrough. -->
+    <PackageReference Include="Microsoft.AspNetCore.App.Internal.Assets" />
   </ItemGroup>
 
   <ItemGroup>

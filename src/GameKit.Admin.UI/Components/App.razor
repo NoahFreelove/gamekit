@@ -1,0 +1,46 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    Root Blazor Server component for GameKit.Admin.UI.
+    Responsibilities (per UI-SPEC §Asset Loading + CONTEXT D-15 + 03-RESEARCH §Threading the nonce):
+    * Emit a self-contained HTML document (HEAD + BODY) with exactly three stylesheets:
+      - _content/MudBlazor/MudBlazor.min.css    (component library)
+      - _content/GameKit.Admin.UI/GameKit.Admin.UI.bundle.scp.css  (Blazor CSS-isolation bundle)
+      - _content/GameKit.Admin.UI/gamekit-admin.css                (shell custom properties)
+    * Thread the per-request CSP nonce (produced by AdminCspNonceMiddleware) into every
+      <script nonce="..."> tag so the strict script-src 'self' 'nonce-...' CSP allows the
+      Blazor Server circuit + MudBlazor JS interop.
+    * No CDN references. No inline <style>. Tabular numerals + focus ring live in gamekit-admin.css.
+*@
+@inject IHttpContextAccessor HttpContextAccessor
+
+<!DOCTYPE html>
+<html lang="en" class="gk-admin-root">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>GameKit Admin</title>
+    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+    <link rel="stylesheet" href="_content/GameKit.Admin.UI/GameKit.Admin.UI.bundle.scp.css" />
+    <link rel="stylesheet" href="_content/GameKit.Admin.UI/gamekit-admin.css" />
+    <HeadOutlet />
+</head>
+<body>
+    <Routes @rendermode="@RenderMode.InteractiveServer" />
+    @* UI-SPEC §Asset Loading + CONTEXT D-15: every script tag gets the per-request nonce. *@
+    <script src="_framework/blazor.web.js" nonce="@Nonce"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js" nonce="@Nonce"></script>
+</body>
+</html>
+
+@code {
+    /// <summary>
+    /// Per-request CSP nonce emitted by <see cref="AdminCspNonceMiddleware"/>. Read via
+    /// <see cref="IHttpContextAccessor"/>; returns <c>null</c> if the middleware did not run
+    /// (non-admin request path), in which case the empty attribute value is harmless because
+    /// CSP only enforces on admin-prefixed responses.
+    /// </summary>
+    private string? Nonce =>
+        HttpContextAccessor.HttpContext?.Items[AdminCspNonceMiddleware.NonceItemKey] as string;
+}

@@ -1,0 +1,37 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §11 Queue depth / §12 Rank adjust — shared placeholder shown when an optional
+    sibling package (GameKit.Matchmaking, GameKit.Rankings, ...) is not registered.
+
+    Copy (UI-SPEC §Copywriting Contract — Missing package placeholder, exact):
+      Heading — "{PackageName} not installed"
+      Body    — "Install GameKit.{PackageName} and add .Add{PackageName}(…) to your
+                 service registration to enable {Feature}."
+
+    Rendered as an outlined Info alert — avoids suggesting an error; the operator did not
+    install the package on purpose (or has not yet).
+*@
+<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Info" Class="gk-missing-package-alert">
+    <MudText Typo="Typo.subtitle2" Class="gk-missing-package-heading">
+        @PackageName not installed
+    </MudText>
+    <MudText Typo="Typo.body2" Class="gk-missing-package-body">
+        Install GameKit.@PackageName and add .Add@(PackageName)(…) to your service registration to enable @Feature.
+    </MudText>
+</MudAlert>
+
+@code {
+    /// <summary>
+    /// Sibling package short name (e.g. <c>Matchmaking</c>, <c>Rankings</c>). Substituted into
+    /// both the heading and the <c>GameKit.{PackageName}</c> install hint.
+    /// </summary>
+    [Parameter, EditorRequired] public string PackageName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Feature label that describes what the package enables (e.g.
+    /// <c>live queue telemetry</c>, <c>manual rank adjustments</c>). Shown verbatim at the
+    /// end of the body copy.
+    /// </summary>
+    [Parameter, EditorRequired] public string Feature { get; set; } = string.Empty;
+}

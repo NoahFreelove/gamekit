@@ -1,0 +1,37 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §12 Rank adjust panel (superadmin-only) — if GameKit.Rankings is registered,
+    renders the 3-step adjustment flow; otherwise, shows the MissingPackageAlert.
+
+    Reflection-safe IRankingAlgorithm check (Type.GetType) so we don't take a compile-time
+    dep on GameKit.Rankings (Phase 4 deliverable).
+*@
+@page "/admin/rankings/adjust"
+@attribute [Authorize(Policy = AdminPolicies.Superadmin)]
+@implements IDisposable
+@inject IServiceProvider Sp
+
+<h1 class="gk-page-heading">Rank adjust</h1>
+
+@if (!_rankingsInstalled)
+{
+    <MissingPackageAlert PackageName="Rankings" Feature="manual rank adjustments" />
+}
+else
+{
+    @* Placeholder until Phase 4 ships GameKit.Rankings. UI-SPEC §12 3-step flow lands then. *@
+    <MudAlert Severity="Severity.Info">Rank adjust flow will render when GameKit.Rankings ships.</MudAlert>
+}
+
+@code {
+    private bool _rankingsInstalled;
+
+    protected override void OnInitialized()
+    {
+        var rankType = Type.GetType("GameKit.Rankings.IRankingAlgorithm, GameKit.Rankings", throwOnError: false);
+        _rankingsInstalled = rankType is not null && Sp.GetService(rankType) is not null;
+    }
+
+    public void Dispose() { }
+}

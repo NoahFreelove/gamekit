@@ -1,0 +1,71 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §Top nav (56px fixed, surface bg, 1px bottom border):
+    Brand mark → sidebar collapse toggle → (flex spacer) → env chip (non-prod) → user menu.
+
+    Environment chip is hidden in Production (absence signals prod; UI-SPEC §Top nav item 4).
+    User menu shows username + Log out item — wrapped in AuthorizeView so the unauthenticated
+    state (first-admin-missing, login page) renders nothing.
+*@
+@inject IHostEnvironment HostEnv
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<MudAppBar Elevation="0" Dense="true" Color="Color.Surface">
+    <MudText Typo="Typo.h6" Color="Color.Primary" Class="gk-brand">GameKit Admin</MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.MenuOpen"
+                   Color="Color.Default"
+                   Edge="Edge.Start"
+                   aria-label="Toggle sidebar"
+                   OnClick="OnToggleDrawer" />
+    <MudSpacer />
+    @if (!HostEnv.IsProduction())
+    {
+        <EnvironmentChip Env="@HostEnv.EnvironmentName" />
+    }
+    <AuthorizeView>
+        <Authorized>
+            <MudMenu Icon="@Icons.Material.Filled.AccountCircle"
+                     Color="Color.Default"
+                     AriaLabel="User menu">
+                <MudText Typo="Typo.body2" Class="gk-user-menu-header">
+                    Signed in as @context.User.Identity?.Name
+                </MudText>
+                <MudDivider />
+                <MudMenuItem OnClick="OnLogoutAsync"
+                             Icon="@Icons.Material.Filled.Logout"
+                             IconColor="Color.Error">
+                    Log out
+                </MudMenuItem>
+            </MudMenu>
+        </Authorized>
+    </AuthorizeView>
+</MudAppBar>
+
+@code {
+    /// <summary>
+    /// Invoked when the sidebar collapse icon is clicked. Wired from <see cref="MainLayout"/>
+    /// so drawer state is owned by the layout (single source of truth).
+    /// </summary>
+    [Parameter] public EventCallback OnToggleDrawer { get; set; }
+
+    /// <summary>
+    /// Fires the logout flow. Calls the /admin/api/logout endpoint (plan 03-07 auth endpoint)
+    /// and then navigates to /admin/login. Antiforgery token threading for this POST is
+    /// completed in the login/logout plan (03-09) — the shell exposes the menu action only.
+    /// </summary>
+    private async Task OnLogoutAsync()
+    {
+        // Defensive: JS interop only valid once circuit attaches. Wrap to tolerate pre-hydration clicks.
+        try
+        {
+            await JS.InvokeVoidAsync("fetch", "/admin/api/logout", new { method = "POST", credentials = "same-origin" });
+        }
+        catch
+        {
+            // ignored — navigation below forces sign-out via cookie events on the server.
+        }
+        Nav.NavigateTo("/admin/login", forceLoad: true);
+    }
+}

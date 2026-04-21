@@ -1,0 +1,14 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §Top nav item 4 — environment chip shown for non-production environments
+    (dev / staging). Production never renders this chip (the absence signals prod).
+
+    Uses info-subtle background per UI-SPEC §Color semantic-status table.
+*@
+<MudChip T="string" Variant="Variant.Filled" Size="Size.Small" Color="Color.Info" Label="true">@Env</MudChip>
+
+@code {
+    /// <summary>Environment name from <c>IHostEnvironment.EnvironmentName</c> (e.g. <c>Development</c>, <c>Staging</c>).</summary>
+    [Parameter, EditorRequired] public string Env { get; set; } = string.Empty;
+}

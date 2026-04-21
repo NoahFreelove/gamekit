@@ -1,0 +1,24 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    Login-only layout — used by /admin/login (plan 03-09) and the first-admin-missing state.
+
+    UI-SPEC §1 "Admin login page": centered card on blank bg; no top nav, no sidebar, no brand
+    chrome. The layout is a blank shell so the login form can own the full viewport.
+
+    Dialog/snackbar providers are mounted here too so inline alerts from the sign-in flow
+    (rate-limit warnings, 5xx errors) render correctly without dragging in the MainLayout's
+    top nav or drawer.
+*@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="@GameKitAdminTheme.Default" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<div class="gk-login-viewport">
+    <div class="gk-login-card">
+        @Body
+    </div>
+</div>

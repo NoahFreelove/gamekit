@@ -1,0 +1,27 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §Sidebar — 240px expanded / 64px collapsed rail of nav items.
+
+    Order is authoritative: Dashboard → Players → Match history → Audit log → Health →
+    Queue depth → Rank adjust (superadmin-only) → divider → Admins (superadmin-only).
+
+    Superadmin-gated items wrap in <AuthorizeView Roles="@AdminRoles.Superadmin"> — this is
+    defense-in-depth; the backend policy (plan 03-07 AdminPolicies.Superadmin) is the
+    authoritative gate. UI hiding avoids showing operators controls they cannot exercise.
+*@
+<MudNavMenu Bordered="false">
+    <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.Home" Match="NavLinkMatch.All">Dashboard</MudNavLink>
+    <MudNavLink Href="/admin/players" Icon="@Icons.Material.Filled.PersonSearch">Players</MudNavLink>
+    <MudNavLink Href="/admin/matches" Icon="@Icons.Material.Filled.History">Match history</MudNavLink>
+    <MudNavLink Href="/admin/audit" Icon="@Icons.Material.Filled.ReceiptLong">Audit log</MudNavLink>
+    <MudNavLink Href="/admin/health" Icon="@Icons.Material.Filled.Favorite">Health</MudNavLink>
+    <MudNavLink Href="/admin/matchmaking" Icon="@Icons.Material.Filled.Queue">Queue depth</MudNavLink>
+    <AuthorizeView Roles="@AdminRoles.Superadmin">
+        <MudNavLink Href="/admin/rankings/adjust" Icon="@Icons.Material.Filled.Tune">Rank adjust</MudNavLink>
+    </AuthorizeView>
+    <MudDivider />
+    <AuthorizeView Roles="@AdminRoles.Superadmin">
+        <MudNavLink Href="/admin/admins" Icon="@Icons.Material.Filled.AdminPanelSettings">Admins</MudNavLink>
+    </AuthorizeView>
+</MudNavMenu>

@@ -1,0 +1,142 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §13 Admin list + create/delete — superadmin-only. MudDataGrid with one row per
+    admin, delete action disabled on the self row and disabled when the target is the last
+    remaining superadmin (belt+suspenders — the service also guards via LastSuperadminException).
+
+    Create button opens CreateAdminDialog; delete button opens DeleteAdminDialog. Both dialogs
+    follow the W9 PRESCRIPTIVE antiforgery pattern.
+*@
+@page "/admin/admins"
+@attribute [Authorize(Policy = AdminPolicies.Superadmin)]
+@using GameKit.Admin.UI.Entities
+@inject IAdminUserService AdminUsers
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject AuthenticationStateProvider AuthState
+
+<h1 class="gk-page-heading">Admins</h1>
+
+<div class="gk-page-toolbar">
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.AdminPanelSettings"
+               OnClick="OpenCreateDialog">
+        Create admin
+    </MudButton>
+</div>
+
+@if (_loading)
+{
+    <MudSkeleton Height="200px" />
+}
+else if (_admins.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No admins found. Create one to get started.</MudAlert>
+}
+else
+{
+    <MudSimpleTable Dense="true" Hover="true">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Created</th>
+                <th>Last login</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var admin in _admins)
+            {
+                var isSelf = _currentUserId is Guid cur && cur == admin.Id;
+                var isLastSuperadmin = admin.Role == AdminRoles.Superadmin && _superadminCount <= 1;
+                <tr>
+                    <td>@admin.Username</td>
+                    <td>
+                        <MudChip T="string"
+                                 Variant="Variant.Filled"
+                                 Size="Size.Small"
+                                 Color="@(admin.Role == AdminRoles.Superadmin ? Color.Error : Color.Primary)">
+                            @admin.Role
+                        </MudChip>
+                    </td>
+                    <td class="gk-mono">@admin.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</td>
+                    <td class="gk-mono">@(admin.LastLoginAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—") UTC</td>
+                    <td>
+                        <MudTooltip Text="@DeleteTooltip(isSelf, isLastSuperadmin)" Arrow="true">
+                            <MudButton Variant="Variant.Text"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       Disabled="@(isSelf || isLastSuperadmin)"
+                                       OnClick="@(() => OpenDeleteDialog(admin, isLastSuperadmin))">
+                                Delete
+                            </MudButton>
+                        </MudTooltip>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+}
+
+@code {
+    private bool _loading = true;
+    private List<AdminUser> _admins = new();
+    private int _superadminCount;
+    private Guid? _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var nameId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (Guid.TryParse(nameId, out var id)) _currentUserId = id;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var rows = await AdminUsers.ListAsync(CancellationToken.None);
+        _admins = rows.ToList();
+        _superadminCount = _admins.Count(a => a.Role == AdminRoles.Superadmin);
+        _loading = false;
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var reference = await Dialogs.ShowAsync<Dialogs.CreateAdminDialog>("Create admin");
+        var result = await reference.Result;
+        if (result is not null && !result.Canceled && result.Data is true)
+        {
+            Snackbar.Add("Admin created.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenDeleteDialog(AdminUser admin, bool isLastSuperadmin)
+    {
+        if (isLastSuperadmin) return;
+        var parameters = new DialogParameters
+        {
+            ["AdminId"] = admin.Id,
+            ["Username"] = admin.Username,
+        };
+        var reference = await Dialogs.ShowAsync<Dialogs.DeleteAdminDialog>($"Delete admin \"{admin.Username}\"?", parameters);
+        var result = await reference.Result;
+        if (result is not null && !result.Canceled && result.Data is true)
+        {
+            Snackbar.Add($"Admin {admin.Username} deleted.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private static string DeleteTooltip(bool isSelf, bool isLastSuperadmin)
+    {
+        if (isSelf) return "You cannot delete your own admin account.";
+        if (isLastSuperadmin) return "Cannot delete the last superadmin. Create another superadmin first.";
+        return "Delete this admin account.";
+    }
+}

@@ -1,0 +1,194 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §13 Create admin dialog — Username + Password + Confirm + Role select.
+    Client-side validation mirrors CreateAdminRequestValidator verbatim (username regex,
+    password min-length, role allowlist). Submits to POST /admin/api/admins with the
+    W9 PRESCRIPTIVE CSRF header.
+*@
+@namespace GameKit.Admin.UI.Components.Dialogs
+@using System.Net
+@using System.Net.Http.Json
+@using System.Text.RegularExpressions
+@using GameKit.Admin.UI.Authentication
+@using GameKit.Admin.UI.Authorization
+@using GameKit.Admin.UI.Http.Contracts
+@using Microsoft.AspNetCore.Antiforgery
+@inject HttpClient Http
+@inject IAntiforgery Antiforgery
+@inject IHttpContextAccessor HttpContextAccessor
+
+<MudDialog>
+    <TitleContent>
+        <span>Create admin</span>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" role="alert">@_errorMessage</MudAlert>
+        }
+
+        <MudTextField T="string"
+                      @bind-Value="_username"
+                      Label="Username"
+                      Variant="Variant.Outlined"
+                      Error="@_usernameError"
+                      ErrorText="@_usernameErrorMessage"
+                      Disabled="@_submitting"
+                      HelperText="3–32 chars, lowercase letters, digits, underscore, or hyphen." />
+
+        <MudTextField T="string"
+                      @bind-Value="_password"
+                      Label="Password"
+                      Variant="Variant.Outlined"
+                      InputType="InputType.Password"
+                      Error="@_passwordError"
+                      ErrorText="@_passwordErrorMessage"
+                      Disabled="@_submitting"
+                      HelperText="At least 12 characters recommended." />
+
+        <MudTextField T="string"
+                      @bind-Value="_confirmPassword"
+                      Label="Confirm password"
+                      Variant="Variant.Outlined"
+                      InputType="InputType.Password"
+                      Error="@_confirmError"
+                      ErrorText="@_confirmErrorMessage"
+                      Disabled="@_submitting" />
+
+        <MudSelect T="string"
+                   @bind-Value="_role"
+                   Label="Role"
+                   Variant="Variant.Outlined"
+                   Disabled="@_submitting">
+            <MudSelectItem T="string" Value="@AdminRoles.Admin">admin</MudSelectItem>
+            <MudSelectItem T="string" Value="@AdminRoles.Superadmin">superadmin</MudSelectItem>
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="@_submitting">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="@_submitting">
+            @if (_submitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                <span>Creating…</span>
+            }
+            else
+            {
+                <span>Create admin</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private string _role = AdminRoles.Admin;
+
+    private bool _usernameError;
+    private string? _usernameErrorMessage;
+    private bool _passwordError;
+    private string? _passwordErrorMessage;
+    private bool _confirmError;
+    private string? _confirmErrorMessage;
+
+    private bool _submitting;
+    private string? _errorMessage;
+    private AntiforgeryTokenSet? _tokens;
+
+    private static readonly Regex UsernameRegex = new("^[a-z0-9_-]{3,32}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    protected override void OnInitialized()
+    {
+        var ctx = HttpContextAccessor.HttpContext
+            ?? throw new InvalidOperationException("No HttpContext — dialog must render within a Blazor Server request.");
+        _tokens = Antiforgery.GetAndStoreTokens(ctx);
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private bool Validate()
+    {
+        _usernameError = _passwordError = _confirmError = false;
+        _usernameErrorMessage = _passwordErrorMessage = _confirmErrorMessage = null;
+
+        if (string.IsNullOrEmpty(_username) || !UsernameRegex.IsMatch(_username))
+        {
+            _usernameError = true;
+            _usernameErrorMessage = "Username must be 3-32 chars, lowercase letters, digits, underscore, or hyphen.";
+            return false;
+        }
+        if (string.IsNullOrEmpty(_password) || _password.Length < 8)
+        {
+            _passwordError = true;
+            _passwordErrorMessage = "Password must be at least 8 characters.";
+            return false;
+        }
+        if (_password != _confirmPassword)
+        {
+            _confirmError = true;
+            _confirmErrorMessage = "Passwords do not match.";
+            return false;
+        }
+        if (_role != AdminRoles.Admin && _role != AdminRoles.Superadmin)
+        {
+            _errorMessage = $"Role must be '{AdminRoles.Admin}' or '{AdminRoles.Superadmin}'.";
+            return false;
+        }
+        return true;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _errorMessage = null;
+        if (!Validate()) return;
+
+        _submitting = true;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/admin/api/admins")
+            {
+                Content = JsonContent.Create(new CreateAdminRequest(_username, _password, _role)),
+            };
+            if (_tokens?.RequestToken is { } token)
+            {
+                request.Headers.Add(AdminAuthenticationSchemeConstants.CsrfHeaderName, token);
+            }
+            var resp = await Http.SendAsync(request);
+
+            switch (resp.StatusCode)
+            {
+                case HttpStatusCode.OK:
+                case HttpStatusCode.NoContent:
+                case HttpStatusCode.Created:
+                    MudDialog?.Close(DialogResult.Ok(true));
+                    return;
+                case HttpStatusCode.Conflict:
+                    _usernameError = true;
+                    _usernameErrorMessage = $"Username '{_username}' is already taken.";
+                    break;
+                case HttpStatusCode.BadRequest:
+                    _errorMessage = "One or more fields are invalid. Check username, password, and role.";
+                    break;
+                case HttpStatusCode.Forbidden:
+                    _errorMessage = "This action requires superadmin. Ask another admin to perform it.";
+                    break;
+                default:
+                    _errorMessage = $"Create failed: server returned {(int)resp.StatusCode}. Try again.";
+                    break;
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            _errorMessage = $"Create failed: {ex.Message}. Try again.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+}

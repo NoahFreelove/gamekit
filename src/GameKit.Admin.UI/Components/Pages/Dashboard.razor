@@ -1,0 +1,169 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §3 Dashboard — 12-column grid, 4 cards:
+      Row 1: Health (span 6) + Queue depth (span 6)
+      Row 2: Recent audit log (span 8) + Quick stats (span 4)
+
+    RESEARCH Open Question 3: direct GameKitDbContext access (no extra HTTP hop). The
+    component is server-rendered inside the circuit so the DbContext is safe to inject.
+
+    Authentication: cookie-based [Authorize] with AdminPolicies.Admin — cookie events redirect
+    unauthenticated hits to /admin/login.
+*@
+@page "/admin"
+@attribute [Authorize(Policy = AdminPolicies.Admin)]
+@using System.Threading
+@using GameKit.Admin.UI.Entities
+@using GameKit.Core.Data
+@using GameKit.Core.Entities
+@using Microsoft.EntityFrameworkCore
+@inject GameKitDbContext Db
+@inject IHealthProbeService HealthSvc
+@inject IServiceProvider Sp
+
+<h1 class="gk-page-heading">Dashboard</h1>
+
+<MudGrid Spacing="6">
+    @* Row 1 — Health (span 6) + Queue depth (span 6) *@
+    <MudItem xs="12" md="6">
+        <MudPaper Class="gk-dashboard-card" Elevation="0">
+            <MudText Typo="Typo.h6" Class="gk-dashboard-card-title">Health</MudText>
+            @if (_health is null)
+            {
+                <MudSkeleton Height="72px" />
+            }
+            else
+            {
+                <div class="gk-dashboard-health-row">
+                    <div class="gk-dashboard-health-tile">
+                        <MudText Typo="Typo.caption" Color="Color.Default">Postgres</MudText>
+                        <StatusChip Status="@_health.Postgres.Status" />
+                    </div>
+                    <div class="gk-dashboard-health-tile">
+                        <MudText Typo="Typo.caption" Color="Color.Default">Redis</MudText>
+                        <StatusChip Status="@_health.Redis.Status" />
+                    </div>
+                    <div class="gk-dashboard-health-tile">
+                        <MudText Typo="Typo.caption" Color="Color.Default">Error rate</MudText>
+                        <StatusChip Status="@_health.ErrorRate.Status" />
+                    </div>
+                </div>
+            }
+            <MudLink Href="/admin/health" Typo="Typo.caption">View health panel</MudLink>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Class="gk-dashboard-card" Elevation="0">
+            <MudText Typo="Typo.h6" Class="gk-dashboard-card-title">Queue depth</MudText>
+            @if (_matchmakingInstalled)
+            {
+                <MudAlert Severity="Severity.Info">Queue telemetry will render when GameKit.Matchmaking ships.</MudAlert>
+            }
+            else
+            {
+                <MissingPackageAlert PackageName="Matchmaking" Feature="live queue telemetry" />
+            }
+        </MudPaper>
+    </MudItem>
+
+    @* Row 2 — Recent audit log (span 8) + Quick stats (span 4) *@
+    <MudItem xs="12" md="8">
+        <MudPaper Class="gk-dashboard-card" Elevation="0">
+            <MudText Typo="Typo.h6" Class="gk-dashboard-card-title">Recent audit log</MudText>
+            @if (_recentAudit is null)
+            {
+                <MudSkeleton Height="160px" />
+            }
+            else if (_recentAudit.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Default">
+                    No admin actions recorded yet.
+                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">
+                    Actions like bans, admin creates, and rank adjustments appear here.
+                </MudText>
+            }
+            else
+            {
+                <MudSimpleTable Dense="true" Hover="true" Class="gk-dashboard-audit-table">
+                    <thead>
+                        <tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _recentAudit)
+                        {
+                            <tr>
+                                <td class="gk-mono">@row.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</td>
+                                <td>@(row.ActorId?.ToString("N")[..8] ?? "system")</td>
+                                <td class="gk-mono">@row.Action</td>
+                                <td class="gk-mono">@(row.TargetId?.ToString("N")[..8] ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+            <MudLink Href="/admin/audit" Typo="Typo.caption">View full audit log</MudLink>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Class="gk-dashboard-card" Elevation="0">
+            <MudText Typo="Typo.h6" Class="gk-dashboard-card-title">Quick stats</MudText>
+            @if (_stats is null)
+            {
+                <MudSkeleton Height="120px" />
+            }
+            else
+            {
+                <div class="gk-dashboard-stat-row">
+                    <MudText Typo="Typo.caption" Color="Color.Default">Admins</MudText>
+                    <MudText Typo="Typo.h6">@_stats.AdminCount</MudText>
+                </div>
+                <div class="gk-dashboard-stat-row">
+                    <MudText Typo="Typo.caption" Color="Color.Default">Banned players</MudText>
+                    <MudText Typo="Typo.h6">@_stats.BannedCount</MudText>
+                </div>
+                <div class="gk-dashboard-stat-row">
+                    <MudText Typo="Typo.caption" Color="Color.Default">Sessions completed (24h)</MudText>
+                    <MudText Typo="Typo.h6">@_stats.SessionsCompletedToday</MudText>
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private HealthReport? _health;
+    private List<AdminAuditLog>? _recentAudit;
+    private QuickStats? _stats;
+    private bool _matchmakingInstalled;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var mmType = Type.GetType("GameKit.Matchmaking.IMatchmakingStrategy, GameKit.Matchmaking", throwOnError: false);
+        _matchmakingInstalled = mmType is not null && Sp.GetService(mmType) is not null;
+
+        // Parallel-fire each dashboard query to minimize first-paint latency.
+        var ct = CancellationToken.None;
+        var healthTask = HealthSvc.ProbeAsync(ct);
+        var auditTask = Db.AdminAuditLog.AsNoTracking()
+            .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
+            .Take(5)
+            .ToListAsync(ct);
+        var adminCountTask = Db.Set<AdminUser>().AsNoTracking().LongCountAsync(ct);
+        var bannedCountTask = Db.Players.AsNoTracking().LongCountAsync(p => p.IsBanned, ct);
+        var since = DateTimeOffset.UtcNow.AddDays(-1);
+        var sessionsTask = Db.GameSessions.AsNoTracking()
+            .LongCountAsync(s => s.State == GameSessionState.Completed && s.CompletedAt != null && s.CompletedAt >= since, ct);
+
+        await Task.WhenAll(healthTask, auditTask, adminCountTask, bannedCountTask, sessionsTask);
+
+        _health = healthTask.Result;
+        _recentAudit = auditTask.Result;
+        _stats = new QuickStats(adminCountTask.Result, bannedCountTask.Result, sessionsTask.Result);
+    }
+
+    private sealed record QuickStats(long AdminCount, long BannedCount, long SessionsCompletedToday);
+}

@@ -14,6 +14,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+    <!-- Plan 03-11: GameKit.Admin.UI brings AdminUser (public) + AdminModelBuilderExtension
+         (internal, reachable via InternalsVisibleTo("GameKit.Cli") on GameKit.Admin.UI).
+         Transitive Blazor build-time cost is accepted; runtime cost is zero because the
+         CLI never mounts Blazor. -->
+    <ProjectReference Include="..\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
     <PackageReference Include="Spectre.Console.Cli" />
   </ItemGroup>
 </Project>

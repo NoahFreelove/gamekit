@@ -1,0 +1,37 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §11 Queue depth panel — if GameKit.Matchmaking is registered, renders the live
+    queue telemetry panel; if not, renders the MissingPackageAlert placeholder.
+
+    The IMatchmakingStrategy interface may not exist yet (Phase 5 deliverable). We use
+    reflection-safe Type.GetType to avoid a compile-time dependency on GameKit.Matchmaking.
+*@
+@page "/admin/matchmaking"
+@attribute [Authorize(Policy = AdminPolicies.Admin)]
+@implements IDisposable
+@inject IServiceProvider Sp
+
+<h1 class="gk-page-heading">Queue depth</h1>
+
+@if (!_matchmakingInstalled)
+{
+    <MissingPackageAlert PackageName="Matchmaking" Feature="live queue telemetry" />
+}
+else
+{
+    @* Placeholder for Phase 5 — reflective lookup resolves only once GameKit.Matchmaking ships. *@
+    <MudAlert Severity="Severity.Info">Queue telemetry will render when GameKit.Matchmaking ships.</MudAlert>
+}
+
+@code {
+    private bool _matchmakingInstalled;
+
+    protected override void OnInitialized()
+    {
+        var mmType = Type.GetType("GameKit.Matchmaking.IMatchmakingStrategy, GameKit.Matchmaking", throwOnError: false);
+        _matchmakingInstalled = mmType is not null && Sp.GetService(mmType) is not null;
+    }
+
+    public void Dispose() { }
+}

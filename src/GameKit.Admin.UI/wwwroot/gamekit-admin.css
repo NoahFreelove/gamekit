@@ -1,0 +1,86 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/* =============================================================================
+ * GameKit Admin — global shell stylesheet.
+ *
+ * Exposes UI-SPEC §Color and §Spacing Scale tokens as CSS custom properties so
+ * non-MudBlazor markup (audit-log <pre> blocks, empty states, viewport banners)
+ * can pull from the same palette without duplicating hex literals.
+ *
+ * Authoritative source: .planning/phases/03-admin-ui/03-UI-SPEC.md
+ * ============================================================================= */
+
+/* UI-SPEC §Color — neutral 60/30 split + accent 10% + semantic status tokens */
+:root, .gk-admin-root {
+    /* Neutral palette (60% + 30%) */
+    --gk-color-bg: #F8FAFC;
+    --gk-color-surface: #FFFFFF;
+    --gk-color-surface-alt: #F1F5F9;
+    --gk-color-border: #E2E8F0;
+    --gk-color-text-primary: #0F172A;
+    --gk-color-text-secondary: #475569;
+    --gk-color-text-disabled: #94A3B8;
+
+    /* Accent (10%) */
+    --gk-color-primary: #4263EB;
+    --gk-color-primary-hover: #364FC7;
+    --gk-color-primary-subtle: #EDF2FF;
+
+    /* Semantic status */
+    --gk-color-success: #16A34A;
+    --gk-color-success-subtle: #DCFCE7;
+    --gk-color-warning: #D97706;
+    --gk-color-warning-subtle: #FEF3C7;
+    --gk-color-info: #2563EB;
+    --gk-color-info-subtle: #DBEAFE;
+    --gk-color-danger: #DC2626;
+    --gk-color-danger-subtle: #FEE2E2;
+
+    /* Focus — same hex as primary, separate token so dark-mode hook can split */
+    --gk-color-focus: #4263EB;
+
+    /* UI-SPEC §Spacing Scale — 4px grid */
+    --gk-space-1: 4px;   /* xs  — icon gap, chip inner padding */
+    --gk-space-2: 8px;   /* sm  — form field gap, compact cell padding */
+    --gk-space-4: 16px;  /* md  — default card padding, sidebar section gap */
+    --gk-space-6: 24px;  /* lg  — content-area outer padding */
+    --gk-space-8: 32px;  /* xl  — dashboard grid gutter */
+    --gk-space-12: 48px; /* 2xl — major section break */
+    --gk-space-16: 64px; /* 3xl — empty-state vertical padding */
+}
+
+/* UI-SPEC §Interaction Contract — visible focus ring on every focusable element. */
+:focus-visible {
+    outline: 2px solid var(--gk-color-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* UI-SPEC §Min viewport — below 1024px surface a banner; never hide content. */
+.gk-viewport-warning {
+    display: none;
+    background-color: var(--gk-color-warning-subtle);
+    color: var(--gk-color-warning);
+    padding: var(--gk-space-2) var(--gk-space-4);
+    border-bottom: 1px solid var(--gk-color-border);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+}
+
+@media (max-width: 1023px) {
+    .gk-viewport-warning {
+        display: block;
+    }
+}
+
+/* Tabular numerals on every table (UI-SPEC §Typography — IDs + numeric columns align). */
+table, .mud-table, .mud-data-grid {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Content area padding — keyed to UI-SPEC §Layout Shell: content-area outer padding = lg. */
+.gk-content {
+    padding: var(--gk-space-6);
+}

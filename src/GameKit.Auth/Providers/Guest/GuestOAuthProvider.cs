@@ -82,6 +82,12 @@ internal sealed class GuestOAuthProvider : IOAuthProvider
         });
         await _ctx.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+        // D-03 ban enforcement: a fresh guest player is never banned, but invoking the shared
+        // helper keeps every provider on the same code path (and tolerates the edge case of a
+        // future refactor that reuses an existing Player row across guest logins).
+        var banned = await BannedCheckHelper.CheckAsync(_ctx, playerId, cancellationToken).ConfigureAwait(false);
+        if (banned is not null) return banned;
+
         // IssueRootAsync also writes the "auth.login.success" audit row. IsGuestResolver, called
         // inside JwtIssuer, will see zero identities + zero credentials and emit is_guest=true.
         var tokens = await _refresh

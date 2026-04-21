@@ -1,0 +1,380 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 GameKit contributors
+
+using System;
+using System.Collections.Concurrent;
+using System.IO;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Threading.Tasks;
+using GameKit.Admin.UI;
+using GameKit.Admin.UI.Authorization;
+using GameKit.Admin.UI.Builder;
+using GameKit.Admin.UI.Data;
+using GameKit.Admin.UI.Entities;
+using GameKit.Auth;
+using GameKit.Auth.Builder;
+using GameKit.Auth.Data;
+using GameKit.Auth.Services;
+using GameKit.Core;
+using GameKit.Core.Builder;
+using GameKit.Core.Data;
+using GameKit.TestFixtures;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
+
+namespace GameKit.Admin.Integration.Tests;
+
+/// <summary>
+/// In-process ASP.NET Core test host for <c>GameKit.Admin.UI</c> integration tests. Applies
+/// Core + Auth + Admin migrations out-of-band, then boots a <see cref="TestServer"/> whose
+/// pipeline composes <c>AddGameKit → AddAuth → AddGameKitAdmin</c> with the
+/// <c>SuperadminGateHostedService</c> gate enabled.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Three migration passes run in order (Core → Auth → Admin). <see cref="SuperadminGateHostedService"/>
+/// queries <c>admin_users</c> during host start, so any <c>seed</c> callback must execute BEFORE
+/// <see cref="IHost.StartAsync"/>. <see cref="StartAsync(PostgresFixture, RedisFixture, string, System.Func{AdminTestHost, Task}?)"/>
+/// handles this ordering internally: migrations first → seed (via a separate service provider) →
+/// host start (which triggers the gate).
+/// </para>
+/// </remarks>
+public sealed class AdminTestHost : IAsyncDisposable
+{
+    private readonly string _keyDir;
+    private readonly string _privPath;
+    private readonly string _pubPath;
+    private IHost? _host;
+    private string? _connectionString;
+    private readonly ConcurrentQueue<string> _logMessages = new();
+
+    /// <summary>The HTTP client bound to the in-memory test server.</summary>
+    public HttpClient Client { get; private set; } = default!;
+
+    /// <summary>All log messages captured by the in-memory log provider (for warning-assertion tests).</summary>
+    public ConcurrentQueue<string> LogMessages => _logMessages;
+
+    /// <summary>Constructs the host; generates an ephemeral RSA PEM keypair under the temp directory.</summary>
+    public AdminTestHost()
+    {
+        _keyDir = Path.Combine(Path.GetTempPath(), $"gk-admin-host-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_keyDir);
+        _privPath = Path.Combine(_keyDir, "priv.pem");
+        _pubPath = Path.Combine(_keyDir, "pub.pem");
+        using var rsa = RSA.Create(2048);
+        File.WriteAllText(_privPath, rsa.ExportRSAPrivateKeyPem());
+        File.WriteAllText(_pubPath, rsa.ExportRSAPublicKeyPem());
+    }
+
+    /// <summary>
+    /// Convenience factory: builds the host, applies migrations, optionally seeds admin rows,
+    /// and starts the in-memory server. If the superadmin gate fires in Production without a
+    /// seeded superadmin, <see cref="IHost.StartAsync"/> throws and the exception propagates.
+    /// </summary>
+    /// <param name="pg">Postgres fixture.</param>
+    /// <param name="redis">Redis fixture.</param>
+    /// <param name="env">Hosting environment name (<c>Production</c> / <c>Development</c> / <c>Staging</c>).</param>
+    /// <param name="seed">Optional async seed callback executed AFTER migrations but BEFORE host start.</param>
+    public static async Task<AdminTestHost> StartAsync(
+        PostgresFixture pg,
+        RedisFixture redis,
+        string env = "Production",
+        Func<AdminTestHost, Task>? seed = null)
+    {
+        var host = new AdminTestHost();
+        await host.InitializeAsync(pg, redis, env, seed).ConfigureAwait(false);
+        return host;
+    }
+
+    private async Task InitializeAsync(
+        PostgresFixture pg,
+        RedisFixture redis,
+        string env,
+        Func<AdminTestHost, Task>? seed)
+    {
+        ArgumentNullException.ThrowIfNull(pg);
+        ArgumentNullException.ThrowIfNull(redis);
+        _connectionString = pg.OwnerConnectionString;
+
+        // Apply all three migrations out-of-band so the host can start with AutoMigrate=false.
+        await MigrateAsync(_connectionString).ConfigureAwait(false);
+
+        // Run caller-supplied seed (e.g. inserting a bootstrap superadmin) BEFORE the host starts,
+        // so SuperadminGateHostedService sees the seeded row.
+        if (seed is not null)
+            await seed(this).ConfigureAwait(false);
+
+        _host = await Host.CreateDefaultBuilder()
+            .UseEnvironment(env)
+            .ConfigureWebHostDefaults(web =>
+            {
+                web.UseTestServer();
+                web.ConfigureServices(services =>
+                {
+                    var b = services.AddGameKit(o =>
+                    {
+                        o.ConnectionString = _connectionString!;
+                        o.RedisConnectionString = redis.ConnectionString;
+                        o.AutoMigrate = false;
+                    });
+                    b.AddAuth(o =>
+                    {
+                        o.Jwt.Issuer = "gk-test";
+                        o.Jwt.Audience = "gk-test";
+                        o.Jwt.PrivateKeyPemPath = _privPath;
+                        o.Jwt.PublicKeyPemPath = _pubPath;
+                        o.Jwt.Kid = "test-kid-1";
+                    });
+                    b.AddGameKitAdmin();
+
+                    // Test-host DbContext override: the runtime FOLLOW-UP-02-03-01 path relies on
+                    // CoreOptionsExtension.ApplicationServiceProvider to resolve IModelBuilderExtension
+                    // at OnModelCreating time. Under the Host.CreateDefaultBuilder +
+                    // ConfigureWebHostDefaults pattern, the factory lambda is invoked twice (once
+                    // with the generic-host scope, which doesn't yet see Auth+Admin registrations;
+                    // once with the web-host scope, which does) — EF caches the model from the first
+                    // invocation, skipping the second. Result: AdminUser never lands in the runtime
+                    // model. Bypass via ReplaceService<IModelCustomizer, AdminRuntimeQueryCustomizer>
+                    // which applies Core + Auth + Admin entity configurations directly on the model.
+                    // Matches the AuthTestHost pattern.
+                    services.AddDbContext<GameKitDbContext>((_, dbOpts) =>
+                        dbOpts.UseNpgsql(_connectionString!, npg =>
+                        {
+                            npg.MigrationsAssembly(typeof(GameKitDbContext).Assembly.FullName);
+                            npg.MigrationsHistoryTable(
+                                GameKit.Core.Data.GameKitMigrationConstants.MigrationsHistoryTable,
+                                GameKit.Core.Data.GameKitMigrationConstants.SchemaName);
+                        }).ReplaceService<IModelCustomizer, AdminRuntimeQueryCustomizer>());
+
+                    // Redis multiplexer (HealthProbeService resolves it).
+                    services.AddSingleton<IConnectionMultiplexer>(
+                        ConnectionMultiplexer.Connect(redis.ConnectionString));
+
+                    // Capture log messages so tests can assert warnings (Development path of SuperadminGate).
+                    services.AddLogging(log =>
+                    {
+                        log.ClearProviders();
+                        log.SetMinimumLevel(LogLevel.Debug);
+                        log.AddProvider(new TestLoggerProvider(_logMessages));
+                    });
+                });
+                web.Configure(app =>
+                {
+                    // Admin-UI friendly pipeline: Routing → RateLimiter → UseGameKitAuth → UseGameKit →
+                    // UseGameKitAdmin → Map* (per plan 03-06 SP-6).
+                    app.UseRouting();
+                    app.UseRateLimiter();
+                    app.UseGameKitAuth();
+                    app.UseGameKit();
+                    app.UseGameKitAdmin();
+                    app.UseEndpoints(e =>
+                    {
+                        e.MapAuth();
+                        e.MapGameKit();
+                        e.MapGameKitAdmin();
+                    });
+                });
+            })
+            .StartAsync()
+            .ConfigureAwait(false);
+
+        // TestServer's HttpClient follows redirects by default; disable so assertions see the
+        // raw 302/404 from AdminCookieEvents.
+        Client = _host.GetTestServer().CreateClient();
+    }
+
+    /// <summary>Seeds an admin row directly via EF. Callable from a <c>seed</c> callback passed to <see cref="StartAsync"/>.</summary>
+    /// <param name="username">Username.</param>
+    /// <param name="password">Plaintext password (hashed server-side via <see cref="BCryptPasswordHasher"/>).</param>
+    /// <param name="role"><see cref="AdminRoles.Admin"/> or <see cref="AdminRoles.Superadmin"/>.</param>
+    public async Task SeedAdminAsync(string username, string password, string role)
+    {
+        if (_connectionString is null)
+            throw new InvalidOperationException("AdminTestHost.SeedAdminAsync: connection string not initialized.");
+
+        // Build an AuthOptions shell whose only job is to supply a work-factor to the hasher.
+        var authOpts = new GameKitAuthOptions();
+        var hasher = new BCryptPasswordHasher(authOpts);
+
+        var opts = new DbContextOptionsBuilder<GameKitDbContext>()
+            .UseNpgsql(_connectionString, npg =>
+            {
+                npg.MigrationsAssembly(typeof(AdminMigrationConstants).Assembly.FullName);
+                npg.MigrationsHistoryTable(
+                    AdminMigrationConstants.MigrationsHistoryTable,
+                    GameKitMigrationConstants.SchemaName);
+            })
+            .ReplaceService<IModelCustomizer, AdminMigrationModelCustomizer>()
+            .Options;
+
+        await using var ctx = new GameKitDbContext(opts);
+        ctx.Set<AdminUser>().Add(new AdminUser
+        {
+            Id = Guid.CreateVersion7(),
+            Username = username,
+            PasswordHash = hasher.Hash(password),
+            Role = role,
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await ctx.SaveChangesAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Applies Core → Auth → Admin migrations in order. Each pass uses a dedicated context with
+    /// the package's <c>MigrationsAssembly</c> + <c>MigrationsHistoryTable</c> + customizer.
+    /// </summary>
+    private static async Task MigrateAsync(string ownerConnectionString)
+    {
+        // Pass 1 — Core.
+        var coreServices = new ServiceCollection();
+        coreServices.AddGameKit(o =>
+        {
+            o.ConnectionString = ownerConnectionString;
+            o.AutoMigrate = false;
+        });
+        await using (var coreSp = coreServices.BuildServiceProvider())
+        await using (var scope = coreSp.CreateAsyncScope())
+        {
+            await MigrationRunner
+                .MigrateWithLockAsync(scope.ServiceProvider.GetRequiredService<GameKitDbContext>())
+                .ConfigureAwait(false);
+        }
+
+        // Pass 2 — Auth.
+        var authOpts = new DbContextOptionsBuilder<GameKitDbContext>()
+            .UseNpgsql(ownerConnectionString, npg =>
+            {
+                npg.MigrationsAssembly(typeof(AuthMigrationConstants).Assembly.FullName);
+                npg.MigrationsHistoryTable(
+                    AuthMigrationConstants.MigrationsHistoryTable,
+                    GameKitMigrationConstants.SchemaName);
+            })
+            .ReplaceService<IModelCustomizer, AuthMigrationModelCustomizer>()
+            .Options;
+        await using (var authCtx = new GameKitDbContext(authOpts))
+        {
+            await MigrationRunner
+                .MigrateWithLockAsync(authCtx, AuthMigrationConstants.AdvisoryLockKey)
+                .ConfigureAwait(false);
+        }
+
+        // Pass 3 — Admin.
+        var adminOpts = new DbContextOptionsBuilder<GameKitDbContext>()
+            .UseNpgsql(ownerConnectionString, npg =>
+            {
+                npg.MigrationsAssembly(typeof(AdminMigrationConstants).Assembly.FullName);
+                npg.MigrationsHistoryTable(
+                    AdminMigrationConstants.MigrationsHistoryTable,
+                    GameKitMigrationConstants.SchemaName);
+            })
+            .ReplaceService<IModelCustomizer, AdminMigrationModelCustomizer>()
+            .Options;
+        await using (var adminCtx = new GameKitDbContext(adminOpts))
+        {
+            await MigrationRunner
+                .MigrateWithLockAsync(adminCtx, AdminMigrationConstants.AdvisoryLockKey)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Returns a fresh scoped <see cref="GameKitDbContext"/> from the host service provider.
+    /// Caller owns disposal.
+    /// </summary>
+    public (IServiceScope Scope, GameKitDbContext Ctx) CreateDbScope()
+    {
+        if (_host is null) throw new InvalidOperationException("Host not started.");
+        var scope = _host.Services.CreateScope();
+        return (scope, scope.ServiceProvider.GetRequiredService<GameKitDbContext>());
+    }
+
+    /// <summary>
+    /// Resolves a service from the host service provider inside a fresh scope. Returns both the
+    /// scope (so the caller can dispose it) and the resolved service.
+    /// </summary>
+    public (IServiceScope Scope, T Service) Resolve<T>() where T : notnull
+    {
+        if (_host is null) throw new InvalidOperationException("Host not started.");
+        var scope = _host.Services.CreateScope();
+        return (scope, scope.ServiceProvider.GetRequiredService<T>());
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_host is not null)
+        {
+            try { await _host.StopAsync().ConfigureAwait(false); } catch { /* best-effort */ }
+            _host.Dispose();
+        }
+        Client?.Dispose();
+        if (Directory.Exists(_keyDir))
+        {
+            try { Directory.Delete(_keyDir, recursive: true); } catch { /* best-effort */ }
+        }
+    }
+
+    /// <summary>
+    /// Runtime <see cref="IModelCustomizer"/> for the admin integration-test DbContext. Applies
+    /// Core entity configurations (via <see cref="RelationalModelCustomizer"/>'s base call —
+    /// which invokes <c>GameKitDbContext.OnModelCreating</c> and its
+    /// <c>ApplyConfigurationsFromAssembly</c>) and then Auth + Admin entity configurations
+    /// directly, so queries against <c>Player</c> / <c>PlayerIdentity</c> / <c>AdminUser</c>
+    /// succeed at runtime. Bypasses the FOLLOW-UP-02-03-01 broken
+    /// <c>ApplicationServiceProvider</c> path (which captures the generic-host's service
+    /// provider under <c>Host.CreateDefaultBuilder + ConfigureWebHostDefaults</c> and doesn't
+    /// see Auth/Admin <c>IModelBuilderExtension</c> registrations on the web host's collection).
+    /// Mirrors <c>AuthRuntimeQueryCustomizer</c> from Phase 2 integration tests. Requires
+    /// <c>InternalsVisibleTo("GameKit.Admin.Integration.Tests")</c> in <c>GameKit.Auth</c>
+    /// (granted in plan 03-06) to reach the internal Auth entity configurations.
+    /// </summary>
+    internal sealed class AdminRuntimeQueryCustomizer : RelationalModelCustomizer
+    {
+        public AdminRuntimeQueryCustomizer(ModelCustomizerDependencies dependencies)
+            : base(dependencies) { }
+
+        public override void Customize(ModelBuilder modelBuilder, DbContext context)
+        {
+            base.Customize(modelBuilder, context);
+            modelBuilder.ApplyConfiguration(new GameKit.Auth.Data.Configurations.PlayerIdentityConfiguration());
+            modelBuilder.ApplyConfiguration(new GameKit.Auth.Data.Configurations.PlayerCredentialConfiguration());
+            modelBuilder.ApplyConfiguration(new GameKit.Auth.Data.Configurations.RefreshTokenConfiguration());
+            modelBuilder.ApplyConfiguration(new GameKit.Admin.UI.Data.Configurations.AdminUserConfiguration());
+        }
+    }
+
+    /// <summary>In-memory logger provider that appends every formatted message to a concurrent queue.</summary>
+    private sealed class TestLoggerProvider : ILoggerProvider
+    {
+        private readonly ConcurrentQueue<string> _sink;
+        public TestLoggerProvider(ConcurrentQueue<string> sink) => _sink = sink;
+        public ILogger CreateLogger(string categoryName) => new TestLogger(_sink, categoryName);
+        public void Dispose() { }
+
+        private sealed class TestLogger : ILogger
+        {
+            private readonly ConcurrentQueue<string> _sink;
+            private readonly string _category;
+            public TestLogger(ConcurrentQueue<string> sink, string category)
+            {
+                _sink = sink;
+                _category = category;
+            }
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel level) => true;
+            public void Log<TState>(LogLevel level, EventId id, TState state, Exception? ex,
+                Func<TState, Exception?, string> fmt)
+            {
+                _sink.Enqueue($"[{level}] {_category}: {fmt(state, ex)}");
+            }
+        }
+    }
+}

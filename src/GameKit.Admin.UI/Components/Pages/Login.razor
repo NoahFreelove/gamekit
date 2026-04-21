@@ -1,0 +1,200 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §1 Admin login page — centered card on LoginLayout (no top nav, no sidebar).
+    UI-SPEC §2 First-admin-missing state — dev/staging-only bootstrap hint rendered inside
+    the same card when zero admins exist (CLI bootstrap via `dotnet gamekit admin create`).
+
+    Copy (UI-SPEC §Copywriting Contract, verbatim):
+      - Primary CTA: "Sign in"
+      - Forgot link: "Forgot password? Contact a superadmin."
+      - Invalid credentials: "Username or password is incorrect."
+      - Rate-limit 429: "Too many login attempts. Try again in a minute."
+      - Banned / disabled: "This account has been disabled. Contact a superadmin."
+      - 5xx: "Sign in is unavailable right now. Retry in a moment."
+      - Session-expired toast (arrival from returnUrl): "Your session expired. Sign in to continue."
+
+    Authentication uses direct server-side HttpClient POST to /admin/api/login (same origin).
+    On 200, navigate to /admin (or returnUrl). On 401, render the inline MudAlert. On 429,
+    render the rate-limit MudAlert. Antiforgery is NOT required on /login — see D-16 (CSRF
+    middleware skips unauthenticated paths by policy).
+*@
+@page "/admin/login"
+@layout LoginLayout
+@using System.Net
+@using System.Net.Http.Json
+@using GameKit.Admin.UI.Services
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject IHostEnvironment HostEnv
+@inject IAdminUserService AdminUsers
+
+<MudForm aria-label="Admin sign in" Class="gk-login-form">
+    <MudText Typo="Typo.h5" Class="gk-login-heading">GameKit Admin</MudText>
+    <MudText Typo="Typo.caption" Color="Color.Default" Class="gk-login-subheading">Sign in to continue</MudText>
+
+    @if (_showFirstAdminMissing && !HostEnv.IsProduction())
+    {
+        @* UI-SPEC §2 first-admin-missing state — replaces the form when zero admins exist. *@
+        <div class="gk-first-admin-missing">
+            <MudText Typo="Typo.h5" Class="gk-first-admin-heading">No admin configured yet</MudText>
+            <MudText Typo="Typo.body2" Class="gk-first-admin-body">
+                No superadmin exists in this database. Bootstrap one from a terminal to sign in:
+            </MudText>
+            <pre class="gk-first-admin-code" onclick="this.focus();"><code>dotnet gamekit admin create</code></pre>
+            <MudText Typo="Typo.caption" Color="Color.Default" Class="gk-first-admin-footer">
+                You'll be prompted for a username and password. The first admin is automatically promoted to superadmin.
+            </MudText>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="@_errorSeverity" role="alert" Class="gk-login-error">@_errorMessage</MudAlert>
+        }
+
+        <MudTextField T="string"
+                      @bind-Value="_username"
+                      Label="Username"
+                      Variant="Variant.Outlined"
+                      AutoFocus="true"
+                      UserAttributes="@(new Dictionary<string, object?> { ["autocomplete"] = "username", ["name"] = "username" })"
+                      Disabled="@_submitting"
+                      FullWidth="true" />
+
+        <MudTextField T="string"
+                      @bind-Value="_password"
+                      Label="Password"
+                      Variant="Variant.Outlined"
+                      InputType="InputType.Password"
+                      UserAttributes="@(new Dictionary<string, object?> { ["autocomplete"] = "current-password", ["name"] = "password" })"
+                      Disabled="@_submitting"
+                      FullWidth="true" />
+
+        <MudCheckBox T="bool"
+                     @bind-Value="_rememberMe"
+                     Label="Remember me for 30 days"
+                     Disabled="@_submitting" />
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   Disabled="@_submitting"
+                   OnClick="SignInAsync">
+            @if (_submitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                <span>Signing in…</span>
+            }
+            else
+            {
+                <span>Sign in</span>
+            }
+        </MudButton>
+
+        <MudText Typo="Typo.caption" Color="Color.Default" Align="Align.Center" Class="gk-login-forgot">
+            Forgot password? Contact a superadmin.
+        </MudText>
+    }
+</MudForm>
+
+@code {
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+    private bool _rememberMe;
+    private bool _submitting;
+    private string? _errorMessage;
+    private Severity _errorSeverity = Severity.Error;
+    private bool _showFirstAdminMissing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // D-05 dev/staging-only first-admin-missing state — production fails fast at startup
+        // via SuperadminGateHostedService, so we never render this branch in prod regardless.
+        if (!HostEnv.IsProduction())
+        {
+            try
+            {
+                var admins = await AdminUsers.ListAsync(CancellationToken.None);
+                _showFirstAdminMissing = admins.Count == 0;
+            }
+            catch
+            {
+                // If the query fails (migration pending, DB unreachable) fall back to the form —
+                // surface the real error on submit rather than blocking the entire page.
+                _showFirstAdminMissing = false;
+            }
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        _errorMessage = null;
+        _submitting = true;
+        try
+        {
+            var req = new LoginRequest(_username, _password, _rememberMe);
+            HttpResponseMessage resp;
+            try
+            {
+                resp = await Http.PostAsJsonAsync("/admin/api/login", req);
+            }
+            catch (HttpRequestException)
+            {
+                _errorMessage = "Sign in is unavailable right now. Retry in a moment.";
+                _errorSeverity = Severity.Error;
+                return;
+            }
+
+            if (resp.IsSuccessStatusCode)
+            {
+                // Successful cookie Set-Cookie header has already been applied by the server.
+                var returnUrl = ExtractReturnUrl();
+                Nav.NavigateTo(string.IsNullOrEmpty(returnUrl) ? "/admin" : returnUrl, forceLoad: true);
+                return;
+            }
+
+            switch (resp.StatusCode)
+            {
+                case HttpStatusCode.Unauthorized:
+                    _errorMessage = "Username or password is incorrect.";
+                    _errorSeverity = Severity.Error;
+                    break;
+                case (HttpStatusCode)429:
+                    _errorMessage = "Too many login attempts. Try again in a minute.";
+                    _errorSeverity = Severity.Warning;
+                    break;
+                case HttpStatusCode.Forbidden:
+                    _errorMessage = "This account has been disabled. Contact a superadmin.";
+                    _errorSeverity = Severity.Error;
+                    break;
+                default:
+                    _errorMessage = "Sign in is unavailable right now. Retry in a moment.";
+                    _errorSeverity = Severity.Error;
+                    break;
+            }
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private string? ExtractReturnUrl()
+    {
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var returnUrl = query["returnUrl"];
+        // Only honor same-origin absolute paths to prevent open-redirect.
+        if (!string.IsNullOrEmpty(returnUrl) && returnUrl.StartsWith("/", StringComparison.Ordinal))
+        {
+            return returnUrl;
+        }
+        return null;
+    }
+
+    // Local minimal LoginRequest shape — mirrors GameKit.Admin.UI.Http.Contracts.LoginRequest
+    // (kept inline so this page does not pull the DTO via an additional @using ambiguity).
+    private sealed record LoginRequest(string Username, string Password, bool RememberMe);
+}

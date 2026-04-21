@@ -130,6 +130,8 @@ internal sealed class PasswordOAuthProvider : IOAuthProvider
             return OAuthResult.Fail("invalid_credentials");
         }
 
+        var banned = await BannedCheckHelper.CheckAsync(_ctx, credential.PlayerId, cancellationToken).ConfigureAwait(false);
+        if (banned is not null) return banned;
         var tokens = await _refresh
             .IssueRootAsync(credential.PlayerId, Provider, fingerprint, cancellationToken)
             .ConfigureAwait(false);
@@ -214,6 +216,11 @@ internal sealed class PasswordOAuthProvider : IOAuthProvider
             reason: null,
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
+        // D-03 ban enforcement: a freshly-registered player is never banned, but invoking
+        // the shared helper keeps every provider code path consistent and defends against
+        // future refactors that might reuse Player rows across registrations.
+        var banned = await BannedCheckHelper.CheckAsync(_ctx, playerId, cancellationToken).ConfigureAwait(false);
+        if (banned is not null) return banned;
         var tokens = await _refresh
             .IssueRootAsync(playerId, Provider, fingerprint, cancellationToken)
             .ConfigureAwait(false);

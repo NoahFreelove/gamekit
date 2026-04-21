@@ -1,0 +1,202 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §9 Audit log — filters row (action namespace + actor username prefix) +
+    MudDataGrid with keyset pagination + expandable rows showing before/after JSON
+    side-by-side in <pre> blocks (12px mono, surface-alt bg).
+
+    Reads direct from GameKitDbContext (server-rendered component). Keyset pagination
+    uses (CreatedAt DESC, Id DESC) tuple — tail row from the previous page is the cursor.
+*@
+@page "/admin/audit"
+@attribute [Authorize(Policy = AdminPolicies.Admin)]
+@using System.Text.Json
+@using GameKit.Admin.UI.Services
+@using GameKit.Core.Data
+@using GameKit.Core.Entities
+@using Microsoft.EntityFrameworkCore
+@inject GameKitDbContext Db
+
+<h1 class="gk-page-heading">Audit log</h1>
+
+<MudPaper Class="gk-audit-filters" Elevation="0">
+    <div class="gk-filter-row">
+        <MudSelect T="string"
+                   @bind-Value="_actionFilter"
+                   Label="Action"
+                   Variant="Variant.Outlined"
+                   Dense="true"
+                   Clearable="true">
+            <MudSelectItem T="string" Value="@null">(All)</MudSelectItem>
+            <MudSelectItem T="string" Value="@AdminAuditActions.PlayerBan">@AdminAuditActions.PlayerBan</MudSelectItem>
+            <MudSelectItem T="string" Value="@AdminAuditActions.PlayerUnban">@AdminAuditActions.PlayerUnban</MudSelectItem>
+            <MudSelectItem T="string" Value="@AdminAuditActions.PlayerGdprDelete">@AdminAuditActions.PlayerGdprDelete</MudSelectItem>
+            <MudSelectItem T="string" Value="@AdminAuditActions.PlayerRankAdjust">@AdminAuditActions.PlayerRankAdjust</MudSelectItem>
+            <MudSelectItem T="string" Value="@AdminAuditActions.AdminCreate">@AdminAuditActions.AdminCreate</MudSelectItem>
+            <MudSelectItem T="string" Value="@AdminAuditActions.AdminDelete">@AdminAuditActions.AdminDelete</MudSelectItem>
+            <MudSelectItem T="string" Value="@AdminAuditActions.SigningKeyRotate">@AdminAuditActions.SigningKeyRotate</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ApplyFiltersAsync">Apply filters</MudButton>
+        <MudLink Href="javascript:void(0)" OnClick="ResetFiltersAsync" Typo="Typo.body2">Reset</MudLink>
+    </div>
+</MudPaper>
+
+@if (_loading && _rows.Count == 0)
+{
+    @for (var i = 0; i < 5; i++)
+    {
+        <MudSkeleton Height="40px" />
+    }
+}
+else if (_rows.Count == 0)
+{
+    @if (!string.IsNullOrEmpty(_actionFilter))
+    {
+        <div class="gk-empty-state">
+            <MudText Typo="Typo.h6">No audit entries.</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Default">
+                No audit log entries match the current filter. Clear filters to see all actions.
+            </MudText>
+        </div>
+    }
+    else
+    {
+        <div class="gk-empty-state">
+            <MudText Typo="Typo.h6">No admin actions recorded yet.</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Default">
+                Actions like bans, admin creates, and rank adjustments appear here.
+            </MudText>
+        </div>
+    }
+}
+else
+{
+    <MudSimpleTable Dense="true" Hover="true" Class="gk-audit-grid">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _rows)
+            {
+                <tr>
+                    <td class="gk-mono">@row.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</td>
+                    <td>@(row.ActorId?.ToString("N")[..8] ?? "system")</td>
+                    <td><span class="gk-mono gk-code-chip">@row.Action</span></td>
+                    <td class="gk-mono">@(row.TargetId?.ToString("N")[..8] ?? "—")</td>
+                    <td>
+                        <MudIconButton Icon="@(_expanded.Contains(row.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                       Size="Size.Small"
+                                       aria-expanded="@(_expanded.Contains(row.Id) ? "true" : "false")"
+                                       aria-label="Expand"
+                                       OnClick="@(() => ToggleRow(row.Id))" />
+                    </td>
+                </tr>
+                @if (_expanded.Contains(row.Id))
+                {
+                    <tr class="gk-audit-expanded">
+                        <td colspan="5">
+                            <div class="gk-audit-diff">
+                                <div>
+                                    <MudText Typo="Typo.caption" Color="Color.Default">Before</MudText>
+                                    <pre class="gk-json-block">@FormatJson(row.Before)</pre>
+                                </div>
+                                <div>
+                                    <MudText Typo="Typo.caption" Color="Color.Default">After</MudText>
+                                    <pre class="gk-json-block">@FormatJson(row.After)</pre>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(row.Reason))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Default">Reason: @row.Reason</MudText>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </MudSimpleTable>
+
+    <KeysetPaginator HasMore="_hasMore" IsLoading="_loadingMore" PageSize="50" OnLoadMore="LoadMoreAsync" />
+}
+
+@code {
+    private const int PageSize = 50;
+    private readonly List<AdminAuditLog> _rows = new();
+    private readonly HashSet<Guid> _expanded = new();
+    private string? _actionFilter;
+    private bool _loading;
+    private bool _loadingMore;
+    private bool _hasMore;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync(reset: true);
+    }
+
+    private async Task ApplyFiltersAsync() => await LoadAsync(reset: true);
+
+    private async Task ResetFiltersAsync()
+    {
+        _actionFilter = null;
+        await LoadAsync(reset: true);
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        _loadingMore = true;
+        await LoadAsync(reset: false);
+        _loadingMore = false;
+    }
+
+    private async Task LoadAsync(bool reset)
+    {
+        if (reset)
+        {
+            _rows.Clear();
+            _expanded.Clear();
+            _loading = true;
+            StateHasChanged();
+        }
+
+        var ct = CancellationToken.None;
+        var q = Db.AdminAuditLog.AsNoTracking();
+        if (!string.IsNullOrEmpty(_actionFilter))
+        {
+            q = q.Where(r => r.Action == _actionFilter);
+        }
+        if (!reset && _rows.Count > 0)
+        {
+            var last = _rows[^1];
+            var ts = last.CreatedAt;
+            var aid = last.Id;
+            q = q.Where(r => r.CreatedAt < ts || (r.CreatedAt == ts && r.Id < aid));
+        }
+        var page = await q
+            .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
+            .Take(PageSize + 1)
+            .ToListAsync(ct);
+        _hasMore = page.Count > PageSize;
+        if (_hasMore) page.RemoveAt(PageSize);
+        _rows.AddRange(page);
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private void ToggleRow(Guid id)
+    {
+        if (!_expanded.Remove(id)) _expanded.Add(id);
+    }
+
+    private static string FormatJson(JsonDocument? doc)
+    {
+        if (doc is null) return "—";
+        return JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true });
+    }
+}

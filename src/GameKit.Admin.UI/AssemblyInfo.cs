@@ -5,6 +5,20 @@ using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("GameKit.Admin.Tests")]
 [assembly: InternalsVisibleTo("GameKit.Admin.Integration.Tests")]
+// Plan 03-11: grants the GameKit.Cli dotnet-tool access to AdminModelBuilderExtension
+// (internal sealed — a reflection-scanned IModelBuilderExtension the CLI needs at
+// migration apply time, but that consumers of the public NuGet surface must not call
+// directly). Keeps the Admin package's public surface minimal while unblocking the
+// `dotnet gamekit admin create` bootstrap command which must register the extension in
+// its ServiceCollection. Both names are required:
+//   * "gamekit" — the actual AssemblyName of src/GameKit.Cli/GameKit.Cli.csproj
+//     (driven by its <AssemblyName>gamekit</AssemblyName> to match the ToolCommandName);
+//     InternalsVisibleTo is checked against assembly name, so this grant is the runtime
+//     gate.
+//   * "GameKit.Cli" — the csproj + RootNamespace name; kept for plan 03-11 verification
+//     literals and for any future restructuring that aligns AssemblyName with csproj name.
+[assembly: InternalsVisibleTo("gamekit")]
+[assembly: InternalsVisibleTo("GameKit.Cli")]
 
 namespace GameKit.Admin.UI;
 

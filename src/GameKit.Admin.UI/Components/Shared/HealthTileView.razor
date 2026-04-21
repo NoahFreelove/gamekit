@@ -1,0 +1,59 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §10 Health panel tile:
+      Line 1: icon (24px) + label (16px/600)
+      Line 2: Big status (20px/600) — OK / Degraded / Down
+      Line 3: caption — latency / error count detail
+      Line 4: caption mono — last-checked timestamp
+*@
+<MudPaper Class="gk-health-tile" Elevation="0" Outlined="true">
+    <div class="gk-health-tile-header">
+        <MudIcon Icon="@IconFor(Tile?.Status)" Size="Size.Medium" Color="@ColorFor(Tile?.Status)" />
+        <MudText Typo="Typo.subtitle2">@Label</MudText>
+    </div>
+    @if (Tile is null)
+    {
+        <MudSkeleton Height="56px" />
+    }
+    else
+    {
+        <MudText Typo="Typo.h6" Color="@ColorFor(Tile.Status)">@Tile.Status</MudText>
+        <MudText Typo="Typo.caption" Color="Color.Default">@Tile.Detail</MudText>
+    }
+    @if (CheckedAt.HasValue)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Default" Class="gk-mono">
+            updated @CheckedAt.Value.UtcDateTime.ToString("HH:mm:ss") UTC
+        </MudText>
+    }
+</MudPaper>
+
+@code {
+    /// <summary>Tile payload returned by IHealthProbeService.ProbeAsync. Null while loading.</summary>
+    [Parameter] public HealthTile? Tile { get; set; }
+
+    /// <summary>Static label (Postgres / Redis / Error rate).</summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    /// <summary>UTC timestamp at which the parent report was taken.</summary>
+    [Parameter] public DateTimeOffset? CheckedAt { get; set; }
+
+    /// <summary>Maps the HealthProbeService status string to a MudBlazor icon.</summary>
+    private static string IconFor(string? status) => status switch
+    {
+        "OK" => Icons.Material.Filled.CheckCircle,
+        "Degraded" => Icons.Material.Filled.Warning,
+        "Down" or "Error" => Icons.Material.Filled.Error,
+        _ => Icons.Material.Filled.Help,
+    };
+
+    /// <summary>Maps the status to a semantic MudBlazor color.</summary>
+    private static Color ColorFor(string? status) => status switch
+    {
+        "OK" => Color.Success,
+        "Degraded" => Color.Warning,
+        "Down" or "Error" => Color.Error,
+        _ => Color.Default,
+    };
+}

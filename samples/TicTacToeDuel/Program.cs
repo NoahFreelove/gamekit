@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 GameKit contributors
 
+using GameKit.Admin.UI.Builder;
 using GameKit.Auth.Builder;
 using GameKit.Core.Builder;
 using TicTacToeDuel.Http;
@@ -45,6 +46,12 @@ builder.Services.AddGameKit(opts =>
     // Operator-customizable egress allow-list — defaults cover Steam + Discord. Production
     // apps proxying OAuth through another host append here, e.g.:
     //   auth.AllowedProviderHosts.Add("id.internal.example.com");
+})
+.AddGameKitAdmin(admin =>
+{
+    admin.MountPath = "/admin";
+    // Default cookie/panel/CSP options are production-safe. See GameKitAdminOptions.cs for knobs
+    // (cookie name + expiry, panel refresh interval, CSP report-only toggle).
 });
 
 var app = builder.Build();
@@ -55,16 +62,25 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 // Middleware order is strict: UseRouting → UseRateLimiter → UseGameKitAuth (UseAuthentication) →
-// UseGameKit (UseAuthorization + AutoMigrate) → endpoints. Deviating causes authenticated
-// endpoints (/auth/me, /auth/link, /api/players) to 401 even with a valid Bearer token
-// (RESEARCH §8.12 #6).
+// UseGameKit (UseAuthorization + AutoMigrate) → UseGameKitAdmin (CSP nonce + antiforgery) →
+// endpoints. Deviating causes authenticated endpoints (/auth/me, /auth/link, /api/players) to
+// 401 even with a valid Bearer token (RESEARCH §8.12 #6) or admin CSP/antiforgery to misfire
+// on non-admin paths (plan 03-12 RESEARCH §Middleware pipeline contract, line 431).
 app.UseRouting();
 app.UseRateLimiter();
 app.UseGameKitAuth();
 app.UseGameKit();
+app.UseGameKitAdmin();  // Plan 03-12 — admin CSP nonce + antiforgery; scoped to /admin/*.
 
-app.MapGameKit();   // /api/players (RequireAuthorization — Bearer JWT now enforced)
-app.MapAuth();      // /auth/* — Phase 2
-app.MapDemo();      // /demo/games (the /demo/players/register endpoint is REMOVED in Phase 2)
+// MapStaticAssets is the .NET 8+ static-asset endpoint pipeline. It composes static web assets
+// from referenced Razor Class Libraries (here: GameKit.Admin.UI's MudBlazor JS/CSS, gamekit-admin.css,
+// and the Blazor framework's _framework/blazor.web.js). MapRazorComponents<App>().WithStaticAssets()
+// inside MapGameKitAdmin depends on this being mounted.
+app.MapStaticAssets();
+
+app.MapGameKit();                   // /api/players (RequireAuthorization — Bearer JWT now enforced)
+app.MapAuth();                      // /auth/* — Phase 2
+app.MapDemo();                      // /demo/games (the /demo/players/register endpoint is REMOVED in Phase 2)
+app.MapGameKitAdmin("/admin");      // Plan 03-12 — /admin/api/* HTTP surface + /admin/* Blazor console.
 
 app.Run();

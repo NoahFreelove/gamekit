@@ -1,0 +1,30 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    Top-level router for the admin shell. Scans GameKit.Admin.UI for @page-routed components
+    (plan 03-09 adds the page components; this shell ships only layouts).
+
+    NotAuthorized path handles the authenticated-with-wrong-role case only. Unauthenticated
+    hits are caught by cookie events (AdminCookieEvents) and redirected to /admin/login.
+
+    UI-SPEC §Interaction Contract — keyboard & focus: on route change, move focus to the page's
+    <h1> so screenreaders announce the new page. FocusOnNavigate handles this.
+*@
+<Router AppAssembly="@typeof(GameKit.Admin.UI.AdminUiMarker).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @* Cookie events handle redirect/404 for unauthenticated users. This path
+                   fires only when the user is authenticated but lacks the required role
+                   (e.g. admin trying to open /admin/admins which requires superadmin). *@
+                <MudAlert Severity="Severity.Error">This action requires superadmin. Ask another admin to perform it.</MudAlert>
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(Layout.MainLayout)">
+            <MudAlert Severity="Severity.Warning">Page not found.</MudAlert>
+        </LayoutView>
+    </NotFound>
+</Router>

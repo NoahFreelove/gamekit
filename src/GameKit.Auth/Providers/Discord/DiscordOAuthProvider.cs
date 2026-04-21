@@ -89,6 +89,8 @@ internal sealed class DiscordOAuthProvider : IOAuthProvider
             await _ctx.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        var banned = await BannedCheckHelper.CheckAsync(_ctx, playerId, cancellationToken).ConfigureAwait(false);
+        if (banned is not null) return banned;
         var tokens = await _refresh
             .IssueRootAsync(playerId, Provider, fingerprint, cancellationToken)
             .ConfigureAwait(false);

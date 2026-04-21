@@ -1,0 +1,148 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §5 match history tab rendered as a standalone top-level page. Operator passes
+    a player id via the `?playerId=...` query string; empty state prompts them to visit
+    a specific player detail page to browse history in context.
+
+    Data loaded via direct GameKitDbContext query — joins SessionParticipant → GameSession
+    because there's no nav property on SessionParticipant (Phase-1 GDPR cascade decision).
+*@
+@page "/admin/matches"
+@attribute [Authorize(Policy = AdminPolicies.Admin)]
+@using GameKit.Core.Data
+@using GameKit.Core.Entities
+@using Microsoft.EntityFrameworkCore
+@implements IDisposable
+@inject GameKitDbContext Db
+@inject NavigationManager Nav
+
+<h1 class="gk-page-heading">Match history</h1>
+
+@if (_playerId is null)
+{
+    <div class="gk-empty-state">
+        <MudText Typo="Typo.h6">Select a player</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Default">
+            Open a player detail page (Match history tab) to view their session history, or
+            pass a <code>?playerId=…</code> query string to this page.
+        </MudText>
+    </div>
+}
+else if (_loading)
+{
+    <MudSkeleton Height="200px" />
+}
+else if (_rows.Count == 0)
+{
+    <div class="gk-empty-state">
+        <MudText Typo="Typo.h6">No match history yet.</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Default">
+            This player hasn't completed any matches.
+        </MudText>
+    </div>
+}
+else
+{
+    <MudSimpleTable Dense="true" Hover="true">
+        <thead>
+            <tr>
+                <th>Session</th>
+                <th>Ladder</th>
+                <th>Team</th>
+                <th>Result</th>
+                <th>Rating before → after</th>
+                <th>Completed</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in _rows)
+            {
+                <tr>
+                    <td class="gk-mono">@r.SessionId.ToString("N")[..8]…</td>
+                    <td class="gk-mono">@(r.LadderId?.ToString("N")[..8] ?? "—")</td>
+                    <td>@r.Team</td>
+                    <td>@(r.Result?.ToString() ?? "—")</td>
+                    <td class="gk-mono">@(r.RatingBefore?.ToString("0.##") ?? "—") → @(r.RatingAfter?.ToString("0.##") ?? "—")</td>
+                    <td class="gk-mono">@(r.CompletedAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—") UTC</td>
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+}
+
+@code {
+    private Guid? _playerId;
+    private readonly List<MatchRow> _rows = new();
+    private bool _loading;
+    private IDisposable? _navSubscription;
+
+    private sealed record MatchRow(
+        Guid SessionId,
+        Guid? LadderId,
+        int Team,
+        SessionResult? Result,
+        double? RatingBefore,
+        double? RatingAfter,
+        DateTimeOffset? CompletedAt);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _navSubscription = null;
+        Nav.LocationChanged += OnLocationChanged;
+        await ReadAndLoadAsync();
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        await ReadAndLoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task ReadAndLoadAsync()
+    {
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var id = query["playerId"];
+        if (Guid.TryParse(id, out var pid))
+        {
+            _playerId = pid;
+            await LoadAsync(pid);
+        }
+        else
+        {
+            _playerId = null;
+        }
+    }
+
+    private async Task LoadAsync(Guid pid)
+    {
+        _loading = true;
+        _rows.Clear();
+        StateHasChanged();
+        var ct = CancellationToken.None;
+        var rows = await (
+            from p in Db.Set<SessionParticipant>().AsNoTracking()
+            join s in Db.GameSessions.AsNoTracking() on p.SessionId equals s.Id
+            where p.PlayerId == pid && s.State == GameSessionState.Completed
+            orderby s.CompletedAt descending
+            select new MatchRow(
+                p.SessionId,
+                s.LadderId,
+                p.Team,
+                p.Result,
+                p.RatingBefore,
+                p.RatingAfter,
+                s.CompletedAt))
+            .Take(50)
+            .ToListAsync(ct);
+        _rows.AddRange(rows);
+        _loading = false;
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        _navSubscription?.Dispose();
+    }
+}

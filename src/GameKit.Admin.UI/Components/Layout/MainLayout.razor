@@ -1,0 +1,56 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    Primary admin shell layout — used by every authenticated page under /admin/*
+    except /admin/login (which uses LoginLayout).
+
+    UI-SPEC §Layout Shell:
+    - Top nav: 56px fixed, surface bg, 1px bottom border.
+    - Sidebar: 240px expanded / 64px collapsed, persistent on desktop.
+    - Content area: fills remaining space, scrolls independently, outer padding lg (24px).
+
+    UI-SPEC §Component Inventory: exactly one MudThemeProvider + MudPopoverProvider +
+    MudDialogProvider + MudSnackbarProvider at the root of the rendered tree (UI-SPEC §7
+    pitfall: double-mounting any provider causes dialog/snackbar double-render).
+
+    Snackbar position/max-displayed are controlled via AddMudServices(...) in DI (plan 03-06
+    DI wiring). Values declared here on <MudSnackbarProvider> are not honored by the 9.x
+    component (no Position/MaxDisplayed parameters); position defaults to BottomRight.
+*@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="@GameKitAdminTheme.Default" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <TopNav OnToggleDrawer="ToggleDrawer" />
+    <MudDrawer @bind-Open="_drawerOpen"
+               Elevation="0"
+               Variant="DrawerVariant.Persistent"
+               ClipMode="DrawerClipMode.Always"
+               Width="240px"
+               MiniWidth="64px">
+        <SideNav />
+    </MudDrawer>
+    <MudMainContent>
+        @* UI-SPEC §Layout Shell — content-area outer padding = lg (var(--gk-space-6)). *@
+        <div class="gk-content">
+            @* UI-SPEC §Min viewport banner — <1024px shows a warning (CSS handles visibility). *@
+            <div class="gk-viewport-warning" role="status">
+                GameKit Admin is designed for desktop. Some views may overflow.
+            </div>
+            @Body
+        </div>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    // UI-SPEC §Sidebar — persistent on desktop; collapse toggle lives on the top nav.
+    // State is component-local here; CONTEXT mentions a future cookie (gk_admin_sidebar)
+    // to survive reload — deferred to a later plan.
+    private bool _drawerOpen = true;
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+}

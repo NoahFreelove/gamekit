@@ -1,0 +1,23 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/* UI-SPEC §1 Admin login page — centered 400px card on blank page background. */
+.gk-login-viewport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: var(--gk-color-bg);
+    padding: var(--gk-space-6);
+}
+
+.gk-login-card {
+    width: 400px;
+    max-width: 100%;
+    background-color: var(--gk-color-surface);
+    border: 1px solid var(--gk-color-border);
+    border-radius: 8px;
+    padding: var(--gk-space-6);
+    /* UI-SPEC §1 "1-level shadow" — subtle elevation, not dramatic. */
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+}

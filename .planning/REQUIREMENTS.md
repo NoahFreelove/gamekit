@@ -49,17 +49,17 @@
 ### Admin UI (Admin.UI Package)
 
 - [x] **ADMIN-01**: Library ships as `GameKit.Admin.UI` package — Blazor Server in a Razor Class Library
-- [ ] **ADMIN-02**: Mountable at configurable path via `app.MapGameKitAdmin("/admin")`
+- [x] **ADMIN-02**: Mountable at configurable path via `app.MapGameKitAdmin("/admin")` — `MountPathTests.CustomMountPath_RelocatesApiPrefix_And_LeavesBlazorShellAtAdmin`
 - [x] **ADMIN-03**: Default-deny route policy: returns 404 (not 401) on unauth in Production; startup assertion fails fast if mounted with no role configured
 - [x] **ADMIN-04**: Separate auth scheme from player JWT (HTTP Basic or admin-token by default; pluggable)
 - [x] **ADMIN-05**: Player search (by id, display name, identity)
 - [x] **ADMIN-06**: Player ban/unban with mandatory reason — writes to `admin_audit_log`
-- [ ] **ADMIN-07**: Manual rank adjustment UI (functional once Rankings package present)
-- [ ] **ADMIN-08**: Match history viewer
-- [ ] **ADMIN-09**: Live matchmaking queue depth panel (functional once Matchmaking present)
+- [x] **ADMIN-07**: Manual rank adjustment UI (functional once Rankings package present) — `PanelRenderTests.RankAdjustPanel_Renders_MissingPackageAlert_WhenRankingsNotInstalled_ForSuperadmin`
+- [x] **ADMIN-08**: Match history viewer — `PanelRenderTests.MatchHistoryPanel_Returns_CompletedSessions_ForPlayer`
+- [x] **ADMIN-09**: Live matchmaking queue depth panel (functional once Matchmaking present) — `PanelRenderTests.QueueDepthPanel_Renders_MissingPackageAlert_WhenMatchmakingNotInstalled`
 - [x] **ADMIN-10**: Health panel: Postgres connectivity, Redis connectivity, recent error rate
-- [ ] **ADMIN-11**: First-admin bootstrap CLI (no admin → cannot mount in Production until one exists)
-- [ ] **ADMIN-12**: CSP headers + anti-CSRF token enforcement on all mutations
+- [x] **ADMIN-11**: First-admin bootstrap CLI (no admin → cannot mount in Production until one exists)
+- [x] **ADMIN-12**: CSP headers + anti-CSRF token enforcement on all mutations — `CspAndAntiforgeryTests.AdminResponse_Has_ContentSecurityPolicy_Header` + `BanMutation_Without_Antiforgery_Returns_400_CsrfValidationFailed`
 
 ### Rankings + Sessions Wiring + GDPR Export (Rankings Package)
 
@@ -181,7 +181,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | OPS-01, OPS-02, OPS-03, OPS-06, OPS-07, OPS-08, OPS-09, OPS-10 | Phase 1 | Pending |
 | DIST-01 (initial: Postgres/Redis + roles) | Phase 1 | Pending |
 | AUTH-01..16 | Phase 2 | Complete (2026-04-18) |
-| ADMIN-01..12 | Phase 3 | In progress (6/12: ADMIN-01, ADMIN-03, ADMIN-04, ADMIN-05, ADMIN-06, ADMIN-10) |
+| ADMIN-01..12 | Phase 3 | Complete 12/12 (all ADMIN requirements anchored by integration tests in `tests/GameKit.Admin.Integration.Tests/` per plan 03-13 SC-anchor matrix) |
 | RANK-01..14 | Phase 4 | Pending |
 | MATCH-01..15 | Phase 5 | Pending |
 | PRES-01..06 | Phase 6 | Pending |

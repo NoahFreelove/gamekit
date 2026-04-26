@@ -108,7 +108,7 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
 - [x] 03-10-PLAN.md — Phase 2 ban-enforcement patches: BannedCheckHelper (SHA-256 reason hash) + 4 provider patches + RefreshTokenService family-revoke patch + BanEnforcementTests (D-03)
 - [x] 03-11-PLAN.md — `dotnet gamekit admin create` CLI command (Spectre.Console flags + interactive + auto-promote first admin to superadmin + Console.ReadKey intercept)
 - [ ] 03-12-PLAN.md — TicTacToeDuel sample wiring: AddGameKitAdmin + UseGameKitAdmin + MapGameKitAdmin("/admin") + README Admin UI section + human-verify 20-step walkthrough
-- [ ] 03-13-PLAN.md — E2E ROADMAP SC coverage: RoadmapScenarioTests (SC#1) + ProductionGateTests (SC#2) + CrossSchemeIsolationTests (SC#6) + CspAndAntiforgeryTests (SC#5) + PanelRenderTests (SC#4) + MountPathTests
+- [x] 03-13-PLAN.md — E2E ROADMAP SC coverage: RoadmapScenarioTests (SC#1) + ProductionGateTests (SC#2) + CrossSchemeIsolationTests (SC#6) + CspAndAntiforgeryTests (SC#5) + PanelRenderTests (SC#4) + MountPathTests
 **UI hint**: yes
 
 ### Phase 4: Rankings + Sessions Wiring + GDPR Export

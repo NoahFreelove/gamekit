@@ -61,6 +61,21 @@
     <!-- Phase 3 Admin UI — MudBlazor 9.3.0 verified GA on net10.0 2026-04-18 (MIT / GPL-compatible)
          net10.0 TFM confirmed via nuget.org/packages/MudBlazor/9.3.0 (see 03-RESEARCH.md §Version verification). -->
     <PackageVersion Include="MudBlazor" Version="9.3.0" />
+
+    <!-- Transitive pin to override WireMock.Net.OpenTelemetry/2.2.0's pull of OpenTelemetry.* 1.14.0,
+         which carries moderate-severity advisories (GHSA-g94r-2vxg-569j, GHSA-mr8r-92fq-pj8p,
+         GHSA-q834-8qmm-v933). 1.15.3 is the lowest stable line clean of all three. The full sibling
+         set is pinned together to keep the OTel version graph internally consistent — partial bumps
+         leave inter-OTel constraints inconsistent. CentralPackageTransitivePinningEnabled honors these
+         pins for transitive resolution. Do not downgrade. -->
+    <PackageVersion Include="OpenTelemetry" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Api.ProviderBuilderExtensions" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
+    <!-- Instrumentation.* sit on a separate release cadence from the core SDK; 1.15.2 is the latest
+         on this line and is not flagged by the advisories above. -->
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
   </ItemGroup>
 
   <ItemGroup>

@@ -3,18 +3,15 @@
 @*
     UI-SPEC §13 Delete admin dialog — one-step confirmation (no retype), danger color,
     copy: "Delete admin \"{username}\"? This cannot be undone. The audit log records this
-    action." Issues DELETE /admin/api/admins/{id} with the W9 PRESCRIPTIVE CSRF header.
+    action." Calls IAdminUserService.DeleteAsync directly via DI.
 
-    Server enforces the last-superadmin guard via LastSuperadminException → 409; the UI
-    surfaces the message inline if the guard fires despite the client-side disable.
+    Server enforces the last-superadmin guard via LastSuperadminException; the UI surfaces
+    the message inline if the guard fires despite the client-side disable on the parent page.
+    See architecture note in AdminEndpoints.cs and rationale in BanPlayerDialog.razor.
 *@
 @namespace GameKit.Admin.UI.Components.Dialogs
-@using System.Net
-@using GameKit.Admin.UI.Authentication
-@using Microsoft.AspNetCore.Antiforgery
-@inject HttpClient Http
-@inject IAntiforgery Antiforgery
-@inject IHttpContextAccessor HttpContextAccessor
+@inject IAdminUserService AdminUsers
+@inject AuthenticationStateProvider AuthState
 
 <MudDialog>
     <TitleContent>
@@ -55,14 +52,6 @@
 
     private bool _submitting;
     private string? _errorMessage;
-    private AntiforgeryTokenSet? _tokens;
-
-    protected override void OnInitialized()
-    {
-        var ctx = HttpContextAccessor.HttpContext
-            ?? throw new InvalidOperationException("No HttpContext — dialog must render within a Blazor Server request.");
-        _tokens = Antiforgery.GetAndStoreTokens(ctx);
-    }
 
     private void Cancel() => MudDialog?.Cancel();
 
@@ -72,27 +61,19 @@
         _errorMessage = null;
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Delete, $"/admin/api/admins/{AdminId}");
-            if (_tokens?.RequestToken is { } token)
-            {
-                request.Headers.Add(AdminAuthenticationSchemeConstants.CsrfHeaderName, token);
-            }
-            var resp = await Http.SendAsync(request);
-
-            if (resp.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.OK)
-            {
-                MudDialog?.Close(DialogResult.Ok(true));
-                return;
-            }
-            _errorMessage = resp.StatusCode switch
-            {
-                HttpStatusCode.Conflict => "Cannot delete the last superadmin. Create another superadmin first.",
-                HttpStatusCode.NotFound => "Admin not found. The page may be out of date.",
-                HttpStatusCode.Forbidden => "This action requires superadmin. Ask another admin to perform it.",
-                _ => $"Delete failed: server returned {(int)resp.StatusCode}. Try again.",
-            };
+            var actorId = await GetActorIdAsync();
+            await AdminUsers.DeleteAsync(AdminId, actorId, CancellationToken.None);
+            MudDialog?.Close(DialogResult.Ok(true));
         }
-        catch (HttpRequestException ex)
+        catch (LastSuperadminException)
+        {
+            _errorMessage = "Cannot delete the last superadmin. Create another superadmin first.";
+        }
+        catch (KeyNotFoundException)
+        {
+            _errorMessage = "Admin not found. The page may be out of date.";
+        }
+        catch (Exception ex)
         {
             _errorMessage = $"Delete failed: {ex.Message}. Try again.";
         }
@@ -100,5 +81,15 @@
         {
             _submitting = false;
         }
+    }
+
+    private async Task<Guid> GetActorIdAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var nameId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(nameId, out var id)
+            ? id
+            : throw new InvalidOperationException(
+                "Admin id claim is missing — dialog must run inside an authenticated admin session.");
     }
 }

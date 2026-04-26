@@ -27,7 +27,12 @@
     <HeadOutlet />
 </head>
 <body>
-    <Routes @rendermode="@RenderMode.InteractiveServer" />
+    @*
+        Per-page rendermode: pages decorated with [ExcludeFromInteractiveRouting] (currently
+        Login.razor) render as static SSR so real HTML form submissions work — required for
+        cookie-mutating endpoints. Every other admin page gets InteractiveServer.
+    *@
+    <Routes @rendermode="@PageRenderMode" />
     @* UI-SPEC §Asset Loading + CONTEXT D-15: every script tag gets the per-request nonce. *@
     <script src="_framework/blazor.web.js" nonce="@Nonce"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js" nonce="@Nonce"></script>
@@ -43,4 +48,15 @@
     /// </summary>
     private string? Nonce =>
         HttpContextAccessor.HttpContext?.Items[AdminCspNonceMiddleware.NonceItemKey] as string;
+
+    /// <summary>
+    /// Per-request rendermode for the <c>Routes</c> root: <c>InteractiveServer</c> for the
+    /// authenticated admin pages, <c>null</c> (static SSR) for pages marked
+    /// <see cref="ExcludeFromInteractiveRoutingAttribute"/>. Falls back to interactive when
+    /// the HTTP context is unavailable (defensive — should not happen on admin paths).
+    /// </summary>
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContextAccessor.HttpContext?.AcceptsInteractiveRouting() == false
+            ? null
+            : RenderMode.InteractiveServer;
 }

@@ -1,20 +1,13 @@
 @* SPDX-License-Identifier: GPL-3.0-or-later *@
 @* Copyright (c) 2026 GameKit contributors *@
 @*
-    UI-SPEC §7 Unban dialog — same shape as Ban (warning color, reason optional).
-
-    CSRF pattern (W9 PRESCRIPTIVE): inject IAntiforgery + IHttpContextAccessor, capture
-    AntiforgeryTokenSet on init, attach X-GameKit-Admin-CSRF header on submit.
+    UI-SPEC §7 Unban dialog — same shape as Ban (warning color, reason optional). Calls
+    IPlayerBanService.UnbanAsync directly via DI. See the architecture note in
+    AdminEndpoints.cs and the longer rationale in BanPlayerDialog.razor.
 *@
 @namespace GameKit.Admin.UI.Components.Dialogs
-@using System.Net
-@using System.Net.Http.Json
-@using GameKit.Admin.UI.Authentication
-@using GameKit.Admin.UI.Http.Contracts
-@using Microsoft.AspNetCore.Antiforgery
-@inject HttpClient Http
-@inject IAntiforgery Antiforgery
-@inject IHttpContextAccessor HttpContextAccessor
+@inject IPlayerBanService BanService
+@inject AuthenticationStateProvider AuthState
 
 <MudDialog>
     <TitleContent>
@@ -64,14 +57,6 @@
     private string _reason = string.Empty;
     private bool _submitting;
     private string? _errorMessage;
-    private AntiforgeryTokenSet? _tokens;
-
-    protected override void OnInitialized()
-    {
-        var ctx = HttpContextAccessor.HttpContext
-            ?? throw new InvalidOperationException("No HttpContext — dialog must render within a Blazor Server request.");
-        _tokens = Antiforgery.GetAndStoreTokens(ctx);
-    }
 
     private void Cancel() => MudDialog?.Cancel();
 
@@ -81,29 +66,12 @@
         _errorMessage = null;
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"/admin/api/players/{PlayerId}/unban")
-            {
-                Content = JsonContent.Create(new UnbanPlayerRequest(string.IsNullOrWhiteSpace(_reason) ? null : _reason)),
-            };
-            if (_tokens?.RequestToken is { } token)
-            {
-                request.Headers.Add(AdminAuthenticationSchemeConstants.CsrfHeaderName, token);
-            }
-            var resp = await Http.SendAsync(request);
-
-            if (resp.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.OK)
-            {
-                MudDialog?.Close(DialogResult.Ok(true));
-                return;
-            }
-            _errorMessage = resp.StatusCode switch
-            {
-                HttpStatusCode.Forbidden => "This action requires superadmin. Ask another admin to perform it.",
-                HttpStatusCode.NotFound => "Player not found. The page may be out of date.",
-                _ => $"Unban failed: server returned {(int)resp.StatusCode}. Try again.",
-            };
+            var actorId = await GetActorIdAsync();
+            var reason = string.IsNullOrWhiteSpace(_reason) ? null : _reason;
+            await BanService.UnbanAsync(PlayerId, actorId, reason, CancellationToken.None);
+            MudDialog?.Close(DialogResult.Ok(true));
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex)
         {
             _errorMessage = $"Unban failed: {ex.Message}. Try again.";
         }
@@ -111,5 +79,15 @@
         {
             _submitting = false;
         }
+    }
+
+    private async Task<Guid> GetActorIdAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var nameId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(nameId, out var id)
+            ? id
+            : throw new InvalidOperationException(
+                "Admin id claim is missing — dialog must run inside an authenticated admin session.");
     }
 }

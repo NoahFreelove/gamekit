@@ -2,23 +2,25 @@
 @* Copyright (c) 2026 GameKit contributors *@
 @*
     UI-SPEC §6 Ban dialog — MudDialog with danger-subtle top stripe, multiline reason field
-    with client-side 3–512 char validation mirroring BanPlayerRequestValidator verbatim.
+    with client-side 3–512 char validation backed by FluentValidation (BanPlayerRequestValidator).
 
-    CSRF pattern (W9 PRESCRIPTIVE): inject IAntiforgery + IHttpContextAccessor, capture
-    AntiforgeryTokenSet on init, attach X-GameKit-Admin-CSRF header on submit.
+    DI PATTERN: dialog calls IPlayerBanService.BanAsync directly via DI. We do NOT round-trip
+    through HTTP loopback to /admin/api/players/{id}/ban — see the architecture note in
+    AdminEndpoints.cs. Loopback would require the server to forward the user's auth cookie to
+    itself (it can't), so the endpoint would 401. Direct DI access also drops the antiforgery
+    round-trip (the dialog runs inside the Blazor circuit's authenticated identity; CSRF
+    protection on the JSON endpoint exists for external SPA / curl callers, not for in-process
+    Blazor pages). Validator is invoked inline so the user sees the same messages without the
+    HTTP roundtrip; the service is the authoritative validation site downstream.
 
-    On 200: dialog closes with Data=true. On 400: ValidationProblem rendered inline.
-    On 403/404: error alert (retryable).
+    On success: dialog closes with Data=true. On validation failure: inline field error.
+    On unexpected exception: inline alert (retryable).
 *@
 @namespace GameKit.Admin.UI.Components.Dialogs
-@using System.Net
-@using System.Net.Http.Json
-@using GameKit.Admin.UI.Authentication
 @using GameKit.Admin.UI.Http.Contracts
-@using Microsoft.AspNetCore.Antiforgery
-@inject HttpClient Http
-@inject IAntiforgery Antiforgery
-@inject IHttpContextAccessor HttpContextAccessor
+@inject IPlayerBanService BanService
+@inject FluentValidation.IValidator<BanPlayerRequest> Validator
+@inject AuthenticationStateProvider AuthState
 
 <MudDialog>
     <TitleContent>
@@ -79,79 +81,32 @@
     private string? _reasonErrorMessage;
     private bool _submitting;
     private string? _errorMessage;
-    private AntiforgeryTokenSet? _tokens;
-
-    protected override void OnInitialized()
-    {
-        var ctx = HttpContextAccessor.HttpContext
-            ?? throw new InvalidOperationException("No HttpContext — dialog must render within a Blazor Server request.");
-        _tokens = Antiforgery.GetAndStoreTokens(ctx);
-    }
 
     private void Cancel() => MudDialog?.Cancel();
 
     private async Task SubmitAsync()
     {
-        // Client-side validation mirrors BanPlayerRequestValidator verbatim so users see the
-        // same messages without a round-trip to the server. Defense-in-depth only — the
-        // server validator is authoritative.
         _reasonError = false;
         _reasonErrorMessage = null;
-        if (string.IsNullOrEmpty(_reason))
+        _errorMessage = null;
+
+        var req = new BanPlayerRequest(_reason);
+        var validation = await Validator.ValidateAsync(req);
+        if (!validation.IsValid)
         {
             _reasonError = true;
-            _reasonErrorMessage = "A reason is required.";
-            return;
-        }
-        if (_reason.Length < 3)
-        {
-            _reasonError = true;
-            _reasonErrorMessage = "Reason must be at least 3 characters.";
-            return;
-        }
-        if (_reason.Length > 512)
-        {
-            _reasonError = true;
-            _reasonErrorMessage = "Reason is too long (max 512 characters).";
+            _reasonErrorMessage = validation.Errors[0].ErrorMessage;
             return;
         }
 
         _submitting = true;
-        _errorMessage = null;
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"/admin/api/players/{PlayerId}/ban")
-            {
-                Content = JsonContent.Create(new BanPlayerRequest(_reason)),
-            };
-            if (_tokens?.RequestToken is { } token)
-            {
-                request.Headers.Add(AdminAuthenticationSchemeConstants.CsrfHeaderName, token);
-            }
-            var resp = await Http.SendAsync(request);
-
-            switch (resp.StatusCode)
-            {
-                case HttpStatusCode.NoContent:
-                case HttpStatusCode.OK:
-                    MudDialog?.Close(DialogResult.Ok(true));
-                    return;
-                case HttpStatusCode.BadRequest:
-                    _reasonError = true;
-                    _reasonErrorMessage = "Reason is invalid. Check the length and try again.";
-                    break;
-                case HttpStatusCode.Forbidden:
-                    _errorMessage = "This action requires superadmin. Ask another admin to perform it.";
-                    break;
-                case HttpStatusCode.NotFound:
-                    _errorMessage = "Player not found. The page may be out of date.";
-                    break;
-                default:
-                    _errorMessage = $"Ban failed: server returned {(int)resp.StatusCode}. Try again.";
-                    break;
-            }
+            var actorId = await GetActorIdAsync();
+            await BanService.BanAsync(PlayerId, actorId, req.Reason, CancellationToken.None);
+            MudDialog?.Close(DialogResult.Ok(true));
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex)
         {
             _errorMessage = $"Ban failed: {ex.Message}. Try again.";
         }
@@ -159,5 +114,15 @@
         {
             _submitting = false;
         }
+    }
+
+    private async Task<Guid> GetActorIdAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var nameId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(nameId, out var id)
+            ? id
+            : throw new InvalidOperationException(
+                "Admin id claim is missing — dialog must run inside an authenticated admin session.");
     }
 }

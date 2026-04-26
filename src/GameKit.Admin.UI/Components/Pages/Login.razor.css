@@ -1,0 +1,164 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/* Static-SSR login form styles. The page renders without MudBlazor interactivity (the form
+   is plain HTML so the browser submits it natively to POST /admin/login), so we re-derive the
+   visual baseline here from the project's design tokens (gamekit-admin.css). */
+
+.gk-login-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gk-space-4);
+}
+
+.gk-login-heading {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--gk-color-text-primary);
+}
+
+.gk-login-subheading {
+    margin: 0 0 var(--gk-space-2);
+    font-size: 0.875rem;
+    color: var(--gk-color-text-secondary);
+}
+
+/* Form-fields container — vertical stack with consistent gaps. */
+.gk-login-form-fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gk-space-4);
+}
+
+/* Inline alert above the fields. data-severity flips the color treatment. */
+.gk-login-error {
+    padding: var(--gk-space-3) var(--gk-space-4);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.gk-login-error[data-severity="error"] {
+    background-color: var(--gk-color-danger-subtle);
+    color: var(--gk-color-danger);
+    border: 1px solid var(--gk-color-danger);
+}
+
+.gk-login-error[data-severity="warning"] {
+    background-color: var(--gk-color-warning-subtle);
+    color: var(--gk-color-warning);
+    border: 1px solid var(--gk-color-warning);
+}
+
+.gk-login-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gk-space-2);
+}
+
+.gk-login-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--gk-color-text-primary);
+}
+
+.gk-login-input {
+    width: 100%;
+    padding: var(--gk-space-3);
+    font-size: 1rem;
+    line-height: 1.4;
+    color: var(--gk-color-text-primary);
+    background-color: var(--gk-color-surface);
+    border: 1px solid var(--gk-color-border);
+    border-radius: 6px;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gk-login-input:focus {
+    outline: none;
+    border-color: var(--gk-color-focus);
+    box-shadow: 0 0 0 3px rgba(66, 99, 235, 0.15);
+}
+
+.gk-login-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--gk-space-2);
+    font-size: 0.875rem;
+    color: var(--gk-color-text-secondary);
+    cursor: pointer;
+}
+
+.gk-login-checkbox input {
+    margin: 0;
+    cursor: pointer;
+}
+
+.gk-login-button {
+    width: 100%;
+    padding: var(--gk-space-3) var(--gk-space-4);
+    font-size: 1rem;
+    font-weight: 600;
+    color: #FFFFFF;
+    background-color: var(--gk-color-primary);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.gk-login-button:hover {
+    background-color: var(--gk-color-primary-hover);
+}
+
+.gk-login-button:focus-visible {
+    outline: 2px solid var(--gk-color-focus);
+    outline-offset: 2px;
+}
+
+.gk-login-forgot {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--gk-color-text-secondary);
+    text-align: center;
+}
+
+/* First-admin-missing state (UI-SPEC §2). */
+.gk-first-admin-missing {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gk-space-3);
+}
+
+.gk-first-admin-heading {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--gk-color-text-primary);
+}
+
+.gk-first-admin-body {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--gk-color-text-secondary);
+}
+
+.gk-first-admin-code {
+    margin: 0;
+    padding: var(--gk-space-3);
+    background-color: var(--gk-color-surface-alt);
+    border: 1px solid var(--gk-color-border);
+    border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 0.875rem;
+    color: var(--gk-color-text-primary);
+    overflow-x: auto;
+}
+
+.gk-first-admin-footer {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--gk-color-text-secondary);
+}

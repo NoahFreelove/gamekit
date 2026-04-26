@@ -71,13 +71,46 @@ public static class AdminBuilderExtensions
         // 3. Superadmin gate hosted service (D-04 / D-05).
         builder.Services.AddHostedService<SuperadminGateHostedService>();
 
-        // 4. Cookie auth scheme. W4: preserve Phase-2 JwtBearer as the DEFAULT auth scheme
-        //    (AddAuthentication(JwtBearerDefaults.AuthenticationScheme)) and register the admin
-        //    cookie as a NAMED scheme only. This ensures existing player-JWT endpoints (e.g.
-        //    /auth/me) continue to authenticate with Bearer when GameKit.Admin.UI is added.
-        //    Admin endpoints opt in to the named cookie scheme explicitly via the authorization
-        //    policies below.
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        // 4. Cookie auth scheme + path-based default scheme.
+        //
+        //    W4 originally pinned JwtBearer as the default scheme so player API endpoints stayed
+        //    on Bearer tokens, with the admin cookie as a NAMED-only scheme that endpoints opted
+        //    into via .AddAuthenticationSchemes on each policy. That works for minimal API
+        //    endpoints — RequireAuthorization(policy) re-authenticates against the policy's
+        //    schemes — but it breaks Blazor's [Authorize] attribute on Razor components, because
+        //    AuthorizeRouteView reads HttpContext.User which is built from the DEFAULT scheme.
+        //    With JwtBearer as default and no Bearer header in the browser request, HttpContext.User
+        //    is anonymous regardless of the gk_admin_session cookie, so every admin page renders
+        //    its NotAuthorized branch.
+        //
+        //    Fix: a path-based policy scheme as the default. /admin/* requests forward to the
+        //    cookie scheme; everything else forwards to JwtBearer. This preserves Phase-2
+        //    behavior on player endpoints AND populates HttpContext.User with the admin claims
+        //    on admin paths so Blazor's authorization sees the role claim.
+        const string DefaultByPathScheme = "GameKit:DefaultByPath";
+        builder.Services.AddAuthentication(DefaultByPathScheme)
+            .AddPolicyScheme(DefaultByPathScheme, "GameKit default (path-based)", o =>
+            {
+                // Admin paths (/admin/*) AND the Blazor Server transport endpoints (/_blazor/*)
+                // both forward to the cookie scheme. The SignalR negotiate at /_blazor/negotiate
+                // captures the principal that becomes the interactive circuit's identity — if
+                // we left /_blazor on the JwtBearer fallback, the circuit would boot anonymous
+                // and AuthorizeRouteView on every admin page would render NotAuthorized after
+                // prerender (prerender uses HttpContext.User from the original /admin/* GET).
+                // ASSUMPTION: this build of the admin UI is the only consumer of /_blazor on
+                // this host. If a consumer mounts their own Blazor app on the same Kestrel,
+                // they should override this scheme selector.
+                o.ForwardDefaultSelector = ctx =>
+                {
+                    var path = ctx.Request.Path;
+                    var isAdminOrBlazorTransport =
+                        path.StartsWithSegments(opts.MountPath, StringComparison.OrdinalIgnoreCase)
+                        || path.StartsWithSegments("/_blazor", StringComparison.OrdinalIgnoreCase);
+                    return isAdminOrBlazorTransport
+                        ? AdminAuthenticationSchemeConstants.Scheme
+                        : JwtBearerDefaults.AuthenticationScheme;
+                };
+            })
             .AddCookie(AdminAuthenticationSchemeConstants.Scheme, o =>
             {
                 o.Cookie.Name = opts.Cookie.Name;
@@ -155,19 +188,16 @@ public static class AdminBuilderExtensions
         // 12. IHttpContextAccessor — App.razor reads ctx.Items[AdminCspNonceMiddleware.NonceItemKey].
         builder.Services.AddHttpContextAccessor();
 
-        // 12b. Default HttpClient for Blazor Server admin pages — BaseAddress derived from the current
-        //      HttpContext so pages can issue same-origin POSTs (e.g. Login.razor → /admin/api/login).
-        //      Without a BaseAddress, relative URIs throw "An invalid request URI was provided."
-        builder.Services.AddScoped(sp =>
-        {
-            var ctx = sp.GetRequiredService<IHttpContextAccessor>().HttpContext
-                ?? throw new InvalidOperationException(
-                    "HttpContext is unavailable; the admin HttpClient is only valid inside a request scope.");
-            return new HttpClient
-            {
-                BaseAddress = new Uri($"{ctx.Request.Scheme}://{ctx.Request.Host}{ctx.Request.PathBase}/")
-            };
-        });
+        // 12b. Intentionally NO HttpClient registration. Admin pages access domain logic via
+        //      DI services (IPlayerBanService, IAdminUserService, IGdprDeleteService, …) — never
+        //      via HTTP loopback to /admin/api/*. Loopback from inside a Blazor interactive
+        //      circuit is broken twice over: (a) the user's auth cookie does not propagate to
+        //      the server's HttpClient, so RequireAuthorization endpoints 401; (b) cookie-mutating
+        //      endpoints (login, logout, …) write Set-Cookie back to the server, never to the
+        //      browser. Cookie-mutating actions go through the static-SSR HTML form route
+        //      (POST /admin/login in AdminFormEndpoints) so the BROWSER makes the request.
+        //      The /admin/api/* JSON surface remains for SPA / programmatic clients only.
+        //      See the architecture note at the top of AdminEndpoints.cs.
 
         // 13. FluentValidation validators for admin DTOs (plan 03-07). ValidationEndpointFilter<T>
         //     resolves IValidator<T> lazily; unregistered types would be a silent no-op, so we

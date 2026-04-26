@@ -145,24 +145,29 @@
         var mmType = Type.GetType("GameKit.Matchmaking.IMatchmakingStrategy, GameKit.Matchmaking", throwOnError: false);
         _matchmakingInstalled = mmType is not null && Sp.GetService(mmType) is not null;
 
-        // Parallel-fire each dashboard query to minimize first-paint latency.
+        // Sequential await per query: EF Core forbids concurrent operations on a single
+        // DbContext instance ("A second operation was started on this context instance before
+        // a previous operation completed"). HealthSvc.ProbeAsync touches Postgres + Redis via
+        // its own pooled clients so it's safe to run independently of Db, but the four EF
+        // queries below all share the scoped DbContext and must serialize. The cost is a few
+        // round-trips of latency on first paint — acceptable for an admin dashboard.
         var ct = CancellationToken.None;
         var healthTask = HealthSvc.ProbeAsync(ct);
-        var auditTask = Db.AdminAuditLog.AsNoTracking()
+
+        var recentAudit = await Db.AdminAuditLog.AsNoTracking()
             .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
             .Take(5)
             .ToListAsync(ct);
-        var adminCountTask = Db.Set<AdminUser>().AsNoTracking().LongCountAsync(ct);
-        var bannedCountTask = Db.Players.AsNoTracking().LongCountAsync(p => p.IsBanned, ct);
+        var adminCount = await Db.Set<AdminUser>().AsNoTracking().LongCountAsync(ct);
+        var bannedCount = await Db.Players.AsNoTracking().LongCountAsync(p => p.IsBanned, ct);
         var since = DateTimeOffset.UtcNow.AddDays(-1);
-        var sessionsTask = Db.GameSessions.AsNoTracking()
+        var sessionsCompleted = await Db.GameSessions.AsNoTracking()
             .LongCountAsync(s => s.State == GameSessionState.Completed && s.CompletedAt != null && s.CompletedAt >= since, ct);
 
-        await Task.WhenAll(healthTask, auditTask, adminCountTask, bannedCountTask, sessionsTask);
-
-        _health = healthTask.Result;
-        _recentAudit = auditTask.Result;
-        _stats = new QuickStats(adminCountTask.Result, bannedCountTask.Result, sessionsTask.Result);
+        // Health probe runs on its own clients — await last so it overlaps with the EF queries.
+        _health = await healthTask;
+        _recentAudit = recentAudit;
+        _stats = new QuickStats(adminCount, bannedCount, sessionsCompleted);
     }
 
     private sealed record QuickStats(long AdminCount, long BannedCount, long SessionsCompletedToday);

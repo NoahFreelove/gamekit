@@ -57,6 +57,11 @@ public static class AdminApplicationBuilderExtensions
         var apiGroup = routes.MapGroup($"{mount}/api");
         AdminEndpoints.Map(apiGroup);
 
+        // HTML-route surface for cookie-mutating actions invoked by static-SSR pages
+        // (currently POST /admin/login from the static Login.razor form). Distinct from the
+        // /admin/api/* JSON group above — see AdminFormEndpoints for rationale.
+        routes.MapAdminFormEndpoints(mount);
+
         // Mount the Blazor Server admin console (plan 03-08). Page @page routes inside
         // GameKit.Admin.UI/Components/**/*.razor are rooted under /admin/* (see UI-SPEC
         // §Route scope note). WithStaticAssets exposes _content/GameKit.Admin.UI/* and

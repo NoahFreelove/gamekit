@@ -126,6 +126,23 @@ public static class AdminEndpoints
 
     // ---- handlers ----
 
+    // ARCHITECTURE NOTE — admin auth surface split:
+    //
+    //   POST /admin/api/login     (this file, JSON)         → for SPA / programmatic clients
+    //                                                         that fetch from the BROWSER side.
+    //   POST /admin/login         (AdminFormEndpoints, form) → for the static-SSR Blazor login
+    //                                                         page; browser submits the form,
+    //                                                         server returns 302.
+    //
+    // Both share SignInCoreAsync below so the cookie-issuance logic is single-sourced.
+    //
+    // RULE FOR FUTURE CONTRIBUTORS: never call a cookie-mutating endpoint (login, logout, change
+    // password, role refresh, etc.) from a Blazor INTERACTIVE circuit via HttpClient. The
+    // Set-Cookie header lands on the server-side HttpClient, not on the browser, so the cookie
+    // never propagates. Cookie-mutating actions must be reached by the browser directly — via
+    // a static-SSR HTML form submission, or via a SPA fetch from the browser. Interactive
+    // Blazor pages access domain logic through DI services (IPlayerBanService, IAdminUserService,
+    // …), NOT through HTTP loopback to /admin/api/*.
     private static async Task<IResult> LoginAsync(
         LoginRequest req,
         HttpContext http,
@@ -133,9 +150,33 @@ public static class AdminEndpoints
         IAdminAuthService authSvc,
         CancellationToken ct)
     {
+        var ok = await SignInCoreAsync(http, opts, authSvc, req, ct).ConfigureAwait(false);
+        return ok
+            ? Results.Ok(new { success = true, redirectUrl = "/admin" })
+            : Results.Unauthorized();
+    }
+
+    /// <summary>
+    /// Verifies admin credentials and, on success, writes the admin auth cookie via
+    /// <c>HttpContext.SignInAsync</c>. Shared by the JSON <c>POST /admin/api/login</c> handler
+    /// and the static-SSR form <c>POST /admin/login</c> handler so the cookie-issuance logic
+    /// lives in exactly one place.
+    /// </summary>
+    /// <param name="http">The current HTTP context — Set-Cookie is written on its response.</param>
+    /// <param name="opts">Admin options (consulted for <see cref="AdminCookieOptions.RememberMeDuration"/>).</param>
+    /// <param name="authSvc">Credential verifier (timing-parity dummy on miss; null on bad creds).</param>
+    /// <param name="req">The login request (username + password + remember-me flag).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns><c>true</c> on successful sign-in (cookie written); <c>false</c> on bad credentials.</returns>
+    internal static async Task<bool> SignInCoreAsync(
+        HttpContext http,
+        GameKitAdminOptions opts,
+        IAdminAuthService authSvc,
+        LoginRequest req,
+        CancellationToken ct)
+    {
         var result = await authSvc.VerifyPasswordAsync(req.Username, req.Password, ct).ConfigureAwait(false);
-        if (result is null)
-            return Results.Unauthorized();
+        if (result is null) return false;
         var (adminId, role) = result.Value;
 
         var claims = new List<Claim>
@@ -156,7 +197,7 @@ public static class AdminEndpoints
         };
         await http.SignInAsync(AdminAuthenticationSchemeConstants.Scheme, principal, authProps)
             .ConfigureAwait(false);
-        return Results.Ok(new { success = true, redirectUrl = "/admin" });
+        return true;
     }
 
     private static async Task<IResult> LogoutAsync(HttpContext http)

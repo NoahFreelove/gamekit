@@ -83,14 +83,16 @@ public sealed class AdminTestHost : IAsyncDisposable
     /// <param name="redis">Redis fixture.</param>
     /// <param name="env">Hosting environment name (<c>Production</c> / <c>Development</c> / <c>Staging</c>).</param>
     /// <param name="seed">Optional async seed callback executed AFTER migrations but BEFORE host start.</param>
+    /// <param name="configureAdmin">Optional <see cref="GameKitAdminOptions"/> override (e.g. custom <c>MountPath</c>).</param>
     public static async Task<AdminTestHost> StartAsync(
         PostgresFixture pg,
         RedisFixture redis,
         string env = "Production",
-        Func<AdminTestHost, Task>? seed = null)
+        Func<AdminTestHost, Task>? seed = null,
+        Action<GameKitAdminOptions>? configureAdmin = null)
     {
         var host = new AdminTestHost();
-        await host.InitializeAsync(pg, redis, env, seed).ConfigureAwait(false);
+        await host.InitializeAsync(pg, redis, env, seed, configureAdmin).ConfigureAwait(false);
         return host;
     }
 
@@ -98,7 +100,8 @@ public sealed class AdminTestHost : IAsyncDisposable
         PostgresFixture pg,
         RedisFixture redis,
         string env,
-        Func<AdminTestHost, Task>? seed)
+        Func<AdminTestHost, Task>? seed,
+        Action<GameKitAdminOptions>? configureAdmin = null)
     {
         ArgumentNullException.ThrowIfNull(pg);
         ArgumentNullException.ThrowIfNull(redis);
@@ -133,7 +136,7 @@ public sealed class AdminTestHost : IAsyncDisposable
                         o.Jwt.PublicKeyPemPath = _pubPath;
                         o.Jwt.Kid = "test-kid-1";
                     });
-                    b.AddGameKitAdmin();
+                    b.AddGameKitAdmin(configureAdmin);
 
                     // Test-host DbContext override: the runtime FOLLOW-UP-02-03-01 path relies on
                     // CoreOptionsExtension.ApplicationServiceProvider to resolve IModelBuilderExtension

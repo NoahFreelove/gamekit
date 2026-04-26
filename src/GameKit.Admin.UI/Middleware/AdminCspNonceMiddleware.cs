@@ -66,24 +66,26 @@ public sealed class AdminCspNonceMiddleware
         ctx.Items[NonceItemKey] = nonce;
 
         // Emit CSP header just before the response starts (OnStarting runs at header flush).
+        // OVERRIDE any prior Content-Security-Policy: ASP.NET Core's static-SSR Blazor antiforgery
+        // pipeline sets a less-strict default (e.g. `frame-ancestors 'self'`) on Razor-component
+        // responses; the GameKit admin policy is strictly tighter (`frame-ancestors 'none'`,
+        // per-request script nonce) and MUST take precedence on /admin/* responses. Indexing
+        // assignment replaces; ContainsKey-guarded `Add` would silently leave the weaker default.
         ctx.Response.OnStarting(() =>
         {
-            if (!ctx.Response.Headers.ContainsKey("Content-Security-Policy"))
-            {
-                ctx.Response.Headers["Content-Security-Policy"] =
-                    "default-src 'self'; " +
-                    $"script-src 'self' 'nonce-{nonce}'; " +
-                    "style-src 'self' 'unsafe-inline'; " +
-                    "img-src 'self' data:; " +
-                    "font-src 'self'; " +
-                    // ws:/wss: required so SignalR's WebSocket upgrade for the Blazor Server
-                    // circuit (`/_blazor?id=...`) passes CSP — browsers treat ws:// as a distinct
-                    // scheme from http:// under `'self'`, so same-origin alone is insufficient.
-                    "connect-src 'self' ws: wss:; " +
-                    "frame-ancestors 'none'; " +
-                    "base-uri 'self'; " +
-                    "form-action 'self'";
-            }
+            ctx.Response.Headers["Content-Security-Policy"] =
+                "default-src 'self'; " +
+                $"script-src 'self' 'nonce-{nonce}'; " +
+                "style-src 'self' 'unsafe-inline'; " +
+                "img-src 'self' data:; " +
+                "font-src 'self'; " +
+                // ws:/wss: required so SignalR's WebSocket upgrade for the Blazor Server
+                // circuit (`/_blazor?id=...`) passes CSP — browsers treat ws:// as a distinct
+                // scheme from http:// under `'self'`, so same-origin alone is insufficient.
+                "connect-src 'self' ws: wss:; " +
+                "frame-ancestors 'none'; " +
+                "base-uri 'self'; " +
+                "form-action 'self'";
             return Task.CompletedTask;
         });
 

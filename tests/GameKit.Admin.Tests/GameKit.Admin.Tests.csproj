@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="Moq" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    <PackageReference Include="bunit" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />

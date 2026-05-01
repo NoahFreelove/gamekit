@@ -29,7 +29,7 @@ namespace GameKit.Admin.UI.Http;
 
 /// <summary>
 /// Maps the <c>/admin/api/*</c> minimal-API surface onto a <see cref="RouteGroupBuilder"/>.
-/// Called by <see cref="Builder.AdminApplicationBuilderExtensions.MapGameKitAdmin"/>. 12 endpoints
+/// Called by <see cref="Builder.AdminApplicationBuilderExtensions.MapGameKitAdmin"/>. 13 endpoints
 /// total, each composed from the authorization policies + endpoint filters registered by
 /// <see cref="Builder.AdminBuilderExtensions.AddGameKitAdmin"/>:
 /// <list type="bullet">
@@ -45,6 +45,7 @@ namespace GameKit.Admin.UI.Http;
 ///   <item><c>GET /audit</c> — admin (keyset-paginated).</item>
 ///   <item><c>GET /match-history</c> — admin.</item>
 ///   <item><c>GET /health</c> — admin.</item>
+///   <item><c>GET /commands</c> — admin (Plan 03.1-04 verb-engine palette feed).</item>
 /// </list>
 /// </summary>
 public static class AdminEndpoints
@@ -120,6 +121,13 @@ public static class AdminEndpoints
 
         // GET /health — admin (3-probe Postgres + Redis + error-rate report).
         group.MapGet("/health", GetHealthAsync).RequireAuthorization(AdminPolicies.Admin);
+
+        // GET /commands — admin. Phase 03.1 D-09 verb-engine palette feed; rows whose
+        // RequiresSuperadmin=true are filtered out for non-superadmin operators (D-11).
+        // Cast to Delegate (mirrors LogoutAsync) so ASP.NET binds the IResult return value
+        // as the response body instead of treating the single-HttpContext parameter as a
+        // plain RequestDelegate (ASP0016).
+        group.MapGet("/commands", (Delegate)GetCommandsAsync).RequireAuthorization(AdminPolicies.Admin);
 
         return group;
     }
@@ -397,6 +405,28 @@ public static class AdminEndpoints
     {
         var report = await svc.ProbeAsync(ct).ConfigureAwait(false);
         return Results.Ok(report);
+    }
+
+    /// <summary>
+    /// Returns the role-filtered command list consumed by the Phase 03.1 Cmd+K palette
+    /// (D-09 verb-engine). Per CONTEXT D-11 the server discards rows whose
+    /// <see cref="AdminCommand.RequiresSuperadmin"/> is <c>true</c> when the operator is not
+    /// a superadmin — never grayed, always absent. The DTO excludes the
+    /// <c>RequiresSuperadmin</c> flag so admin operators cannot infer the existence of
+    /// superadmin-only commands. Cookie-authenticated; <c>AdminPolicies.Admin</c> gate is
+    /// applied at the route level.
+    /// </summary>
+    /// <param name="http">The current HTTP context — supplies the role claim from the admin cookie principal.</param>
+    /// <returns>HTTP 200 with a JSON array of <see cref="AdminCommandDto"/>.</returns>
+    private static Task<IResult> GetCommandsAsync(HttpContext http)
+    {
+        var role = http.User.FindFirst(ClaimTypes.Role)?.Value ?? AdminRoles.Admin;
+        var isSuper = string.Equals(role, AdminRoles.Superadmin, StringComparison.Ordinal);
+        var visible = AdminCommandRegistry.AllCommands
+            .Where(c => isSuper || !c.RequiresSuperadmin)
+            .Select(c => new AdminCommandDto(c.Id, c.Label, c.Category, c.RequiresTarget))
+            .ToArray();
+        return Task.FromResult<IResult>(Results.Ok(visible));
     }
 
     /// <summary>

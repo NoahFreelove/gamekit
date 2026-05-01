@@ -23,11 +23,17 @@
 @inject IDialogService Dialogs
 @using Microsoft.JSInterop
 @using GameKit.Admin.UI.Components.Dialogs
+@using GameKit.Admin.UI.Components.Shared
 
 <MudThemeProvider Theme="@GameKitAdminTheme.Default" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
+
+@* Phase 03.1 D-09 — verb-engine command palette mounted once at layout root. Hidden by
+   CSS until [data-palette-open] flips on <html> via gamekit-admin.js (Plan 03 owns the
+   key listener + filter; this component owns the role-filtered SSR markup). *@
+<CommandPalette />
 
 <MudLayout>
     <TopNav OnToggleDrawer="ToggleDrawer" />

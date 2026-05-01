@@ -62,6 +62,12 @@
          net10.0 TFM confirmed via nuget.org/packages/MudBlazor/9.3.0 (see 03-RESEARCH.md §Version verification). -->
     <PackageVersion Include="MudBlazor" Version="9.3.0" />
 
+    <!-- Phase 03.1 Admin UI redesign — bUnit 2.0.66 (test-only) verified GA on net10.0 2025-11-21 (MIT / GPL-compatible).
+         Test-only dependency: ships ONLY inside tests/* and never in the 6 runtime NuGet packages. CLAUDE.md
+         "no new NuGet packages" applies to runtime distributables; test infrastructure is conventionally
+         exempt. AngleSharp resolves transitively. See 03.1-RESEARCH.md §Standard Stack. -->
+    <PackageVersion Include="bunit" Version="2.0.66" />
+
     <!-- Transitive pin to override WireMock.Net.OpenTelemetry/2.2.0's pull of OpenTelemetry.* 1.14.0,
          which carries moderate-severity advisories (GHSA-g94r-2vxg-569j, GHSA-mr8r-92fq-pj8p,
          GHSA-q834-8qmm-v933). 1.15.3 is the lowest stable line clean of all three. The full sibling

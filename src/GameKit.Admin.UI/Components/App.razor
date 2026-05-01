@@ -25,6 +25,21 @@
     <link rel="stylesheet" href="_content/GameKit.Admin.UI/GameKit.Admin.UI.bundle.scp.css" />
     <link rel="stylesheet" href="_content/GameKit.Admin.UI/gamekit-admin.css" />
     <HeadOutlet />
+    @* Phase 03.1 D-06 + RESEARCH §Pattern 4 — FOUC eliminator. Reads localStorage and applies
+       five [data-*] attributes on <html> BEFORE <body> paints. CSP-strict: nonce required. *@
+    <script nonce="@Nonce">
+      (function () {
+        try {
+          var t = JSON.parse(localStorage.getItem('gamekit.admin.tweaks') || '{}');
+          var h = document.documentElement;
+          h.setAttribute('data-accent',         t.accent   || 'violet');
+          h.setAttribute('data-density',        t.density  || 'compact');
+          h.setAttribute('data-sidebar',        t.sidebar  || 'expanded');
+          h.setAttribute('data-ban-loud',       t.banLoud  || 'medium');
+          h.setAttribute('data-dashboard-dir',  t.dashDir  || 'D');
+        } catch (e) { /* corrupt JSON — defaults applied above */ }
+      })();
+    </script>
 </head>
 <body>
     @*

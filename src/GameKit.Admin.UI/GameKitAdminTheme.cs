@@ -6,16 +6,17 @@ using MudBlazor;
 namespace GameKit.Admin.UI;
 
 /// <summary>
-/// MudBlazor theme singleton that encodes the UI-SPEC §Color palette exactly (indigo-600
-/// primary, slate neutrals, red-600 danger). The theme is referenced from
-/// <c>MainLayout.razor</c> and <c>LoginLayout.razor</c> on <c>MudThemeProvider Theme=...</c>.
+/// MudBlazor theme singleton that encodes the Phase 03.1 violet-600 palette (D-03; sketch
+/// styles.css lines 64-68). The Primary/PrimaryDarken/PrimaryLighten slots track
+/// <c>--accent</c> / <c>--accent-700</c> / <c>--accent-50</c> so MudBlazor surfaces (focus
+/// ring, ripple, MudInput chrome) re-color via <c>--mud-palette-primary</c> at runtime.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Hex values are sourced from <c>.planning/phases/03-admin-ui/03-UI-SPEC.md</c> §Color. Each
-/// named slot maps 1:1 to a UI-SPEC token: <c>Primary</c> = <c>--gk-color-primary</c>,
-/// <c>Background</c> = <c>--gk-color-bg</c>, etc. Do not edit values here in isolation — the
-/// authoritative palette lives in UI-SPEC; CSS custom properties in
+/// Hex values are sourced from <c>.planning/phases/03.1-admin-ui-redesign-v2/03.1-UI-SPEC.md</c>
+/// §1.1. Each named slot maps 1:1 to a sketch token: <c>Primary</c> = <c>--accent</c>,
+/// <c>Background</c> = <c>--bg</c>, <c>Surface</c> = <c>--surface</c>, etc. Do not edit values
+/// here in isolation — the authoritative palette lives in UI-SPEC; CSS custom properties in
 /// <c>wwwroot/gamekit-admin.css</c> mirror these values for non-MudBlazor markup (audit log
 /// <c>&lt;pre&gt;</c> blocks, empty states).
 /// </para>
@@ -34,10 +35,12 @@ public static class GameKitAdminTheme
     {
         PaletteLight = new PaletteLight
         {
-            // Accent (UI-SPEC §Color — Accent 10%)
-            Primary = "#4263EB",
-            PrimaryDarken = "#364FC7",
-            PrimaryLighten = "#EDF2FF",
+            // Accent — violet-600 ramp (Phase 03.1 D-03; sketch styles.css lines 64-68)
+            // RESEARCH §Pattern 3: keeping --mud-palette-primary === --accent ensures the
+            // MudBlazor focus ring / ripple / MudInput chrome track our violet automatically.
+            Primary = "#7C3AED",        // violet-600 (was #4263EB indigo)
+            PrimaryDarken = "#6D28D9",  // accent-700 (was #364FC7)
+            PrimaryLighten = "#F5F3FF", // accent-50  (was #EDF2FF)
 
             // Neutral surfaces (UI-SPEC §Color — 60/30 split)
             Background = "#F8FAFC",

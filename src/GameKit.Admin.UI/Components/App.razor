@@ -51,6 +51,9 @@
     @* UI-SPEC §Asset Loading + CONTEXT D-15: every script tag gets the per-request nonce. *@
     <script src="_framework/blazor.web.js" nonce="@Nonce"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js" nonce="@Nonce"></script>
+    @* Phase 03.1 D-05 / RESEARCH §Pattern 6 — vanilla JS interactivity bundle (palette / tweaks /
+       sidebar / clipboard / audit). Same-origin static — script-src 'self' covers; no nonce. *@
+    <script src="_content/GameKit.Admin.UI/gamekit-admin.js" defer></script>
 </body>
 </html>
 

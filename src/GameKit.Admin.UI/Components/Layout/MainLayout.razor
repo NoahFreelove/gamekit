@@ -18,6 +18,11 @@
     component (no Position/MaxDisplayed parameters); position defaults to BottomRight.
 *@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject IJSRuntime JS
+@inject IDialogService Dialogs
+@using Microsoft.JSInterop
+@using GameKit.Admin.UI.Components.Dialogs
 
 <MudThemeProvider Theme="@GameKitAdminTheme.Default" />
 <MudPopoverProvider />
@@ -53,4 +58,68 @@
     private bool _drawerOpen = true;
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private DotNetObjectReference<MainLayout>? _selfRef;
+
+    /// <summary>
+    /// Registers the JS-to-Blazor bridge with <c>window.GKAdmin</c> after the first render.
+    /// Cannot run during <c>OnInitializedAsync</c> because JS interop is unavailable during
+    /// Blazor Server pre-render — <c>firstRender == true</c> is the earliest safe point.
+    /// Plan 04's CommandPalette dispatches actions through this bridge.
+    /// </summary>
+    /// <param name="firstRender"><c>true</c> on the first render after the component mounts.</param>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _selfRef = DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("GKAdmin.registerDialogBridge", _selfRef);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit ended before registration completed; safe to ignore.
+        }
+    }
+
+    /// <summary>
+    /// Bridge entry point dispatched by the Plan 04 command palette via
+    /// <c>window.GKAdmin.invokeDialog(commandId, targetId, targetName)</c>. Routes to the
+    /// matching MudDialog with PlayerId + DisplayName parameters pre-populated. The dialog's
+    /// existing CSRF + validation + audit-write paths run unchanged (Phase 03 contract).
+    /// </summary>
+    /// <param name="commandId">Stable command identifier from <c>AdminCommandRegistry</c>:
+    ///   "ban", "unban", "gdpr-delete", "create-admin", "delete-admin", "rank-adjust",
+    ///   "rotate-signing-key".</param>
+    /// <param name="targetId">Player or admin GUID. <c>Guid.Empty</c> for non-target actions.</param>
+    /// <param name="targetName">Display name for the dialog title.</param>
+    [JSInvokable]
+    public async Task OpenDialog(string commandId, Guid targetId, string targetName)
+    {
+        var parameters = new DialogParameters
+        {
+            ["PlayerId"] = targetId,
+            ["DisplayName"] = targetName
+        };
+        var dialogType = commandId switch
+        {
+            "ban"          => typeof(BanPlayerDialog),
+            "unban"        => typeof(UnbanPlayerDialog),
+            "gdpr-delete"  => typeof(GdprDeleteDialog),
+            "create-admin" => typeof(CreateAdminDialog),
+            "delete-admin" => typeof(DeleteAdminDialog),
+            // rank-adjust + rotate-signing-key route to dialogs that may not yet exist in v1;
+            // they are filtered out at the registry layer (Plan 04) for this release.
+            _ => null
+        };
+        if (dialogType is null) return;
+        await Dialogs.ShowAsync(dialogType, $"{commandId}: {targetName}", parameters);
+    }
+
+    /// <summary>
+    /// Releases the <see cref="DotNetObjectReference{MainLayout}"/> registered with
+    /// <c>window.GKAdmin</c> so the GC can collect this layout instance once the circuit
+    /// disposes. Called automatically by Blazor when the component is removed.
+    /// </summary>
+    public void Dispose() => _selfRef?.Dispose();
 }

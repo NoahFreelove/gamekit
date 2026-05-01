@@ -1,0 +1,80 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §5.2 TweaksPanel — runtime 5-toggle drawer (D-06).
+
+    Markup-only component: no `@code` state. The Plan 03 vanilla JS bundle
+    (gamekit-admin.js) owns the state machine — reads/writes 'gamekit.admin.tweaks' in
+    localStorage, applies [data-*] attributes on <html>, handles open/close via
+    [data-tweaks-open]. The Razor side is pure markup that the JS click delegate reaches
+    into via [data-tweak] + [data-value] selectors.
+
+    D-08: dashboard-direction A / B / C buttons are rendered with `disabled
+    aria-disabled="true" title="coming soon"` — graceful degrade. Only D is live in v1.
+
+    Mounted ONCE inside MainLayout (not per-page). Hidden by CSS until [data-tweaks-open]
+    flips on <html> via gamekit-admin.js openTweaks().
+*@
+@namespace GameKit.Admin.UI.Components.Shared
+
+<div class="tweaks-scrim" data-tweaks-scrim>
+    <aside class="tweaks-panel" role="dialog" aria-modal="true" aria-label="Admin tweaks">
+        <header class="tweaks-head">
+            <h2>Tweaks</h2>
+            <button type="button" class="tweaks-close"
+                    aria-label="Close tweaks"
+                    onclick="window.GKAdmin && window.GKAdmin.closeTweaks()">×</button>
+        </header>
+
+        <div class="tweaks-section" role="radiogroup" aria-label="Accent">
+            <label class="tweaks-label">Accent</label>
+            <div class="tweaks-options">
+                <button type="button" role="radio" data-tweak="accent" data-value="violet">Violet</button>
+                <button type="button" role="radio" data-tweak="accent" data-value="indigo">Indigo</button>
+                <button type="button" role="radio" data-tweak="accent" data-value="teal">Teal</button>
+                <button type="button" role="radio" data-tweak="accent" data-value="slate">Slate</button>
+                <button type="button" role="radio" data-tweak="accent" data-value="orange">Orange</button>
+            </div>
+        </div>
+
+        <div class="tweaks-section" role="radiogroup" aria-label="Density">
+            <label class="tweaks-label">Density</label>
+            <div class="tweaks-options">
+                <button type="button" role="radio" data-tweak="density" data-value="compact">Compact</button>
+                <button type="button" role="radio" data-tweak="density" data-value="comfortable">Comfortable</button>
+            </div>
+        </div>
+
+        <div class="tweaks-section" role="radiogroup" aria-label="Sidebar">
+            <label class="tweaks-label">Sidebar</label>
+            <div class="tweaks-options">
+                <button type="button" role="radio" data-tweak="sidebar" data-value="expanded">Expanded</button>
+                <button type="button" role="radio" data-tweak="sidebar" data-value="collapsed">Collapsed</button>
+            </div>
+        </div>
+
+        <div class="tweaks-section" role="radiogroup" aria-label="Ban-banner loudness">
+            <label class="tweaks-label">Ban loudness</label>
+            <div class="tweaks-options">
+                <button type="button" role="radio" data-tweak="banLoud" data-value="subtle">Subtle</button>
+                <button type="button" role="radio" data-tweak="banLoud" data-value="medium">Medium</button>
+                <button type="button" role="radio" data-tweak="banLoud" data-value="loud">Loud</button>
+            </div>
+        </div>
+
+        @* D-08 — A / B / C are disabled with "coming soon" tooltip; only D is live in v1. *@
+        <div class="tweaks-section" role="radiogroup" aria-label="Dashboard direction">
+            <label class="tweaks-label">Dashboard</label>
+            <div class="tweaks-options">
+                <button type="button" role="radio" data-tweak="dashDir" data-value="D">D</button>
+                <button type="button" role="radio" disabled aria-disabled="true" title="coming soon">A</button>
+                <button type="button" role="radio" disabled aria-disabled="true" title="coming soon">B</button>
+                <button type="button" role="radio" disabled aria-disabled="true" title="coming soon">C</button>
+            </div>
+        </div>
+
+        <footer class="tweaks-foot">
+            <button type="button" class="tweaks-reset" data-tweak-action="reset">Reset to defaults</button>
+        </footer>
+    </aside>
+</div>

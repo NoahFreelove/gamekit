@@ -1,0 +1,136 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/*
+   Component-scoped overrides — sketch styles.css (ported by Plan 02) owns the global
+   .tweaks-panel positioning, drawer geometry, and visibility flip. Specifically the
+   global rules in wwwroot/gamekit-admin.css apply:
+       .tweaks-panel { display: none; ... }
+       [data-tweaks-open="true"] .tweaks-panel { display: flex; }
+   so this file does NOT redeclare panel visibility — only the inner content layout +
+   focus / disabled / checked option styling that the global file leaves blank.
+
+   Note (Plan 05 deviation, Rule 3): the .tweaks-scrim wrapper is rendered for JS click
+   identity (gamekit-admin.js checks `e.target === document.querySelector('.tweaks-scrim')`
+   to close on outside-click). It is intentionally NOT hidden via display:none here
+   because the global flip targets .tweaks-panel directly; the scrim is a structural
+   marker only. v2 may add a backdrop overlay that depends on a sibling selector.
+*/
+
+.tweaks-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.tweaks-section:last-of-type {
+    border-bottom: none;
+}
+
+.tweaks-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+}
+
+.tweaks-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tweaks-options button[role='radio'] {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    font: inherit;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.tweaks-options button[role='radio']:hover:not([disabled]) {
+    background: var(--surface-2);
+    border-color: var(--border-strong);
+}
+
+.tweaks-options button[role='radio']:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.tweaks-options button[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.tweaks-options button[aria-checked='true'] {
+    background: var(--accent-50);
+    border-color: var(--accent);
+    color: var(--accent-700);
+}
+
+.tweaks-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.tweaks-head h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.tweaks-close {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--fg-2);
+    cursor: pointer;
+}
+
+.tweaks-close:hover {
+    background: var(--surface-2);
+    color: var(--fg);
+}
+
+.tweaks-foot {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+}
+
+.tweaks-reset {
+    appearance: none;
+    width: 100%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    font: inherit;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.tweaks-reset:hover {
+    background: var(--surface-2);
+    border-color: var(--border-strong);
+}
+
+.tweaks-reset:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}

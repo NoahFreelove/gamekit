@@ -358,13 +358,72 @@ public static class AdminEndpoints
         {
             qq = qq.Where(r => r.Action == q.Action);
         }
-        var rows = await qq
+
+        // Materialize the raw rows first; the sentence projection happens in-memory because
+        // the display-name lookup is a follow-up query and AuditSentenceTemplates.Render is
+        // not EF-translatable. Page size is clamped to ≤100 (T-03.1-07-04 — DoS bound).
+        var raw = await qq
             .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
             .Take(page + 1)
-            .Select(r => new AuditRow(
-                r.Id, r.ActorId, r.Action, r.TargetType, r.TargetId, r.Reason, r.CreatedAt))
+            .Select(r => new
+            {
+                r.Id,
+                r.ActorId,
+                r.Action,
+                r.TargetType,
+                r.TargetId,
+                r.Reason,
+                r.CreatedAt,
+                r.Before,
+                r.After,
+            })
             .ToListAsync(ct)
             .ConfigureAwait(false);
+
+        // Resolve actor + target display names in batch (avoids N+1 lookups inside the
+        // sentence projection). Falls back to "system" for null ActorId; null TargetName
+        // when no target row exists (the registry templates substitute a literal fallback
+        // string like "(unknown player)").
+        var actorIds = raw.Where(r => r.ActorId.HasValue).Select(r => r.ActorId!.Value).Distinct().ToArray();
+        var targetIds = raw.Where(r => r.TargetId.HasValue).Select(r => r.TargetId!.Value).Distinct().ToArray();
+        var actorNames = actorIds.Length == 0
+            ? new Dictionary<Guid, string>()
+            : await ctx.Players.AsNoTracking()
+                .Where(p => actorIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct).ConfigureAwait(false);
+        var targetNames = targetIds.Length == 0
+            ? new Dictionary<Guid, string>()
+            : await ctx.Players.AsNoTracking()
+                .Where(p => targetIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct).ConfigureAwait(false);
+
+        var rows = raw.Select(r =>
+        {
+            var actorName = r.ActorId.HasValue && actorNames.TryGetValue(r.ActorId.Value, out var an)
+                ? an
+                : "system";
+            var targetName = r.TargetId.HasValue && targetNames.TryGetValue(r.TargetId.Value, out var tn)
+                ? tn
+                : null;
+            // JsonDocument -> JsonElement? — entity stores JsonDocument; expose the cloned
+            // top-level element so the JsonDocument can be disposed when the request scope ends.
+            var before = r.Before is null ? (System.Text.Json.JsonElement?)null : r.Before.RootElement.Clone();
+            var after = r.After is null ? (System.Text.Json.JsonElement?)null : r.After.RootElement.Clone();
+            var sentence = AuditSentenceTemplates.Render(
+                new SentenceContext(r.Action, actorName, targetName, before, after, r.Reason));
+            return new AuditRow(
+                r.Id,
+                r.ActorId,
+                r.Action,
+                r.TargetType,
+                r.TargetId,
+                r.Reason,
+                r.CreatedAt,
+                sentence,
+                before,
+                after);
+        }).ToList();
+
         var hasMore = rows.Count > page;
         if (hasMore) rows.RemoveAt(page);
         return Results.Ok(new { items = rows, hasMore });
@@ -454,14 +513,22 @@ public static class AdminEndpoints
         string? Action,
         int? PageSize);
 
-    /// <summary>Projection row for <c>GET /audit</c> (PasswordHash never projected).</summary>
+    /// <summary>
+    /// Wire projection of an <c>admin_audit_log</c> row, including the Phase 03.1 server-rendered
+    /// sentence model + the raw Before/After JSON for the audit page's two-column row template.
+    /// Storage is unchanged (D-13); the sentence is computed at read time on every request so
+    /// template improvements apply retroactively to historical rows without a backfill.
+    /// </summary>
     /// <param name="Id">Audit row id.</param>
     /// <param name="ActorId">Acting admin id (nullable for system-originated rows).</param>
-    /// <param name="Action">Stable action verb.</param>
+    /// <param name="Action">Stable action verb (matches an <see cref="AdminAuditActions"/> constant).</param>
     /// <param name="TargetType">Target entity type.</param>
     /// <param name="TargetId">Target entity id, if applicable.</param>
     /// <param name="Reason">Free-text reason.</param>
     /// <param name="CreatedAt">UTC timestamp.</param>
+    /// <param name="Sentence">Server-rendered sentence model (D-12) — left column on the audit page.</param>
+    /// <param name="Before">Raw Before JSON (jsonb-backed) — right-column key/value diff input.</param>
+    /// <param name="After">Raw After JSON (jsonb-backed) — right-column key/value diff input.</param>
     public sealed record AuditRow(
         Guid Id,
         Guid? ActorId,
@@ -469,7 +536,10 @@ public static class AdminEndpoints
         string TargetType,
         Guid? TargetId,
         string? Reason,
-        DateTimeOffset CreatedAt);
+        DateTimeOffset CreatedAt,
+        SentenceModel Sentence,
+        System.Text.Json.JsonElement? Before,
+        System.Text.Json.JsonElement? After);
 
     /// <summary>Projection row for <c>GET /match-history</c>.</summary>
     /// <param name="SessionId">Owning session id.</param>

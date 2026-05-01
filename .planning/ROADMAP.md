@@ -138,7 +138,7 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
 
 **Requirements**: ADMIN-02, ADMIN-03, ADMIN-05, ADMIN-06, ADMIN-09, ADMIN-12 (re-verified post-redesign — none changed semantically)
 **Depends on:** Phase 03 (all admin source files this phase mutates were created there)
-**Plans:** 9 plans
+**Plans:** 2/9 plans executed
 
 **Success Criteria** (what must be TRUE):
 1. The shipped admin console visually matches the prototype at 1280px width: violet primary CTA, density tokens applied, master-detail Players layout, two-column Audit expansion, ban banner shape, command palette opens on ⌘K and routes to all 10 pages.
@@ -149,8 +149,8 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
 6. Accessibility: WCAG 2.1 AA preserved (focus rings, semantic landmarks, keyboard nav for command palette and tweaks panel).
 
 Plans:
-- [ ] 03.1-01-PLAN.md — Wave 0 test scaffolding: bUnit 2.0.66 pin + 8 component test stubs (palette / tweaks / banner / workspace / sentence projector / accessibility / bundle-size)
-- [ ] 03.1-02-PLAN.md — Token foundation: gamekit-admin.css sketch port + GameKitAdminTheme violet-600 swap + App.razor inline tweaks-init script + 5 .razor.css migrations from --gk-color-* to sketch tokens
+- [x] 03.1-01-PLAN.md — Wave 0 test scaffolding: bUnit 2.0.66 pin + 8 component test stubs (palette / tweaks / banner / workspace / sentence projector / accessibility / bundle-size)
+- [x] 03.1-02-PLAN.md — Token foundation: gamekit-admin.css sketch port + GameKitAdminTheme violet-600 swap + App.razor inline tweaks-init script + 5 .razor.css migrations from --gk-color-* to sketch tokens
 - [ ] 03.1-03-PLAN.md — Vanilla JS bundle (window.GKAdmin IIFE) + App.razor body script tag + MainLayout DotNetObjectReference bridge for OpenDialog
 - [ ] 03.1-04-PLAN.md — AdminCommandRegistry + AdminCommandDto + GET /admin/api/commands + CommandPalette.razor + TopNav search-trigger + role-filtered bUnit tests
 - [ ] 03.1-05-PLAN.md — TweaksPanel.razor (5 radiogroups + reset) + MainLayout mount + TopNav Tune button + 4 live bUnit assertions

@@ -35,6 +35,10 @@
    key listener + filter; this component owns the role-filtered SSR markup). *@
 <CommandPalette />
 
+@* Phase 03.1 D-06 — runtime tweaks drawer (5 toggles + reset). Hidden until
+   [data-tweaks-open] flips on <html> via gamekit-admin.js openTweaks(). *@
+<TweaksPanel />
+
 <MudLayout>
     <TopNav OnToggleDrawer="ToggleDrawer" />
     <MudDrawer @bind-Open="_drawerOpen"

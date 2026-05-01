@@ -31,6 +31,13 @@
         <kbd>⌘K</kbd>
     </button>
     <MudSpacer />
+    @* Phase 03.1 D-06 — Tweaks drawer opener; calls JS host directly to avoid SignalR
+       roundtrip. The bridged JS function flips [data-tweaks-open] on <html>; the panel is
+       mounted once in MainLayout and shown via CSS attribute flip. *@
+    <MudIconButton Icon="@Icons.Material.Filled.Tune"
+                   Color="Color.Default"
+                   aria-label="Open admin tweaks"
+                   OnClick="@(() => JS.InvokeVoidAsync("GKAdmin.openTweaks"))" />
     @if (!HostEnv.IsProduction())
     {
         <EnvironmentChip Env="@HostEnv.EnvironmentName" />

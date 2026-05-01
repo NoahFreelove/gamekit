@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 03.1 context gathered
-last_updated: "2026-05-01T21:53:34.203Z"
+last_updated: "2026-05-01T21:55:25.652Z"
 progress:
   total_phases: 7
   completed_phases: 1
@@ -22,16 +22,16 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 03 — Admin UI — Wave 6 complete. Plan 03-13 ships the full ROADMAP SC#1–SC#6 integration test matrix (RoadmapScenarioTests + ProductionGateTests + MountPathTests + CrossSchemeIsolationTests + CspAndAntiforgeryTests + PanelRenderTests = 6 files / 13 [Fact]s; AdminCspNonceMiddleware override-CSP fix to take precedence over ASP.NET Core's static-SSR default). Admin.Integration.Tests now 53/0/0 (up from 23). 03-12 (TicTacToeDuel sample wiring) remains AT HUMAN-VERIFY CHECKPOINT — Task 1 complete (Program.cs + csproj + README wired), Task 2 awaits operator 20-step walkthrough of the sample in a real browser before SUMMARY.md finalizes; this is the only Phase 3 close-out gap.
+**Current Focus:** Phase 03.1 — admin-ui-redesign-v2
 
 ## Current Position
 
-Phase: 03 (Admin UI)
-Plan: 13 of 13 complete (03-12 at human-verify checkpoint; SUMMARY pending operator walkthrough)
+Phase: 03.1 (admin-ui-redesign-v2) — EXECUTING
+Plan: 1 of 9
 **Milestone:** v1 (initial 6-phase build-out)
 **Phase:** 3
 **Plan:** 03-07 + 03-08 complete. 03-07 ships the full `/admin/api/*` minimal-API surface: POST `/login` (rate-limited `gamekit:admin:login`), POST `/logout`, GET `/players/search`, POST `/players/{id}/ban` + `/unban` (antiforgery + `AdminPolicy`), admins CRUD (superadmin policy), GET `/audit`, GET `/health`, GET `/matches`, GET `/queue-depth`, POST `/rank-adjust`; 6 DTOs (LoginRequest, BanPlayerRequest, UnbanPlayerRequest, CreateAdminRequest, PlayerSearchRequest, GdprDeleteRequest); 4 FluentValidation validators (Login / BanPlayer / CreateAdmin / PlayerSearch) registered in AddGameKitAdmin filling the step-13 placeholder left by 03-06. 03-08 ships the Blazor Server shell: nonce-aware App.razor (reads `HttpContext.Items["gamekit.admin.csp-nonce"]` into `<script nonce="...">` for Blazor JS + MudBlazor JS), Routes.razor + _Imports, MainLayout + LoginLayout with scoped CSS, TopNav (env chip + logout) + SideNav (10 nav items), 4 shared components (EnvironmentChip, StatusChip, KeysetPaginator, MissingPackageAlert), GameKitAdminTheme (indigo-600 primary + slate neutrals + 4px spacing), MapRazorComponents wire-up appended to MapGameKitAdmin. Admin.Tests 35→54 (+19), Admin.Integration.Tests 14→23 (+9). ADMIN-02/07/08/12 newly satisfied (ADMIN-05/06 already from 03-06 confirmed by 03-07 integration tests).
-**Status:** Ready to execute
+**Status:** Executing Phase 03.1
 
 **Progress:** [██████████████░] 95% (20 / 21 plans; 03-12 pending human-verify)
 

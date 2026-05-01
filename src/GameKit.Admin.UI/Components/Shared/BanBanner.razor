@@ -1,0 +1,57 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §5.3 BanBanner — medium-loud red banner shown across the top of the player
+    detail pane when a player is banned (D-07 default). Three visual loudness levels
+    (subtle / medium / loud) are CSS-driven via [data-ban-loud] on <html>; the component
+    renders identical DOM in all three states — only the visual treatment changes.
+
+    Sketch source: project/styles.css lines 583-613 (globally ported by Plan 02).
+
+    Mounted from PlayerDetailPane.razor when _player.IsBanned. Receives reason / actor /
+    timestamp as parameters; the optional unban CTA launches the existing UnbanPlayerDialog
+    via OnUnbanRequested.
+*@
+@namespace GameKit.Admin.UI.Components.Shared
+
+<div class="ban-banner" role="alert" aria-live="polite">
+    <span class="icon" aria-hidden="true">
+        <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" />
+    </span>
+    <div class="ban-banner-body">
+        <div class="title">Banned: @Reason</div>
+        <div class="meta">
+            <span>by <b>@ActorName</b></span>
+            <span class="sep">·</span>
+            <span class="gk-mono">@At.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</span>
+        </div>
+    </div>
+    @if (OnUnbanRequested.HasDelegate)
+    {
+        <button type="button"
+                class="btn ban-banner-unban"
+                @onclick="OnUnbanRequested">
+            Unban…
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// The reason the player was banned. Renders inside the title line; truncation is
+    /// CSS-driven. Razor auto-HTML-encodes the value (T-03.1-06-01 mitigation).
+    /// </summary>
+    [Parameter, EditorRequired] public string Reason { get; set; } = string.Empty;
+
+    /// <summary>Display name of the admin who issued the ban (or "system" for automated bans).</summary>
+    [Parameter, EditorRequired] public string ActorName { get; set; } = string.Empty;
+
+    /// <summary>UTC timestamp at which the ban was applied. Rendered as ISO-8601 + UTC.</summary>
+    [Parameter, EditorRequired] public DateTimeOffset At { get; set; }
+
+    /// <summary>
+    /// Optional callback invoked when the operator clicks "Unban…". Wires through to the
+    /// existing UnbanPlayerDialog. When no delegate is bound, the button is hidden.
+    /// </summary>
+    [Parameter] public EventCallback OnUnbanRequested { get; set; }
+}

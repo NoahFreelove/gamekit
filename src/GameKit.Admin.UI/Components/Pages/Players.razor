@@ -1,0 +1,221 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §5.6 + §6 — master-detail Players workspace. Single page with two @page
+    directives:
+      • /admin/players               (master pane only, empty detail)
+      • /admin/players/{Id:guid?}    (master + detail pane populated)
+    Replaces the legacy PlayerSearch.razor + PlayerDetail.razor pair (D-02 hand-roll +
+    RESEARCH Q3 recommendation: single page owns both routes).
+
+    Master pane: search input (debounced 250ms — preserves CONTEXT D-12 + Phase 03
+    semantics) → IPlayerSearchService → KeysetPaginator. Master row click navigates to
+    /admin/players/{id} with replace=true so master scroll position is preserved across
+    deep-link navigation (RESEARCH §Pattern 5).
+
+    Detail pane: <PlayerDetailPane Id="@Id" /> — extracted shared component handles the
+    empty-state, load, and ban-banner rendering (UI-SPEC §5.3 D-07).
+
+    ADMIN-05 (4-mode classified search) and ADMIN-06 (ban/unban/gdpr launch) are
+    re-verified post-redesign; the underlying services (IPlayerSearchService +
+    PlayerBanService) are UNCHANGED — only the Razor markup is rewritten.
+*@
+@page "/admin/players"
+@page "/admin/players/{Id:guid?}"
+@attribute [Authorize(Policy = AdminPolicies.Admin)]
+@implements IDisposable
+@inject IPlayerSearchService SearchSvc
+@inject NavigationManager Nav
+
+<h1 class="gk-page-heading">Players</h1>
+
+<div class="master-detail">
+    <div class="master">
+        <div class="master-head">
+            <MudTextField T="string"
+                          @bind-Value="_query"
+                          @bind-Value:after="OnQueryChanged"
+                          Placeholder="Search players…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          DebounceInterval="250"
+                          Clearable="true"
+                          Variant="Variant.Outlined"
+                          FullWidth="true" />
+        </div>
+        <div class="master-list">
+            @if (_errorMessage is not null)
+            {
+                <MudAlert Severity="Severity.Error" role="alert">
+                    @_errorMessage
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="RetryAsync">Retry</MudButton>
+                </MudAlert>
+            }
+            else if (_loading && _rows.Count == 0)
+            {
+                @for (var i = 0; i < 5; i++)
+                {
+                    <MudSkeleton Height="40px" Class="gk-grid-skeleton" />
+                }
+            }
+            else if (_rows.Count == 0 && !string.IsNullOrWhiteSpace(_query))
+            {
+                <div class="gk-empty-state">
+                    <MudText Typo="Typo.h6">No matches</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Default">
+                        No player matched "@_query". Try a UUID, a provider:external_id, or a different display-name prefix.
+                    </MudText>
+                </div>
+            }
+            else if (_rows.Count == 0 && string.IsNullOrWhiteSpace(_query))
+            {
+                <div class="gk-empty-state">
+                    <MudText Typo="Typo.h6">Search for a player</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Default">
+                        Enter a player ID, display name, or provider:external_id above.
+                    </MudText>
+                </div>
+            }
+            else
+            {
+                @foreach (var p in _rows)
+                {
+                    <a href="@($"/admin/players/{p.Id}")"
+                       class="@RowClass(p)"
+                       @onclick="@(() => OnRowClick(p.Id))"
+                       @onclick:preventDefault="true">
+                        <span class="avatar" aria-hidden="true">@Initials(p.DisplayName)</span>
+                        <div>
+                            <div class="name">@p.DisplayName</div>
+                            <div class="meta">
+                                <span class="gk-mono">@p.Id.ToString("N")[..8]…</span>
+                                <span>·</span>
+                                <span class="gk-mono">@p.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd")</span>
+                                @if (p.IsBanned)
+                                {
+                                    <span>·</span>
+                                    <StatusChip Status="Banned" />
+                                }
+                            </div>
+                        </div>
+                    </a>
+                }
+                <KeysetPaginator HasMore="_hasMore" IsLoading="_loadingMore" PageSize="50" OnLoadMore="LoadMoreAsync" />
+            }
+        </div>
+    </div>
+    <div class="detail">
+        <PlayerDetailPane Id="@Id" />
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// Optional player id from the route. When <c>null</c>, the master list renders alone
+    /// and the right pane shows the "select a player" empty-state. When present, both
+    /// panes render and the master row matching <see cref="Id"/> receives the
+    /// <c>master-row.active</c> class for visual selection.
+    /// </summary>
+    [Parameter] public Guid? Id { get; set; }
+
+    private string _query = string.Empty;
+    private readonly List<PlayerRow> _rows = new();
+    private Guid? _afterId;
+    private bool _hasMore;
+    private bool _loading;
+    private bool _loadingMore;
+    private string? _errorMessage;
+    private CancellationTokenSource? _cts;
+
+    private async Task OnQueryChanged()
+    {
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        _rows.Clear();
+        _afterId = null;
+        _errorMessage = null;
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            _hasMore = false;
+            StateHasChanged();
+            return;
+        }
+        await FetchAsync(_cts.Token);
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        _loadingMore = true;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        try
+        {
+            await FetchAsync(_cts.Token, append: true);
+        }
+        finally
+        {
+            _loadingMore = false;
+        }
+    }
+
+    private async Task RetryAsync()
+    {
+        _errorMessage = null;
+        await FetchAsync(CancellationToken.None);
+    }
+
+    private async Task FetchAsync(CancellationToken ct, bool append = false)
+    {
+        if (!append) _loading = true;
+        StateHasChanged();
+        try
+        {
+            var page = await SearchSvc.SearchAsync(_query, append ? _afterId : null, 50, ct);
+            if (!append) _rows.Clear();
+            _rows.AddRange(page.Items);
+            _hasMore = page.HasMore;
+            _afterId = _rows.Count > 0 ? _rows[^1].Id : null;
+        }
+        catch (OperationCanceledException)
+        {
+            // Silently swallow — superseded by a newer query.
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Search failed: {ex.Message}. Try again.";
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Navigates to <c>/admin/players/{id}</c> with <c>replace=true</c> so the browser
+    /// history doesn't accumulate one entry per master-row click — the master list scroll
+    /// position survives the navigation (RESEARCH §Pattern 5 master-detail synchronization).
+    /// </summary>
+    private void OnRowClick(Guid id) => Nav.NavigateTo($"/admin/players/{id}", replace: true);
+
+    private string RowClass(PlayerRow row)
+    {
+        var cls = "master-row";
+        if (Id == row.Id) cls += " active";
+        if (row.IsBanned) cls += " banned";
+        return cls;
+    }
+
+    /// <summary>Renders 1- or 2-letter initials for the master-row avatar circle.</summary>
+    private static string Initials(string displayName)
+    {
+        if (string.IsNullOrEmpty(displayName)) return "?";
+        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2) return $"{parts[0][0]}{parts[1][0]}".ToUpperInvariant();
+        return displayName[..Math.Min(2, displayName.Length)].ToUpperInvariant();
+    }
+
+    /// <summary>Cancels the in-flight search on dispose to avoid stale state writes.</summary>
+    public void Dispose() => _cts?.Cancel();
+}

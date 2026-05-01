@@ -111,6 +111,54 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
 - [x] 03-13-PLAN.md — E2E ROADMAP SC coverage: RoadmapScenarioTests (SC#1) + ProductionGateTests (SC#2) + CrossSchemeIsolationTests (SC#6) + CspAndAntiforgeryTests (SC#5) + PanelRenderTests (SC#4) + MountPathTests
 **UI hint**: yes
 
+### Phase 03.1: Admin UI redesign v2 (INSERTED)
+
+**Goal:** Re-skin `GameKit.Admin.UI` to the Claude Design hi-fi prototype while preserving the functional contract (same routes, same `/admin/api/*` endpoints, same dialogs, same auth flow). Net result: violet-600 accent, density-aware token scale, master-detail Players page, two-column Audit row expansion, ⌘K command palette, runtime Tweaks panel, and a medium-loud ban banner — all driven by the source prototype at `.planning/sketches/admin-ui-redesign-v2/`.
+
+**Source prototype:** `.planning/sketches/admin-ui-redesign-v2/` (HTML/CSS/JSX export from claude.ai/design)
+
+**Scope deltas vs. Phase 03 v1:**
+- Theme palette: indigo-600 → violet-600 (`#7C3AED`); add accent-50/100/700 ramps + 5 swappable accent presets (indigo / violet / teal / slate / orange)
+- Density tokens: comfortable (40px row) + compact (32px row) variants exposed as `[data-density]` attribute
+- Players page: split into master-detail with persistent left search list + right detail pane
+- Audit page: row expansion replaces raw before/after JSON `<pre>` blocks with a two-column treatment (human-readable sentence on the left, structured key/value diff on the right)
+- New global ⌘K command palette (navigate + run actions)
+- New runtime Tweaks panel (accent / density / sidebar-state / ban-loudness / dashboard-direction)
+- Medium ban banner across the top of the player detail page (red, 3 lines: reason / actor / timestamp)
+- Restyled chip rail (filter primitive) for Audit + Players
+- All 5 dialogs receive palette + density refresh
+- Light-only; dark mode still deferred (token-semantic so it remains a mechanical swap)
+
+**Out of scope (explicit):**
+- No backend / endpoint / DTO / migration changes
+- No new requirements (UI-only re-skin)
+- No mobile reflow (desktop-only stays)
+- No dark mode (deferred)
+- 03-12 manual walkthrough is independent — this phase does not block on it
+
+**Requirements**: ADMIN-02, ADMIN-03, ADMIN-05, ADMIN-06, ADMIN-09, ADMIN-12 (re-verified post-redesign — none changed semantically)
+**Depends on:** Phase 03 (all admin source files this phase mutates were created there)
+**Plans:** 9 plans
+
+**Success Criteria** (what must be TRUE):
+1. The shipped admin console visually matches the prototype at 1280px width: violet primary CTA, density tokens applied, master-detail Players layout, two-column Audit expansion, ban banner shape, command palette opens on ⌘K and routes to all 10 pages.
+2. The Tweaks panel persists user choice across reloads (localStorage) and applies via `data-*` attributes on the root.
+3. All Phase 3 integration tests still pass (no functional regression — the redesign is presentation-only).
+4. New component tests cover: command palette routing, tweaks-panel state persistence, ban-banner render, master-detail synchronization between list and pane.
+5. Bundle impact: no new NuGet packages; CSS payload increase ≤ 25 KB gzipped.
+6. Accessibility: WCAG 2.1 AA preserved (focus rings, semantic landmarks, keyboard nav for command palette and tweaks panel).
+
+Plans:
+- [ ] 03.1-01-PLAN.md — Wave 0 test scaffolding: bUnit 2.0.66 pin + 8 component test stubs (palette / tweaks / banner / workspace / sentence projector / accessibility / bundle-size)
+- [ ] 03.1-02-PLAN.md — Token foundation: gamekit-admin.css sketch port + GameKitAdminTheme violet-600 swap + App.razor inline tweaks-init script + 5 .razor.css migrations from --gk-color-* to sketch tokens
+- [ ] 03.1-03-PLAN.md — Vanilla JS bundle (window.GKAdmin IIFE) + App.razor body script tag + MainLayout DotNetObjectReference bridge for OpenDialog
+- [ ] 03.1-04-PLAN.md — AdminCommandRegistry + AdminCommandDto + GET /admin/api/commands + CommandPalette.razor + TopNav search-trigger + role-filtered bUnit tests
+- [ ] 03.1-05-PLAN.md — TweaksPanel.razor (5 radiogroups + reset) + MainLayout mount + TopNav Tune button + 4 live bUnit assertions
+- [ ] 03.1-06-PLAN.md — Players master-detail page + PlayerDetailPane shared + BanBanner shared + delete legacy PlayerSearch/PlayerDetail + 6 live bUnit facts
+- [ ] 03.1-07-PLAN.md — SentenceModel DTO + AuditSentenceTemplates registry (7 known + D-14 fallback) + AdminEndpoints AuditRow projection extension + Audit.razor 2-column row template
+- [ ] 03.1-08-PLAN.md — ChipRail.razor + 8 page re-skins + 5 dialog re-skins + 5 shared component re-skins + MissingPackageAlert literal substring preserved (ADMIN-09)
+- [ ] 03.1-09-PLAN.md — Phase gate: AccessibilityTests live + full automated suite re-run + manual SC#1 visual walkthrough at 1280px + manual SC#6 axe DevTools sweep
+
 ### Phase 4: Rankings + Sessions Wiring + GDPR Export
 
 **Goal**: Completed matches produce correct, idempotent rating updates via a windowed Glicko-2 default that a developer can swap out, seasonal boundaries archive ratings without data loss, and operators can satisfy GDPR export requests over the full PII surface.

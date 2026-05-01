@@ -1,0 +1,29 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/*
+   Component-scoped overrides — most palette styling lives globally in
+   gamekit-admin.css (sketch lines 895-985 ported by Plan 02). This file only
+   handles palette-specific row alignment for the focus ring, so component-scoped
+   selectors do not bleed into other rows.
+
+   The default-hidden visibility rule lives in gamekit-admin.css alongside the
+   tweaks-open rule — scoped CSS can not reach the <html> ancestor that owns the
+   [data-palette-open] state attribute via a Blazor-generated scope id.
+*/
+
+.palette-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.palette-row-label {
+    flex: 1;
+    text-align: left;
+}
+
+.palette-row-hint {
+    color: var(--fg-3);
+    font-size: 12px;
+    font-family: var(--font-mono);
+}

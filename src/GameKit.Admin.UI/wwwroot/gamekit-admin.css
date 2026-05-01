@@ -902,10 +902,13 @@ label.field .hint { font-weight: 400; color: var(--fg-3); }
   position: fixed; inset: 0;
   background: rgba(15,23,42,0.32);
   z-index: 70;
-  display: flex; align-items: flex-start; justify-content: center;
+  /* Hidden by default; gamekit-admin.js writes [data-palette-open] on <html> to show.
+     Plan 03.1-04 — flip rule below mirrors the [data-tweaks-open] convention. */
+  display: none; align-items: flex-start; justify-content: center;
   padding-top: 12vh;
   animation: fade-in 0.1s ease-out;
 }
+[data-palette-open="true"] .palette-scrim { display: flex; }
 .palette {
   width: 640px; max-width: calc(100vw - 32px);
   background: var(--surface);
@@ -949,6 +952,35 @@ label.field .hint { font-weight: 400; color: var(--fg-3); }
   font-size: 11px; color: var(--fg-3);
   display: flex; gap: 16px; align-items: center;
   background: var(--surface-2);
+}
+
+/* Plan 03.1-04 — TopNav search-trigger button rendered as a fake input that opens
+   the command palette. onclick calls window.GKAdmin.openPalette() (defined in
+   gamekit-admin.js); CSS shapes it like the sketch's "Search… ⌘K" affordance. */
+.search-trigger {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  width: 240px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.search-trigger:hover { color: var(--fg-2); border-color: var(--fg-3); }
+.search-trigger .placeholder { flex: 1; }
+.search-trigger kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--surface);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--fg-2);
 }
 
 /* ---------- misc ---------- */

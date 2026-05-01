@@ -1,0 +1,123 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §5.1 CommandPalette — Cmd+K verb-engine palette.
+
+    Renders the role-filtered command list as a hidden overlay; the JS bundle
+    (gamekit-admin.js) flips [data-palette-open] on <html> to show / hide. Markup is
+    server-rendered with the role-filtered rows (D-11), so the palette is keyboard-
+    interactive even before JS attaches event listeners.
+
+    Plan 03 ships the JS interactivity (filter / arrow-key cycling / two-step target search /
+    dispatch into MainLayout.OpenDialog). This component owns the static markup whose
+    selectors (data-command-id / data-requires-target / data-label / aria-selected) Plan 03
+    JS reaches into. Razor MUST NOT add @onclick / @onkeydown handlers — JS owns interactivity
+    (D-05).
+
+    Mounted ONCE inside MainLayout (not per-page). The component reads the role claim through
+    AuthenticationStateProvider during pre-render so the overlay opens with the role-filtered
+    rows the moment JS flips [data-palette-open].
+*@
+@namespace GameKit.Admin.UI.Components.Shared
+@using GameKit.Admin.UI.Authorization
+@using GameKit.Admin.UI.Http.Contracts
+@using GameKit.Admin.UI.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthState
+
+<div class="palette-scrim" data-palette-scrim>
+    <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+        <div class="palette-input">
+            <input type="text" placeholder="Type a command…" autocomplete="off" aria-label="Command search" />
+        </div>
+        <div class="palette-list" role="listbox" aria-label="Commands">
+            @if (_visible is null)
+            {
+                <div class="palette-section">Loading commands…</div>
+            }
+            else
+            {
+                @foreach (var category in _categories)
+                {
+                    var rows = _visible.Where(c => c.Category == category).ToArray();
+                    if (rows.Length == 0) { continue; }
+                    <div class="palette-section">@CategoryLabel(category)</div>
+                    @foreach (var cmd in rows)
+                    {
+                        <button type="button"
+                                class="palette-row"
+                                role="option"
+                                aria-selected="false"
+                                data-command-id="@cmd.Id"
+                                data-requires-target="@(cmd.RequiresTarget ? "true" : "false")"
+                                data-label="@cmd.Label">
+                            <span class="palette-row-label">@cmd.Label</span>
+                            @if (cmd.RequiresTarget)
+                            {
+                                <span class="palette-row-hint" aria-hidden="true">→</span>
+                            }
+                        </button>
+                    }
+                }
+            }
+        </div>
+        <div class="palette-foot">
+            <kbd>↑</kbd><kbd>↓</kbd> navigate
+            <kbd>Enter</kbd> select
+            <kbd>Esc</kbd> close
+        </div>
+    </div>
+</div>
+
+@code {
+    private static readonly string[] _categories =
+        { "actions", "admin", "system", "session", "nav" };
+
+    private IReadOnlyList<AdminCommandDto>? _visible;
+
+    /// <summary>
+    /// Server-side projects the role-filtered command list during pre-render so the palette
+    /// is keyboard-ready the moment <c>gamekit-admin.js</c> flips <c>[data-palette-open]</c>.
+    /// Filtering mirrors the <c>GET /admin/api/commands</c> endpoint exactly (D-11) so the
+    /// SSR markup and the JSON feed agree on the row set. Failures (no auth context, claim
+    /// missing) leave <see cref="_visible"/> populated with an empty array so the palette
+    /// still renders — the <c>"Loading commands…"</c> placeholder is reserved for the
+    /// transient null state during the first synchronous render.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            if (auth.User?.Identity?.IsAuthenticated != true)
+            {
+                _visible = Array.Empty<AdminCommandDto>();
+                return;
+            }
+            var role = auth.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
+                       ?? AdminRoles.Admin;
+            var isSuper = string.Equals(role, AdminRoles.Superadmin, StringComparison.Ordinal);
+            _visible = AdminCommandRegistry.AllCommands
+                .Where(c => isSuper || !c.RequiresSuperadmin)
+                .Select(c => new AdminCommandDto(c.Id, c.Label, c.Category, c.RequiresTarget))
+                .ToArray();
+        }
+        catch (Exception)
+        {
+            // Defensive: AuthenticationStateProvider may throw if the circuit is mid-disconnect
+            // or if no provider is registered (e.g. very early static SSR). Fail closed —
+            // empty list — so the palette markup still renders without leaking commands.
+            _visible = Array.Empty<AdminCommandDto>();
+        }
+    }
+
+    private static string CategoryLabel(string c) => c switch
+    {
+        "actions" => "Actions",
+        "admin"   => "Admin",
+        "system"  => "System",
+        "session" => "Session",
+        "nav"     => "Navigate",
+        _         => c
+    };
+}

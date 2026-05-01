@@ -4,7 +4,7 @@
 /* UI-SPEC §Layout Shell — content area: outer padding lg (24px on all sides);
  * max-width is NOT set (data-dense admin tool uses the full viewport). */
 .gk-content {
-    padding: var(--gk-space-6);
+    padding: 32px;
     min-height: 100vh;
-    background-color: var(--gk-color-bg);
+    background-color: var(--bg);
 }

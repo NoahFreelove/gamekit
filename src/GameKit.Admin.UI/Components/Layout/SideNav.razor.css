@@ -7,11 +7,11 @@
 
 ::deep .mud-nav-link.active-server,
 ::deep .mud-nav-link.active {
-    background-color: var(--gk-color-primary-subtle);
-    color: var(--gk-color-primary);
-    border-left: 3px solid var(--gk-color-primary);
+    background-color: var(--accent-50);
+    color: var(--accent);
+    border-left: 3px solid var(--accent);
 }
 
 ::deep .mud-nav-link:hover:not(.active):not(.active-server) {
-    background-color: var(--gk-color-surface-alt);
+    background-color: var(--surface-2);
 }

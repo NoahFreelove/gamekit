@@ -8,69 +8,69 @@
 .gk-login-form {
     display: flex;
     flex-direction: column;
-    gap: var(--gk-space-4);
+    gap: 16px;
 }
 
 .gk-login-heading {
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
-    color: var(--gk-color-text-primary);
+    color: var(--fg);
 }
 
 .gk-login-subheading {
-    margin: 0 0 var(--gk-space-2);
+    margin: 0 0 8px;
     font-size: 0.875rem;
-    color: var(--gk-color-text-secondary);
+    color: var(--fg-2);
 }
 
 /* Form-fields container — vertical stack with consistent gaps. */
 .gk-login-form-fields {
     display: flex;
     flex-direction: column;
-    gap: var(--gk-space-4);
+    gap: 16px;
 }
 
 /* Inline alert above the fields. data-severity flips the color treatment. */
 .gk-login-error {
-    padding: var(--gk-space-3) var(--gk-space-4);
+    padding: 12px 16px;
     border-radius: 6px;
     font-size: 0.875rem;
     line-height: 1.4;
 }
 
 .gk-login-error[data-severity="error"] {
-    background-color: var(--gk-color-danger-subtle);
-    color: var(--gk-color-danger);
-    border: 1px solid var(--gk-color-danger);
+    background-color: var(--red-bg);
+    color: var(--red);
+    border: 1px solid var(--red);
 }
 
 .gk-login-error[data-severity="warning"] {
-    background-color: var(--gk-color-warning-subtle);
-    color: var(--gk-color-warning);
-    border: 1px solid var(--gk-color-warning);
+    background-color: var(--amber-bg);
+    color: var(--amber);
+    border: 1px solid var(--amber);
 }
 
 .gk-login-field {
     display: flex;
     flex-direction: column;
-    gap: var(--gk-space-2);
+    gap: 8px;
 }
 
 .gk-login-label {
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--gk-color-text-primary);
+    color: var(--fg);
 }
 
 .gk-login-input {
     width: 100%;
-    padding: var(--gk-space-3);
+    padding: 12px;
     font-size: 1rem;
     line-height: 1.4;
-    color: var(--gk-color-text-primary);
-    background-color: var(--gk-color-surface);
-    border: 1px solid var(--gk-color-border);
+    color: var(--fg);
+    background-color: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 6px;
     box-sizing: border-box;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -78,16 +78,16 @@
 
 .gk-login-input:focus {
     outline: none;
-    border-color: var(--gk-color-focus);
-    box-shadow: 0 0 0 3px rgba(66, 99, 235, 0.15);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-100);
 }
 
 .gk-login-checkbox {
     display: flex;
     align-items: center;
-    gap: var(--gk-space-2);
+    gap: 8px;
     font-size: 0.875rem;
-    color: var(--gk-color-text-secondary);
+    color: var(--fg-2);
     cursor: pointer;
 }
 
@@ -98,11 +98,11 @@
 
 .gk-login-button {
     width: 100%;
-    padding: var(--gk-space-3) var(--gk-space-4);
+    padding: 12px 16px;
     font-size: 1rem;
     font-weight: 600;
     color: #FFFFFF;
-    background-color: var(--gk-color-primary);
+    background-color: var(--accent);
     border: none;
     border-radius: 6px;
     cursor: pointer;
@@ -110,18 +110,18 @@
 }
 
 .gk-login-button:hover {
-    background-color: var(--gk-color-primary-hover);
+    background-color: var(--accent-700);
 }
 
 .gk-login-button:focus-visible {
-    outline: 2px solid var(--gk-color-focus);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
 }
 
 .gk-login-forgot {
     margin: 0;
     font-size: 0.75rem;
-    color: var(--gk-color-text-secondary);
+    color: var(--fg-2);
     text-align: center;
 }
 
@@ -129,36 +129,36 @@
 .gk-first-admin-missing {
     display: flex;
     flex-direction: column;
-    gap: var(--gk-space-3);
+    gap: 12px;
 }
 
 .gk-first-admin-heading {
     margin: 0;
     font-size: 1.125rem;
     font-weight: 600;
-    color: var(--gk-color-text-primary);
+    color: var(--fg);
 }
 
 .gk-first-admin-body {
     margin: 0;
     font-size: 0.875rem;
-    color: var(--gk-color-text-secondary);
+    color: var(--fg-2);
 }
 
 .gk-first-admin-code {
     margin: 0;
-    padding: var(--gk-space-3);
-    background-color: var(--gk-color-surface-alt);
-    border: 1px solid var(--gk-color-border);
+    padding: 12px;
+    background-color: var(--surface-2);
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-family: ui-monospace, "SF Mono", Consolas, monospace;
     font-size: 0.875rem;
-    color: var(--gk-color-text-primary);
+    color: var(--fg);
     overflow-x: auto;
 }
 
 .gk-first-admin-footer {
     margin: 0;
     font-size: 0.75rem;
-    color: var(--gk-color-text-secondary);
+    color: var(--fg-2);
 }

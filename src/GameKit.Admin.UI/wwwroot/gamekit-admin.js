@@ -264,13 +264,28 @@
       return;
     }
 
+    // Phase 03.1-10 gap closure (BLOCKER-04): nav.* rows route via window.location.href
+    // to the data-url emitted by the server-side CommandPalette markup. The URL is
+    // server-trusted (sourced from AdminCommandRegistry, never operator input) — safe to
+    // assign directly without escaping.
+    if (commandId.indexOf('nav.') === 0) {
+      var url = row.getAttribute('data-url');
+      closePalette();
+      if (url) { window.location.href = url; }
+      return;
+    }
+
     // Action row clicks: action-without-target dispatches immediately;
     // action-with-target enters target-pick state.
     if (requiresTarget) {
       _selectedAction = { commandId: commandId, label: label };
       _enterTargetPick(label);
     } else {
-      _dispatchOpenDialog(commandId, '', '');
+      // Phase 03.1-10 gap closure (BLOCKER-03): pass Guid.Empty string instead of empty
+      // string. MainLayout.OpenDialog now accepts string targetId and parses with
+      // Guid.TryParse → Guid.Empty fallback (Task 2), so this is a belt-and-suspenders
+      // change that also guards if MainLayout is ever reverted.
+      _dispatchOpenDialog(commandId, '00000000-0000-0000-0000-000000000000', '');
       closePalette();
     }
   });
@@ -303,10 +318,20 @@
     _searchAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var q = e.target.value || '';
     if (q.length < 2) return;
-    fetch('/admin/api/players/search?query=' + encodeURIComponent(q),
+    // Phase 03.1-10 gap closure (WARNING-02): read the resolved /admin (or custom) base
+    // from window.GKAdminConfig (emitted by App.razor inline init). Falls back to the
+    // default mount-path so the bundle still works if the host app omits the bootstrap.
+    var apiBase = (window.GKAdminConfig && window.GKAdminConfig.apiBase) || '/admin/api';
+    fetch(apiBase + '/players/search?query=' + encodeURIComponent(q),
       { credentials: 'same-origin', signal: _searchAbort ? _searchAbort.signal : undefined })
-      .then(function (r) { return r.ok ? r.json() : []; })
-      .then(_renderTargetResults)
+      .then(function (r) { return r.ok ? r.json() : { items: [] }; })
+      .then(function (page) {
+        // Phase 03.1-10 gap closure (BLOCKER-02): GET /<apiBase>/players/search returns
+        // PaginatedResult<PlayerRow> shape { items, nextCursor, hasMore } — drill into
+        // .items before passing to _renderTargetResults (which expects a flat array).
+        var rows = (page && Array.isArray(page.items)) ? page.items : [];
+        _renderTargetResults(rows);
+      })
       .catch(function () { /* aborted or network error — silent */ });
   }
 
@@ -348,8 +373,12 @@
         detail: { commandId: commandId, targetId: targetId, displayName: targetName }
       }));
     } catch (e) { /* IE/old-browser noop */ }
-    // Bridge into MainLayout.OpenDialog (Task 3 registered _dotNetRef).
-    invokeDialog(commandId, targetId || '', targetName || '');
+    // Phase 03.1-10 gap closure (BLOCKER-03): never bridge an empty string into the C#
+    // string→Guid path (even with TryParse fallback in MainLayout, '' is meaningful only
+    // as Guid.Empty). Empty becomes the zero GUID literal; the C# side parses it.
+    invokeDialog(commandId,
+                 targetId || '00000000-0000-0000-0000-000000000000',
+                 targetName || '');
   }
 
   // -------- Global keydown listener (Pitfall 3 — open even from textarea) -----

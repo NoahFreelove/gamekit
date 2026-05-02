@@ -81,6 +81,81 @@ public sealed class CommandPaletteTests : BunitContext
                 cut.FindAll("button.palette-row").Count));
     }
 
+    // -------------------------------------------------------------------------
+    // Gap-closure 03.1-10: registry invariants for nav.* routing (BLOCKER-04)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// GAP-1 gap-closure: every nav.* row in the registry must declare a non-null Url
+    /// that starts with "/admin" so the palette JS can route via window.location.href.
+    /// Pure unit test — no bUnit rendering required.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Registry_NavRows_AllHaveAbsoluteAdminUrl()
+    {
+        var navRows = AdminCommandRegistry.AllCommands
+            .Where(c => c.Id.StartsWith("nav.", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(navRows);
+        foreach (var row in navRows)
+        {
+            Assert.False(
+                string.IsNullOrEmpty(row.Url),
+                $"nav.* row '{row.Id}' must declare a non-null Url for palette routing.");
+            Assert.StartsWith("/admin", row.Url, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// REVIEW-04 regression guard: nav.player-detail was removed from the registry
+    /// (meaningless without a target; had RequiresTarget: false). Ensure it never
+    /// reappears.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Registry_DoesNotContainPlayerDetailNavRow()
+    {
+        Assert.DoesNotContain(
+            AdminCommandRegistry.AllCommands,
+            c => c.Id == "nav.player-detail");
+    }
+
+    /// <summary>
+    /// GAP-1 gap-closure (bUnit): the CommandPalette SSR markup emits a non-empty
+    /// <c>data-url</c> attribute on every <c>button.palette-row</c> whose
+    /// <c>data-command-id</c> starts with <c>"nav."</c>.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Component")]
+    public void Palette_RendersDataUrlOnNavRows()
+    {
+        AddAuthorization().SetAuthorized("test-superadmin");
+        AddAuthorizationClaims(this, AdminRoles.Superadmin);
+
+        var cut = Render<CommandPalette>();
+
+        // WaitForAssertion absorbs the async OnInitializedAsync projection (W6).
+        cut.WaitForAssertion(() =>
+        {
+            var navButtons = cut.FindAll("button.palette-row")
+                .Where(b => (b.GetAttribute("data-command-id") ?? string.Empty)
+                             .StartsWith("nav.", StringComparison.Ordinal))
+                .ToArray();
+
+            Assert.NotEmpty(navButtons);
+            foreach (var btn in navButtons)
+            {
+                var dataUrl = btn.GetAttribute("data-url");
+                Assert.False(
+                    string.IsNullOrEmpty(dataUrl),
+                    $"nav row '{btn.GetAttribute("data-command-id")}' is missing data-url");
+                Assert.StartsWith("/admin", dataUrl, StringComparison.Ordinal);
+            }
+        });
+    }
+
     /// <summary>
     /// Helper: re-runs <see cref="BunitContext.AddAuthorization"/> to obtain the live
     /// <c>BunitAuthorizationContext</c> and sets a single role claim (matching the shape

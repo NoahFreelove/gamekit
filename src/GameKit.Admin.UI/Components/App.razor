@@ -13,6 +13,9 @@
     * No CDN references. No inline <style>. Tabular numerals + focus ring live in gamekit-admin.css.
 *@
 @inject IHttpContextAccessor HttpContextAccessor
+@using Microsoft.Extensions.Options
+@using GameKit.Admin.UI
+@inject IOptions<GameKitAdminOptions> AdminOptions
 
 <!DOCTYPE html>
 <html lang="en" class="gk-admin-root">
@@ -26,7 +29,13 @@
     <link rel="stylesheet" href="_content/GameKit.Admin.UI/gamekit-admin.css" />
     <HeadOutlet />
     @* Phase 03.1 D-06 + RESEARCH §Pattern 4 — FOUC eliminator. Reads localStorage and applies
-       five [data-*] attributes on <html> BEFORE <body> paints. CSP-strict: nonce required. *@
+       five [data-*] attributes on <html> BEFORE <body> paints. CSP-strict: nonce required.
+       Phase 03.1-10 gap closure (WARNING-02): also sets window.GKAdminConfig.apiBase so the
+       gamekit-admin.js bundle can fetch /<MountPath>/api/players/search instead of hardcoding
+       /admin/api/players/search and 404-ing on non-default mounts. *@
+    @{
+        var apiBase = (AdminOptions.Value.MountPath ?? "/admin").TrimEnd('/') + "/api";
+    }
     <script nonce="@Nonce">
       (function () {
         try {
@@ -38,6 +47,10 @@
           h.setAttribute('data-ban-loud',       t.banLoud  || 'medium');
           h.setAttribute('data-dashboard-dir',  t.dashDir  || 'D');
         } catch (e) { /* corrupt JSON — defaults applied above */ }
+        // Phase 03.1-10 gap closure (WARNING-02): expose the resolved MountPath so the
+        // gamekit-admin.js bundle can fetch /<MountPath>/api/players/search instead of
+        // hardcoding /admin/api/players/search and 404-ing on non-default mounts.
+        window.GKAdminConfig = { apiBase: '@apiBase' };
       })();
     </script>
 </head>

@@ -97,19 +97,28 @@
     /// <c>window.GKAdmin.invokeDialog(commandId, targetId, targetName)</c>. Routes to the
     /// matching MudDialog with PlayerId + DisplayName parameters pre-populated. The dialog's
     /// existing CSRF + validation + audit-write paths run unchanged (Phase 03 contract).
+    ///
+    /// targetId is accepted as <c>string</c> rather than <c>Guid</c> so target-less actions
+    /// (create-admin, rotate-signing-key, sign-out) can pass the literal Guid.Empty zero string
+    /// without triggering JsonException on the JS-interop boundary (gap closure 03.1-10 fix
+    /// for VERIFICATION BLOCKER-03).
     /// </summary>
     /// <param name="commandId">Stable command identifier from <c>AdminCommandRegistry</c>:
     ///   "ban", "unban", "gdpr-delete", "create-admin", "delete-admin", "rank-adjust",
-    ///   "rotate-signing-key".</param>
-    /// <param name="targetId">Player or admin GUID. <c>Guid.Empty</c> for non-target actions.</param>
+    ///   "rotate-signing-key", "sign-out".</param>
+    /// <param name="targetId">Player or admin GUID as a string. <c>Guid.Empty.ToString()</c>
+    ///   ("00000000-0000-0000-0000-000000000000") for target-less actions; parsed via
+    ///   <see cref="Guid.TryParse(string?, out Guid)"/> with <see cref="Guid.Empty"/> fallback
+    ///   so malformed input never throws.</param>
     /// <param name="targetName">Display name for the dialog title.</param>
     [JSInvokable]
-    public async Task OpenDialog(string commandId, Guid targetId, string targetName)
+    public async Task OpenDialog(string commandId, string targetId, string targetName)
     {
+        var pid = Guid.TryParse(targetId, out var parsed) ? parsed : Guid.Empty;
         var parameters = new DialogParameters
         {
-            ["PlayerId"] = targetId,
-            ["DisplayName"] = targetName
+            ["PlayerId"] = pid,
+            ["DisplayName"] = targetName ?? string.Empty
         };
         var dialogType = commandId switch
         {

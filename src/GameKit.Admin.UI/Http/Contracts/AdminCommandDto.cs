@@ -14,8 +14,10 @@ namespace GameKit.Admin.UI.Http.Contracts;
 /// <param name="Label">Operator-facing label rendered in the palette row.</param>
 /// <param name="Category">Group key for the section header (<c>actions</c> / <c>admin</c> / <c>system</c> / <c>session</c> / <c>nav</c>).</param>
 /// <param name="RequiresTarget">When <c>true</c>, the palette swaps into the target-search subview (D-10) before dispatching the action.</param>
+/// <param name="Url">Absolute /admin/* path for nav.* rows; <c>null</c> for action rows. The palette JS reads <c>data-url</c> and calls <c>window.location.href</c> when <c>commandId</c> starts with <c>"nav."</c>.</param>
 public sealed record AdminCommandDto(
     string Id,
     string Label,
     string Category,
-    bool RequiresTarget);
+    bool RequiresTarget,
+    string? Url);

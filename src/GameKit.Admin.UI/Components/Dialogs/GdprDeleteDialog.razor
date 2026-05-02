@@ -19,13 +19,13 @@
 @inject IAdminAuditWriter Audit
 @inject AuthenticationStateProvider AuthState
 
-<MudDialog>
+<MudDialog Class="dialog dialog-danger">
     <TitleContent>
         <span>Delete @DisplayName permanently?</span>
     </TitleContent>
     <DialogContent>
-        <div class="gk-dialog-danger-stripe gk-dialog-danger-stripe-solid"></div>
-        <MudText Typo="Typo.body2" Color="Color.Default" Class="gk-dialog-body">
+        @* Plan 03.1-08 — re-skinned: danger affordance now on the wrapper. *@
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="dialog-body">
             This is irreversible. The player's profile, identities, password credential, and
             session participation records will be anonymized or removed. Opponent foreign keys
             will be set to NULL. Rating history becomes unattributable. The admin audit log

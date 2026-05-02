@@ -13,13 +13,13 @@
 @inject IAdminUserService AdminUsers
 @inject AuthenticationStateProvider AuthState
 
-<MudDialog>
+<MudDialog Class="dialog dialog-danger">
     <TitleContent>
         <span>Delete admin "@Username"?</span>
     </TitleContent>
     <DialogContent>
-        <div class="gk-dialog-danger-stripe gk-dialog-danger-stripe-solid"></div>
-        <MudText Typo="Typo.body2" Color="Color.Default" Class="gk-dialog-body">
+        @* Plan 03.1-08 — re-skinned: danger affordance now on the wrapper. *@
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="dialog-body">
             Delete admin "@Username"? This cannot be undone. The audit log records this action.
         </MudText>
 

@@ -4,22 +4,22 @@
     UI-SPEC §11 Queue depth / §12 Rank adjust — shared placeholder shown when an optional
     sibling package (GameKit.Matchmaking, GameKit.Rankings, ...) is not registered.
 
-    Copy (UI-SPEC §Copywriting Contract — Missing package placeholder, exact):
-      Heading — "{PackageName} not installed"
-      Body    — "Install GameKit.{PackageName} and add .Add{PackageName}(…) to your
-                 service registration to enable {Feature}."
+    LOAD-BEARING (ADMIN-09): tests/GameKit.Admin.Integration.Tests/PanelRenderTests.cs
+    asserts the exact rendered substrings "Install GameKit.Matchmaking" (line 47) and
+    "Install GameKit.Rankings" (line 59). The body MUST keep the form
+      "Install GameKit.{PackageName} and add .Add{PackageName}(…) to your service
+       registration to enable {Feature}."
+    The wrapper element / class names can change freely. Only the inner text matters.
 
-    Rendered as an outlined Info alert — avoids suggesting an error; the operator did not
-    install the package on purpose (or has not yet).
+    Plan 03.1-08 — re-skinned around the load-bearing substring: replaced MudAlert with
+    sketch's <div class="alert"> + <div class="alert-heading"> + <div class="alert-body">.
 *@
-<MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Info" Class="gk-missing-package-alert">
-    <MudText Typo="Typo.subtitle2" Class="gk-missing-package-heading">
-        @PackageName not installed
-    </MudText>
-    <MudText Typo="Typo.body2" Class="gk-missing-package-body">
+<div class="alert" role="status">
+    <div class="alert-heading">@PackageName not installed</div>
+    <div class="alert-body">
         Install GameKit.@PackageName and add .Add@(PackageName)(…) to your service registration to enable @Feature.
-    </MudText>
-</MudAlert>
+    </div>
+</div>
 
 @code {
     /// <summary>

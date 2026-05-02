@@ -22,13 +22,14 @@
 @inject FluentValidation.IValidator<BanPlayerRequest> Validator
 @inject AuthenticationStateProvider AuthState
 
-<MudDialog>
+<MudDialog Class="dialog dialog-danger">
     <TitleContent>
         <span>Ban @DisplayName?</span>
     </TitleContent>
     <DialogContent>
-        <div class="gk-dialog-danger-stripe"></div>
-        <MudText Typo="Typo.body2" Color="Color.Default" Class="gk-dialog-body">
+        @* Plan 03.1-08 — re-skinned to sketch's .dialog-body affordance; the Danger
+           treatment now lives on the dialog wrapper class (see gamekit-admin.css). *@
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="dialog-body">
             Banned players cannot sign in. Existing sessions self-expire within 15 minutes.
             This action writes an entry to the admin audit log. You can unban later.
         </MudText>

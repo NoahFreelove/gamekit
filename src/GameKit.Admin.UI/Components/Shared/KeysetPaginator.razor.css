@@ -1,0 +1,30 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/*
+   UI-SPEC §Component Inventory keyset paginator. Wrapper centers the button + provides
+   a small top margin so it isn't flush with the table border. Spinner is a 14px CSS-only
+   ring rotation; .btn affordances come from global gamekit-admin.css.
+*/
+
+.keyset-paginator {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
+}
+
+.keyset-paginator > .btn { min-width: 200px; justify-content: center; }
+
+.keyset-paginator-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: gk-keyset-spin 0.7s linear infinite;
+    flex: 0 0 14px;
+}
+
+@keyframes gk-keyset-spin {
+    to { transform: rotate(360deg); }
+}

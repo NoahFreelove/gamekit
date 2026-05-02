@@ -4,9 +4,10 @@
     UI-SPEC §Top nav item 4 — environment chip shown for non-production environments
     (dev / staging). Production never renders this chip (the absence signals prod).
 
-    Uses info-subtle background per UI-SPEC §Color semantic-status table.
+    Plan 03.1-08 — re-skinned: replaced <MudChip> with sketch's <span class="chip info">
+    pattern (info-blue background per UI-SPEC §Color semantic-status table).
 *@
-<MudChip T="string" Variant="Variant.Filled" Size="Size.Small" Color="Color.Info" Label="true">@Env</MudChip>
+<span class="chip info">@Env</span>
 
 @code {
     /// <summary>Environment name from <c>IHostEnvironment.EnvironmentName</c> (e.g. <c>Development</c>, <c>Staging</c>).</summary>

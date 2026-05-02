@@ -9,12 +9,13 @@
 @inject IPlayerBanService BanService
 @inject AuthenticationStateProvider AuthState
 
-<MudDialog>
+<MudDialog Class="dialog dialog-warn">
     <TitleContent>
         <span>Unban @DisplayName?</span>
     </TitleContent>
     <DialogContent>
-        <MudText Typo="Typo.body2" Color="Color.Default" Class="gk-dialog-body">
+        @* Plan 03.1-08 — re-skinned: .dialog-body class for sketch spacing token. *@
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="dialog-body">
             Unbanning restores this player's ability to sign in and refresh sessions.
         </MudText>
 

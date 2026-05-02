@@ -2,39 +2,38 @@
 @* Copyright (c) 2026 GameKit contributors *@
 @*
     UI-SPEC §Color semantic status table — status chip colors:
-      OK / Active / Healthy / Online  → Success (green-600 / green-100 bg)
-      Degraded                        → Warning (amber-600 / amber-100 bg)
-      Down / Offline / Error / Banned → Danger  (red-600   / red-100  bg)
-      (anything else)                 → Info    (blue-600  / blue-100 bg)
+      OK / Active / Healthy / Online  → .chip.healthy (green-bg, green dot)
+      Degraded                        → .chip.degraded (amber-bg, amber dot)
+      Down / Offline / Error / Banned → .chip.down  (red-bg, red dot)
+      (anything else)                 → .chip.info  (blue-bg, blue dot)
 
     role="status" + aria-label mirrors UI-SPEC §Interaction Contract accessibility rule
     ("Status chips: role=\"status\" + aria-label=\"{status text}\"").
+
+    Plan 03.1-08 — re-skinned: replaced <MudChip> with sketch's <span class="chip"> + dot
+    indicator from gamekit-admin.css (.chip / .chip.healthy / .chip.degraded / .chip.down /
+    .chip.info rules already ported from sketch styles.css in Plan 02).
 *@
-<MudChip T="string"
-         Variant="Variant.Filled"
-         Size="Size.Small"
-         Color="@MapColor(Status)"
-         Label="true"
-         role="status"
-         aria-label="@Status">
+<span class="chip @ChipModifierClass(Status)" role="status" aria-label="@Status">
+    <span class="dot"></span>
     @Status
-</MudChip>
+</span>
 
 @code {
     /// <summary>The status text to display. Drives both the chip label and the color mapping.</summary>
     [Parameter, EditorRequired] public string Status { get; set; } = string.Empty;
 
     /// <summary>
-    /// Maps a status string to a MudBlazor <see cref="Color"/> value per the UI-SPEC §Color
-    /// semantic-status allowlist. Unknown values default to <c>Color.Info</c>.
+    /// Maps a status string to the sketch's <c>.chip.{modifier}</c> class per the UI-SPEC
+    /// §Color semantic-status allowlist. Unknown values default to <c>.chip.info</c>.
     /// </summary>
     /// <param name="status">Status string (case-insensitive).</param>
-    /// <returns>MudBlazor color enum.</returns>
-    private static Color MapColor(string status) => status?.Trim().ToLowerInvariant() switch
+    /// <returns>Modifier class name appended after the base <c>.chip</c>.</returns>
+    private static string ChipModifierClass(string status) => status?.Trim().ToLowerInvariant() switch
     {
-        "ok" or "active" or "healthy" or "online" or "up" => Color.Success,
-        "degraded" or "warning" => Color.Warning,
-        "down" or "offline" or "error" or "banned" => Color.Error,
-        _ => Color.Info,
+        "ok" or "active" or "healthy" or "online" or "up" => "healthy",
+        "degraded" or "warning" => "degraded",
+        "down" or "offline" or "error" or "banned" => "down",
+        _ => "info",
     };
 }

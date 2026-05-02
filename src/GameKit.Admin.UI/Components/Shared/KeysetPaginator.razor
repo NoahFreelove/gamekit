@@ -9,16 +9,19 @@
       - HasMore == false → "End of results" (button disabled)
 
     The host component owns loading-spinner state; this paginator only renders the button.
+
+    Plan 03.1-08 — re-skinned: replaced <MudButton> + <MudProgressCircular> with sketch's
+    <button class="btn"> + a CSS-driven inline spinner span. .btn / .btn:disabled rules
+    are already ported from sketch styles.css in Plan 02.
 *@
-<div class="gk-keyset-paginator">
-    <MudButton Variant="Variant.Outlined"
-               Color="Color.Default"
-               Disabled="@(!HasMore || IsLoading)"
-               OnClick="InvokeLoadMoreAsync"
-               FullWidth="true">
+<div class="keyset-paginator">
+    <button type="button"
+            class="btn"
+            disabled="@(!HasMore || IsLoading)"
+            @onclick="InvokeLoadMoreAsync">
         @if (IsLoading)
         {
-            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+            <span class="keyset-paginator-spinner" aria-hidden="true"></span>
             <span>Loading…</span>
         }
         else if (HasMore)
@@ -29,7 +32,7 @@
         {
             <span>End of results</span>
         }
-    </MudButton>
+    </button>
 </div>
 
 @code {

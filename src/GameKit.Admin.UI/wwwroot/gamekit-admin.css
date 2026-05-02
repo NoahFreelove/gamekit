@@ -782,8 +782,13 @@ button.chip:hover { background: var(--surface-3); border-color: var(--border-str
   align-items: start;
   font-size: 13px;
 }
+/* Plan 03.1-08 — MissingPackageAlert renders <div class="alert"> without a leading
+   icon column; collapse the grid in that case to a single text column. */
+.alert:not(:has(.icon)) { grid-template-columns: 1fr; }
 .alert .icon { color: var(--blue); margin-top: 1px; }
 .alert h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.alert .alert-heading { font-size: 13px; font-weight: 600; margin: 0 0 4px; color: inherit; }
+.alert .alert-body { font-size: 13px; color: inherit; }
 .alert pre {
   margin: 8px 0 0;
   padding: 10px 12px;
@@ -1056,3 +1061,19 @@ button:focus-visible, a:focus-visible { outline-offset: 2px; }
 .gk-admin-root {
   --mud-palette-action-default: var(--accent);
 }
+
+/* ---------- dialog (MudDialog re-skin overrides — Plan 03.1-08) ----------
+   The 5 admin dialogs (Ban / Unban / CreateAdmin / DeleteAdmin / GdprDelete) keep
+   their MudDialog wrapper — replacing it would break the [CascadingParameter]
+   IMudDialogInstance + FluentValidation + CSRF + audit-write paths. Sketch density
+   tokens land via class additions on the wrapper. Variants:
+     .dialog          — default border + spacing
+     .dialog-danger   — red top stripe (Ban / DeleteAdmin / GdprDelete)
+     .dialog-warn     — amber top stripe (Unban)
+   .dialog-body adds the sketch's body-text spacing rhythm. */
+.dialog .dialog-body { font-size: 13px; line-height: 1.55; color: var(--fg-2); }
+.dialog-danger .mud-dialog,
+.dialog-warn   .mud-dialog,
+.dialog        .mud-dialog { border-radius: 8px; }
+.dialog-danger .mud-dialog { border-top: 3px solid var(--red); }
+.dialog-warn   .mud-dialog { border-top: 3px solid var(--amber); }

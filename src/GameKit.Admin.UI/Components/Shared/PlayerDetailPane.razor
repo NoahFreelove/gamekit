@@ -9,10 +9,14 @@
     When [Parameter] Id is null, renders the empty-state "Select a player from the list →".
     Re-fetches via OnParametersSetAsync whenever the bound Id changes (master-detail nav).
 
-    Player.BannedById/BannedByName do not exist on the Phase 1 schema; the BanBanner ActorName
-    parameter is filled with the literal string "system" — a known limitation documented in
-    Plan 03.1-06 SUMMARY. ADMIN-06 ban contract is preserved (CSRF + validation + audit
-    write happen in the ban dialog, unchanged from Phase 03).
+    Player.BannedById/BannedByName do not exist on the Phase 1 schema; the BanBanner
+    ActorName parameter is resolved at LoadAsync time by reading the most-recent
+    admin.player.ban audit row for this player (via the audit-log table that already
+    captures the banning admin's id) and resolving the name through
+    IPlayerDisplayNameResolver. Falls back to "unknown actor" when no audit row exists
+    (Plan 03.1-11 gap closure for VERIFICATION WARNING-06). ADMIN-06 ban contract is
+    preserved (CSRF + validation + audit write happen in the ban dialog, unchanged from
+    Phase 03).
 *@
 @namespace GameKit.Admin.UI.Components.Shared
 @using GameKit.Core.Data
@@ -23,6 +27,7 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject IServiceProvider Sp
+@inject GameKit.Core.Services.IPlayerDisplayNameResolver PlayerNames
 
 @if (Id is null)
 {
@@ -47,8 +52,12 @@ else
 {
     @if (_player.IsBanned && _player.BannedAt is not null)
     {
+        @* Phase 03.1-11 gap closure (WARNING-06): ActorName comes from the most-recent
+           admin.player.ban audit row for this player (resolved via IPlayerDisplayNameResolver
+           in LoadAsync), falling back to "unknown actor" when no row exists. The hardcoded
+           "system" literal that shipped with Plan 03.1-06 is gone. *@
         <BanBanner Reason="@(_player.BanReason ?? "—")"
-                   ActorName="system"
+                   ActorName="@(_bannedByName ?? "unknown actor")"
                    At="@_player.BannedAt.Value"
                    OnUnbanRequested="OpenUnbanDialog" />
     }
@@ -180,6 +189,16 @@ else
     private List<BreadcrumbItem> _breadcrumbs = new();
     private Guid? _loadedId;
 
+    /// <summary>
+    /// Display name of the admin who issued the most-recent <c>admin.player.ban</c> for this
+    /// player, looked up from <c>admin_audit_log</c> on each <see cref="LoadAsync"/> call.
+    /// <c>null</c> when no ban audit row exists (e.g. the player was banned before the audit
+    /// log was introduced, or the row has been GDPR-redacted) — the BanBanner consumer
+    /// substitutes the literal "unknown actor" so the operator sees the data is missing
+    /// rather than a false "system" attribution (Plan 03.1-11 / VERIFICATION WARNING-06).
+    /// </summary>
+    private string? _bannedByName;
+
     /// <summary>Projection row for the Match history tab — joins SessionParticipant + GameSession.</summary>
     private sealed record MatchRow(
         Guid SessionId,
@@ -233,6 +252,28 @@ else
                 new("Players", "/admin/players"),
                 new(_player.DisplayName, href: null, disabled: true),
             };
+
+            // Phase 03.1-11 gap closure (WARNING-06): resolve the banning admin's display name
+            // by reading the most-recent admin.player.ban audit row for this player. Falls back
+            // to null when no row exists; the BanBanner consumer substitutes "unknown actor" so
+            // the operator sees the missing data instead of the false "system" attribution that
+            // shipped with Plan 03.1-06's hardcoded literal.
+            _bannedByName = null;
+            if (_player.IsBanned)
+            {
+                var banRow = await Db.AdminAuditLog.AsNoTracking()
+                    .Where(r => r.Action == GameKit.Admin.UI.Services.AdminAuditActions.PlayerBan
+                                && r.TargetId == _player.Id)
+                    .OrderByDescending(r => r.CreatedAt)
+                    .ThenByDescending(r => r.Id)
+                    .Select(r => new { r.ActorId })
+                    .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+                if (banRow is not null && banRow.ActorId.HasValue)
+                {
+                    _bannedByName = await PlayerNames.ResolveAsync(banRow.ActorId.Value, ct).ConfigureAwait(false);
+                }
+            }
+
             // Join SessionParticipant → GameSession manually — SessionParticipantConfiguration
             // defines the FK with no navigation property (Phase-1 decision for GDPR cascade
             // clarity; see 03-07 SUMMARY). Filters to Completed sessions only.

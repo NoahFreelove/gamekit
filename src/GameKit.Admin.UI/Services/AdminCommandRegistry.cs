@@ -14,7 +14,7 @@ namespace GameKit.Admin.UI.Services;
 /// <remarks>
 /// <para>
 /// Per CONTEXT D-09 the v1 action set is 8 verbs: ban / unban / gdpr-delete / create-admin /
-/// delete-admin / rank-adjust / rotate-signing-key / sign-out. The 10 nav rows enumerate the
+/// delete-admin / rank-adjust / rotate-signing-key / sign-out. The 9 nav rows enumerate the
 /// existing <c>/admin/*</c> Blazor pages.
 /// </para>
 /// <para>
@@ -28,7 +28,7 @@ public static class AdminCommandRegistry
 {
     /// <summary>
     /// All commands registered in v1. Order is the canonical render order; the palette JS
-    /// preserves it. 8 actions + 10 nav rows = 18 entries total.
+    /// preserves it. 8 actions + 9 nav rows = 17 entries total.
     /// </summary>
     public static IReadOnlyList<AdminCommand> AllCommands { get; } = new List<AdminCommand>
     {
@@ -46,16 +46,17 @@ public static class AdminCommandRegistry
         new("sign-out",           "Sign out",              "session", RequiresSuperadmin: false, RequiresTarget: false),
 
         // Navigation rows (port from SideNav.razor:13-26) --------------------
-        new("nav.dashboard",   "Go to Dashboard",   "nav", RequiresSuperadmin: false, RequiresTarget: false),
-        new("nav.players",     "Go to Players",     "nav", RequiresSuperadmin: false, RequiresTarget: false),
-        new("nav.matches",     "Go to Match history","nav", RequiresSuperadmin: false, RequiresTarget: false),
-        new("nav.audit",       "Go to Audit log",   "nav", RequiresSuperadmin: false, RequiresTarget: false),
-        new("nav.health",      "Go to Health",      "nav", RequiresSuperadmin: false, RequiresTarget: false),
-        new("nav.matchmaking", "Go to Queue depth", "nav", RequiresSuperadmin: false, RequiresTarget: false),
-        new("nav.rank-adjust", "Go to Rank adjust", "nav", RequiresSuperadmin: true,  RequiresTarget: false),
-        new("nav.admins",      "Go to Admins",      "nav", RequiresSuperadmin: true,  RequiresTarget: false),
-        new("nav.login",       "Go to Login",       "nav", RequiresSuperadmin: false, RequiresTarget: false),
-        new("nav.player-detail","Open player detail","nav", RequiresSuperadmin: false, RequiresTarget: false),
+        // nav.player-detail removed (REVIEW-04): meaningless without a target; had RequiresTarget: false
+        // but dispatching it as a nav row makes no sense — deleted in gap-closure plan 03.1-10.
+        new("nav.dashboard",   "Go to Dashboard",   "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin"),
+        new("nav.players",     "Go to Players",     "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/players"),
+        new("nav.matches",     "Go to Match history","nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/matches"),
+        new("nav.audit",       "Go to Audit log",   "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/audit"),
+        new("nav.health",      "Go to Health",      "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/health"),
+        new("nav.matchmaking", "Go to Queue depth", "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/matchmaking"),
+        new("nav.rank-adjust", "Go to Rank adjust", "nav", RequiresSuperadmin: true,  RequiresTarget: false, Url: "/admin/rank-adjust"),
+        new("nav.admins",      "Go to Admins",      "nav", RequiresSuperadmin: true,  RequiresTarget: false, Url: "/admin/admins"),
+        new("nav.login",       "Go to Login",       "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/login"),
     };
 }
 
@@ -69,9 +70,11 @@ public static class AdminCommandRegistry
 /// <param name="Category">Group key ("actions", "admin", "system", "session", "nav") for section headers in the palette.</param>
 /// <param name="RequiresSuperadmin">When true, the row is filtered out of the GET /admin/api/commands response for non-superadmin operators (D-11).</param>
 /// <param name="RequiresTarget">When true, selecting the row in the palette switches to the two-step target-search subview (D-10) before launching the matching dialog.</param>
+/// <param name="Url">When non-null, selecting the row navigates the browser to this absolute /admin/* path; used exclusively by nav.* rows. Action rows leave this null and dispatch through MainLayout.OpenDialog instead.</param>
 public sealed record AdminCommand(
     string Id,
     string Label,
     string Category,
     bool RequiresSuperadmin,
-    bool RequiresTarget);
+    bool RequiresTarget,
+    string? Url = null);

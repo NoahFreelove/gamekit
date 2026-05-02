@@ -22,117 +22,122 @@
 @inject IHealthProbeService HealthSvc
 @inject IServiceProvider Sp
 
-<h1 class="gk-page-heading">Dashboard</h1>
+@* Plan 03.1-08 — direction-D 4-card grid (CONTEXT D-08; sketch dashboard.jsx).
+   .grid-12 + .span-* sketch utilities replace MudGrid; .card / .card-head / .card-body
+   replace MudPaper. The picker UI for directions A/B/C lives in TweaksPanel (Plan 05). *@
+<div class="page-head">
+    <h1>Dashboard</h1>
+</div>
 
-<MudGrid Spacing="6">
+<div class="grid-12">
     @* Row 1 — Health (span 6) + Queue depth (span 6) *@
-    <MudItem xs="12" md="6">
-        <MudPaper Class="gk-dashboard-card" Elevation="0">
-            <MudText Typo="Typo.h6" Class="gk-dashboard-card-title">Health</MudText>
+    <div class="card span-6">
+        <div class="card-head">
+            <h2>Health</h2>
+            <a href="/admin/health" class="muted">View health panel</a>
+        </div>
+        <div class="card-body">
             @if (_health is null)
             {
-                <MudSkeleton Height="72px" />
+                <div class="muted">Probing…</div>
             }
             else
             {
-                <div class="gk-dashboard-health-row">
-                    <div class="gk-dashboard-health-tile">
-                        <MudText Typo="Typo.caption" Color="Color.Default">Postgres</MudText>
-                        <StatusChip Status="@_health.Postgres.Status" />
-                    </div>
-                    <div class="gk-dashboard-health-tile">
-                        <MudText Typo="Typo.caption" Color="Color.Default">Redis</MudText>
-                        <StatusChip Status="@_health.Redis.Status" />
-                    </div>
-                    <div class="gk-dashboard-health-tile">
-                        <MudText Typo="Typo.caption" Color="Color.Default">Error rate</MudText>
-                        <StatusChip Status="@_health.ErrorRate.Status" />
-                    </div>
+                <div class="kv">
+                    <dt>Postgres</dt>
+                    <dd><StatusChip Status="@_health.Postgres.Status" /></dd>
+                    <dt>Redis</dt>
+                    <dd><StatusChip Status="@_health.Redis.Status" /></dd>
+                    <dt>Error rate</dt>
+                    <dd><StatusChip Status="@_health.ErrorRate.Status" /></dd>
                 </div>
             }
-            <MudLink Href="/admin/health" Typo="Typo.caption">View health panel</MudLink>
-        </MudPaper>
-    </MudItem>
+        </div>
+    </div>
 
-    <MudItem xs="12" md="6">
-        <MudPaper Class="gk-dashboard-card" Elevation="0">
-            <MudText Typo="Typo.h6" Class="gk-dashboard-card-title">Queue depth</MudText>
+    <div class="card span-6">
+        <div class="card-head"><h2>Queue depth</h2></div>
+        <div class="card-body">
             @if (_matchmakingInstalled)
             {
-                <MudAlert Severity="Severity.Info">Queue telemetry will render when GameKit.Matchmaking ships.</MudAlert>
+                <div class="alert" role="status">
+                    <div class="alert-body">Queue telemetry will render when GameKit.Matchmaking ships.</div>
+                </div>
             }
             else
             {
                 <MissingPackageAlert PackageName="Matchmaking" Feature="live queue telemetry" />
             }
-        </MudPaper>
-    </MudItem>
+        </div>
+    </div>
 
     @* Row 2 — Recent audit log (span 8) + Quick stats (span 4) *@
-    <MudItem xs="12" md="8">
-        <MudPaper Class="gk-dashboard-card" Elevation="0">
-            <MudText Typo="Typo.h6" Class="gk-dashboard-card-title">Recent audit log</MudText>
+    <div class="card span-8">
+        <div class="card-head">
+            <h2>Recent audit log</h2>
+            <a href="/admin/audit" class="muted">View full audit log</a>
+        </div>
+        <div class="card-body flush">
             @if (_recentAudit is null)
             {
-                <MudSkeleton Height="160px" />
+                <div class="muted" style="padding:16px;">Loading…</div>
             }
             else if (_recentAudit.Count == 0)
             {
-                <MudText Typo="Typo.body2" Color="Color.Default">
-                    No admin actions recorded yet.
-                </MudText>
-                <MudText Typo="Typo.caption" Color="Color.Default">
-                    Actions like bans, admin creates, and rank adjustments appear here.
-                </MudText>
+                <div class="empty">
+                    <h3>No admin actions recorded yet.</h3>
+                    <p>Actions like bans, admin creates, and rank adjustments appear here.</p>
+                </div>
             }
             else
             {
-                <MudSimpleTable Dense="true" Hover="true" Class="gk-dashboard-audit-table">
-                    <thead>
-                        <tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in _recentAudit)
-                        {
-                            <tr>
-                                <td class="gk-mono">@row.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</td>
-                                <td>@(row.ActorId?.ToString("N")[..8] ?? "system")</td>
-                                <td class="gk-mono">@row.Action</td>
-                                <td class="gk-mono">@(row.TargetId?.ToString("N")[..8] ?? "—")</td>
-                            </tr>
-                        }
-                    </tbody>
-                </MudSimpleTable>
+                <div class="table-wrap">
+                    <table class="t">
+                        <thead>
+                            <tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _recentAudit)
+                            {
+                                <tr>
+                                    <td class="mono">@row.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</td>
+                                    <td>@(row.ActorId?.ToString("N")[..8] ?? "system")</td>
+                                    <td class="mono">@row.Action</td>
+                                    <td class="mono">@(row.TargetId?.ToString("N")[..8] ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
-            <MudLink Href="/admin/audit" Typo="Typo.caption">View full audit log</MudLink>
-        </MudPaper>
-    </MudItem>
+        </div>
+    </div>
 
-    <MudItem xs="12" md="4">
-        <MudPaper Class="gk-dashboard-card" Elevation="0">
-            <MudText Typo="Typo.h6" Class="gk-dashboard-card-title">Quick stats</MudText>
+    <div class="card span-4">
+        <div class="card-head"><h2>Quick stats</h2></div>
+        <div class="card-body">
             @if (_stats is null)
             {
-                <MudSkeleton Height="120px" />
+                <div class="muted">Loading…</div>
             }
             else
             {
-                <div class="gk-dashboard-stat-row">
-                    <MudText Typo="Typo.caption" Color="Color.Default">Admins</MudText>
-                    <MudText Typo="Typo.h6">@_stats.AdminCount</MudText>
+                <div class="metric">
+                    <span class="lbl">Admins</span>
+                    <span class="v">@_stats.AdminCount</span>
                 </div>
-                <div class="gk-dashboard-stat-row">
-                    <MudText Typo="Typo.caption" Color="Color.Default">Banned players</MudText>
-                    <MudText Typo="Typo.h6">@_stats.BannedCount</MudText>
+                <div class="metric" style="margin-top:12px;">
+                    <span class="lbl">Banned players</span>
+                    <span class="v">@_stats.BannedCount</span>
                 </div>
-                <div class="gk-dashboard-stat-row">
-                    <MudText Typo="Typo.caption" Color="Color.Default">Sessions completed (24h)</MudText>
-                    <MudText Typo="Typo.h6">@_stats.SessionsCompletedToday</MudText>
+                <div class="metric" style="margin-top:12px;">
+                    <span class="lbl">Sessions completed (24h)</span>
+                    <span class="v">@_stats.SessionsCompletedToday</span>
                 </div>
             }
-        </MudPaper>
-    </MudItem>
-</MudGrid>
+        </div>
+    </div>
+</div>
 
 @code {
     private HealthReport? _health;

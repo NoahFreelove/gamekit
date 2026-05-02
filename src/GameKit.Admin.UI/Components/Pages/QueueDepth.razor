@@ -12,7 +12,10 @@
 @implements IDisposable
 @inject IServiceProvider Sp
 
-<h1 class="gk-page-heading">Queue depth</h1>
+@* Plan 03.1-08 — sketch's .page-head class replaces the legacy gk-page-heading. *@
+<div class="page-head">
+    <h1>Queue depth</h1>
+</div>
 
 @if (!_matchmakingInstalled)
 {
@@ -21,7 +24,9 @@
 else
 {
     @* Placeholder for Phase 5 — reflective lookup resolves only once GameKit.Matchmaking ships. *@
-    <MudAlert Severity="Severity.Info">Queue telemetry will render when GameKit.Matchmaking ships.</MudAlert>
+    <div class="alert" role="status">
+        <div class="alert-body">Queue telemetry will render when GameKit.Matchmaking ships.</div>
+    </div>
 }
 
 @code {

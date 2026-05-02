@@ -16,70 +16,70 @@
 @inject ISnackbar Snackbar
 @inject AuthenticationStateProvider AuthState
 
-<h1 class="gk-page-heading">Admins</h1>
-
-<div class="gk-page-toolbar">
-    <MudSpacer />
-    <MudButton Variant="Variant.Filled"
-               Color="Color.Primary"
-               StartIcon="@Icons.Material.Filled.AdminPanelSettings"
-               OnClick="OpenCreateDialog">
-        Create admin
-    </MudButton>
+@* Plan 03.1-08 — sketch class names: .page-head, .table-wrap + .t, .chip, .btn. *@
+<div class="page-head">
+    <h1>Admins</h1>
+    <div class="actions">
+        <button type="button" class="btn btn-primary" @onclick="OpenCreateDialog">
+            Create admin
+        </button>
+    </div>
 </div>
 
 @if (_loading)
 {
-    <MudSkeleton Height="200px" />
+    <div class="muted">Loading admins…</div>
 }
 else if (_admins.Count == 0)
 {
-    <MudAlert Severity="Severity.Info">No admins found. Create one to get started.</MudAlert>
+    <div class="alert" role="status">
+        <div class="alert-body">No admins found. Create one to get started.</div>
+    </div>
 }
 else
 {
-    <MudSimpleTable Dense="true" Hover="true">
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Created</th>
-                <th>Last login</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var admin in _admins)
-            {
-                var isSelf = _currentUserId is Guid cur && cur == admin.Id;
-                var isLastSuperadmin = admin.Role == AdminRoles.Superadmin && _superadminCount <= 1;
+    <div class="table-wrap">
+        <table class="t">
+            <thead>
                 <tr>
-                    <td>@admin.Username</td>
-                    <td>
-                        <MudChip T="string"
-                                 Variant="Variant.Filled"
-                                 Size="Size.Small"
-                                 Color="@(admin.Role == AdminRoles.Superadmin ? Color.Error : Color.Primary)">
-                            @admin.Role
-                        </MudChip>
-                    </td>
-                    <td class="gk-mono">@admin.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</td>
-                    <td class="gk-mono">@(admin.LastLoginAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—") UTC</td>
-                    <td>
-                        <MudTooltip Text="@DeleteTooltip(isSelf, isLastSuperadmin)" Arrow="true">
-                            <MudButton Variant="Variant.Text"
-                                       Color="Color.Error"
-                                       Size="Size.Small"
-                                       Disabled="@(isSelf || isLastSuperadmin)"
-                                       OnClick="@(() => OpenDeleteDialog(admin, isLastSuperadmin))">
-                                Delete
-                            </MudButton>
-                        </MudTooltip>
-                    </td>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Created</th>
+                    <th>Last login</th>
+                    <th class="actions"></th>
                 </tr>
-            }
-        </tbody>
-    </MudSimpleTable>
+            </thead>
+            <tbody>
+                @foreach (var admin in _admins)
+                {
+                    var isSelf = _currentUserId is Guid cur && cur == admin.Id;
+                    var isLastSuperadmin = admin.Role == AdminRoles.Superadmin && _superadminCount <= 1;
+                    <tr>
+                        <td>@admin.Username</td>
+                        <td>
+                            @{
+                                var roleChipClass = admin.Role == AdminRoles.Superadmin
+                                    ? "chip role down"
+                                    : "chip role accent";
+                            }
+                            <span class="@roleChipClass">@admin.Role</span>
+                        </td>
+                        <td class="mono">@admin.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm") UTC</td>
+                        <td class="mono">@(admin.LastLoginAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—") UTC</td>
+                        <td class="actions">
+                            <button type="button"
+                                    class="btn btn-danger btn-sm"
+                                    title="@DeleteTooltip(isSelf, isLastSuperadmin)"
+                                    disabled="@(isSelf || isLastSuperadmin)"
+                                    @onclick="@(() => OpenDeleteDialog(admin, isLastSuperadmin))">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @code {

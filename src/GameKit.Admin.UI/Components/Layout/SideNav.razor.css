@@ -1,17 +1,17 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright (c) 2026 GameKit contributors */
 
-/* UI-SPEC §Sidebar — Active item: primary-subtle bg, primary left-border, primary text.
- * Hover on inactive: surface-alt bg. These rules work with MudNavLink's
- * ::deep selector to reach the nested anchor element inside the scoped boundary. */
+/* Plan 03.1-08 — UI-SPEC §Sidebar. The sketch's .sidebar / .nav-item / .nav-item.active
+   rules live globally in gamekit-admin.css (already ported from sketch styles.css in
+   Plan 02). This scoped stylesheet only handles the NavLink anchor reset since
+   <NavLink> renders an <a> with a default-blue link color from gamekit-admin.css's
+   `a { color: var(--accent); }` rule that we want overridden inside .nav-item. */
 
-::deep .mud-nav-link.active-server,
-::deep .mud-nav-link.active {
-    background-color: var(--accent-50);
-    color: var(--accent);
-    border-left: 3px solid var(--accent);
+a.nav-item, a.nav-item:hover {
+    color: var(--fg);
+    text-decoration: none;
 }
 
-::deep .mud-nav-link:hover:not(.active):not(.active-server) {
-    background-color: var(--surface-2);
+a.nav-item.active {
+    color: var(--accent-700);
 }

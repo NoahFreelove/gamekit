@@ -12,7 +12,10 @@
 @implements IDisposable
 @inject IServiceProvider Sp
 
-<h1 class="gk-page-heading">Rank adjust</h1>
+@* Plan 03.1-08 — sketch's .page-head class replaces the legacy gk-page-heading. *@
+<div class="page-head">
+    <h1>Rank adjust</h1>
+</div>
 
 @if (!_rankingsInstalled)
 {
@@ -21,7 +24,9 @@
 else
 {
     @* Placeholder until Phase 4 ships GameKit.Rankings. UI-SPEC §12 3-step flow lands then. *@
-    <MudAlert Severity="Severity.Info">Rank adjust flow will render when GameKit.Rankings ships.</MudAlert>
+    <div class="alert" role="status">
+        <div class="alert-body">Rank adjust flow will render when GameKit.Rankings ships.</div>
+    </div>
 }
 
 @code {

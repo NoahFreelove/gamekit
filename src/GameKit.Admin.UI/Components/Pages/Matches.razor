@@ -17,58 +17,61 @@
 @inject GameKitDbContext Db
 @inject NavigationManager Nav
 
-<h1 class="gk-page-heading">Match history</h1>
+@* Plan 03.1-08 — sketch class names: .page-head, .empty, .table .t, .mono. *@
+<div class="page-head">
+    <h1>Match history</h1>
+</div>
 
 @if (_playerId is null)
 {
-    <div class="gk-empty-state">
-        <MudText Typo="Typo.h6">Select a player</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Default">
+    <div class="empty">
+        <h3>Select a player</h3>
+        <p>
             Open a player detail page (Match history tab) to view their session history, or
             pass a <code>?playerId=…</code> query string to this page.
-        </MudText>
+        </p>
     </div>
 }
 else if (_loading)
 {
-    <MudSkeleton Height="200px" />
+    <div class="muted">Loading…</div>
 }
 else if (_rows.Count == 0)
 {
-    <div class="gk-empty-state">
-        <MudText Typo="Typo.h6">No match history yet.</MudText>
-        <MudText Typo="Typo.body2" Color="Color.Default">
-            This player hasn't completed any matches.
-        </MudText>
+    <div class="empty">
+        <h3>No match history yet.</h3>
+        <p>This player hasn't completed any matches.</p>
     </div>
 }
 else
 {
-    <MudSimpleTable Dense="true" Hover="true">
-        <thead>
-            <tr>
-                <th>Session</th>
-                <th>Ladder</th>
-                <th>Team</th>
-                <th>Result</th>
-                <th>Rating before → after</th>
-                <th>Completed</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var r in _rows)
-            {
+    <div class="table-wrap">
+        <table class="t">
+            <thead>
                 <tr>
-                    <td class="gk-mono">@r.SessionId.ToString("N")[..8]…</td>
-                    <td class="gk-mono">@(r.LadderId?.ToString("N")[..8] ?? "—")</td>
-                    <td>@r.Team</td>
-                    <td>@(r.Result?.ToString() ?? "—")</td>
-                    <td class="gk-mono">@(r.RatingBefore?.ToString("0.##") ?? "—") → @(r.RatingAfter?.ToString("0.##") ?? "—")</td>
-                    <td class="gk-mono">@(r.CompletedAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—") UTC</td>
+                    <th>Session</th>
+                    <th>Ladder</th>
+                    <th>Team</th>
+                    <th>Result</th>
+                    <th>Rating before → after</th>
+                    <th>Completed</th>
                 </tr>
-            }
-        </tbody>
-    </MudSimpleTable>
+            </thead>
+            <tbody>
+                @foreach (var r in _rows)
+                {
+                    <tr>
+                        <td class="mono">@r.SessionId.ToString("N")[..8]…</td>
+                        <td class="mono">@(r.LadderId?.ToString("N")[..8] ?? "—")</td>
+                        <td>@r.Team</td>
+                        <td>@(r.Result?.ToString() ?? "—")</td>
+                        <td class="mono">@(r.RatingBefore?.ToString("0.##") ?? "—") → @(r.RatingAfter?.ToString("0.##") ?? "—")</td>
+                        <td class="mono">@(r.CompletedAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—") UTC</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @code {

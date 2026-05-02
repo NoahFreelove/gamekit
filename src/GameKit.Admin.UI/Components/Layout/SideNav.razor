@@ -9,19 +9,40 @@
     Superadmin-gated items wrap in <AuthorizeView Roles="@AdminRoles.Superadmin"> — this is
     defense-in-depth; the backend policy (plan 03-07 AdminPolicies.Superadmin) is the
     authoritative gate. UI hiding avoids showing operators controls they cannot exercise.
+
+    Plan 03.1-08 — re-skinned: replaced <MudNavMenu>/<MudNavLink> with sketch's
+    <nav class="sidebar"> + <a class="nav-item"> per primitives.jsx + shell.jsx.
+    Active-link styling is route-aware via NavLink (Match=All for Dashboard so /admin
+    only matches the dashboard exactly; Match=Prefix for sub-routes).
 *@
-<MudNavMenu Bordered="false">
-    <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.Home" Match="NavLinkMatch.All">Dashboard</MudNavLink>
-    <MudNavLink Href="/admin/players" Icon="@Icons.Material.Filled.PersonSearch">Players</MudNavLink>
-    <MudNavLink Href="/admin/matches" Icon="@Icons.Material.Filled.History">Match history</MudNavLink>
-    <MudNavLink Href="/admin/audit" Icon="@Icons.Material.Filled.ReceiptLong">Audit log</MudNavLink>
-    <MudNavLink Href="/admin/health" Icon="@Icons.Material.Filled.Favorite">Health</MudNavLink>
-    <MudNavLink Href="/admin/matchmaking" Icon="@Icons.Material.Filled.Queue">Queue depth</MudNavLink>
+<nav class="sidebar" aria-label="Admin sections">
+    <NavLink href="/admin" Match="NavLinkMatch.All" class="nav-item" ActiveClass="nav-item active">
+        <span class="label">Dashboard</span>
+    </NavLink>
+    <NavLink href="/admin/players" class="nav-item" ActiveClass="nav-item active">
+        <span class="label">Players</span>
+    </NavLink>
+    <NavLink href="/admin/matches" class="nav-item" ActiveClass="nav-item active">
+        <span class="label">Match history</span>
+    </NavLink>
+    <NavLink href="/admin/audit" class="nav-item" ActiveClass="nav-item active">
+        <span class="label">Audit log</span>
+    </NavLink>
+    <NavLink href="/admin/health" class="nav-item" ActiveClass="nav-item active">
+        <span class="label">Health</span>
+    </NavLink>
+    <NavLink href="/admin/matchmaking" class="nav-item" ActiveClass="nav-item active">
+        <span class="label">Queue depth</span>
+    </NavLink>
     <AuthorizeView Roles="@AdminRoles.Superadmin">
-        <MudNavLink Href="/admin/rankings/adjust" Icon="@Icons.Material.Filled.Tune">Rank adjust</MudNavLink>
+        <NavLink href="/admin/rankings/adjust" class="nav-item" ActiveClass="nav-item active">
+            <span class="label">Rank adjust</span>
+        </NavLink>
     </AuthorizeView>
-    <MudDivider />
+    <div class="divider" role="separator" aria-orientation="horizontal"></div>
     <AuthorizeView Roles="@AdminRoles.Superadmin">
-        <MudNavLink Href="/admin/admins" Icon="@Icons.Material.Filled.AdminPanelSettings">Admins</MudNavLink>
+        <NavLink href="/admin/admins" class="nav-item" ActiveClass="nav-item active">
+            <span class="label">Admins</span>
+        </NavLink>
     </AuthorizeView>
-</MudNavMenu>
+</nav>

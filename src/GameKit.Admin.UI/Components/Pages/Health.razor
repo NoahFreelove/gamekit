@@ -12,34 +12,33 @@
 @inject IHealthProbeService HealthSvc
 @inject GameKitAdminOptions Options
 
-<h1 class="gk-page-heading">Health</h1>
-
-<MudPaper Class="gk-dashboard-card" Elevation="0">
-    <div class="gk-health-header">
-        <MudText Typo="Typo.h6">Status</MudText>
-        <MudSpacer />
-        <MudText Typo="Typo.caption" Color="Color.Default">
-            Auto-refresh every @((int)Options.Panel.RefreshInterval.TotalSeconds)s
-        </MudText>
-        <MudButton Variant="Variant.Text"
-                   Size="Size.Small"
-                   StartIcon="@Icons.Material.Filled.Refresh"
-                   OnClick="RefreshAsync"
-                   Disabled="@_refreshing">Refresh</MudButton>
+@* Plan 03.1-08 — sketch class names: .page-head, .card, .grid-12 + .span-4. *@
+<div class="page-head">
+    <h1>Health</h1>
+    <div class="actions">
+        <span class="muted">Auto-refresh every @((int)Options.Panel.RefreshInterval.TotalSeconds)s</span>
+        <button type="button" class="btn" @onclick="RefreshAsync" disabled="@_refreshing">
+            @if (_refreshing) { <span>Refreshing…</span> } else { <span>Refresh</span> }
+        </button>
     </div>
+</div>
 
-    <MudGrid Spacing="4">
-        <MudItem xs="12" md="4">
-            <HealthTileView Tile="_report?.Postgres" Label="Postgres" CheckedAt="_report?.CheckedAt" />
-        </MudItem>
-        <MudItem xs="12" md="4">
-            <HealthTileView Tile="_report?.Redis" Label="Redis" CheckedAt="_report?.CheckedAt" />
-        </MudItem>
-        <MudItem xs="12" md="4">
-            <HealthTileView Tile="_report?.ErrorRate" Label="Error rate" CheckedAt="_report?.CheckedAt" />
-        </MudItem>
-    </MudGrid>
-</MudPaper>
+<div class="card">
+    <div class="card-head"><h2>Status</h2></div>
+    <div class="card-body">
+        <div class="grid-12">
+            <div class="span-4">
+                <HealthTileView Tile="_report?.Postgres" Label="Postgres" CheckedAt="_report?.CheckedAt" />
+            </div>
+            <div class="span-4">
+                <HealthTileView Tile="_report?.Redis" Label="Redis" CheckedAt="_report?.CheckedAt" />
+            </div>
+            <div class="span-4">
+                <HealthTileView Tile="_report?.ErrorRate" Label="Error rate" CheckedAt="_report?.CheckedAt" />
+            </div>
+        </div>
+    </div>
+</div>
 
 @code {
     private HealthReport? _report;

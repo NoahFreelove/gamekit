@@ -12,6 +12,11 @@
 *@
 @inherits LayoutComponentBase
 
+@* Plan 03.1-08 — kept MudBlazor providers (theme + dialog + snackbar) for parity with
+   MainLayout; the static-SSR Login page itself uses no MudBlazor components but providers
+   in scope are harmless and preserve theme tokens. .gk-login-viewport / .gk-login-card
+   styling lives in LoginLayout.razor.css and uses violet-aware --accent / --bg / --surface
+   tokens from gamekit-admin.css. *@
 <MudThemeProvider Theme="@GameKitAdminTheme.Default" />
 <MudPopoverProvider />
 <MudDialogProvider />

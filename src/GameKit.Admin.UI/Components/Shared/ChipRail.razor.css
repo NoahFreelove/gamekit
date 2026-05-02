@@ -1,0 +1,13 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (c) 2026 GameKit contributors */
+
+/*
+   Most chip styling lives globally in gamekit-admin.css (.chip / .chip-rail rules ported
+   from sketch styles.css). Component-scoped overrides only handle :focus-visible alignment
+   so the focus ring inherits the active-accent color.
+*/
+
+.chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}

@@ -489,6 +489,17 @@ label.field .hint { font-weight: 400; color: var(--fg-3); }
   font-size: 12px;
 }
 .chip-rail .label { color: var(--fg-3); margin-right: 4px; }
+/* Plan 03.1-08 — ChipRail.razor renders <button class="chip">; the button chip variant
+   shares the global .chip pill styling but adds a cursor + hover affordance and an
+   .chip-active state (filter is selected). aria-pressed mirrors the visual state. */
+button.chip { cursor: pointer; }
+button.chip:hover { background: var(--surface-3); border-color: var(--border-strong); }
+.chip.chip-active {
+  background: var(--accent-50);
+  color: var(--accent-700);
+  border-color: var(--accent-100);
+}
+.chip.chip-active:hover { background: var(--accent-100); }
 .f-chip {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 3px 4px 3px 8px;

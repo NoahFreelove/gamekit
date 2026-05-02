@@ -32,29 +32,15 @@
 @inject GameKitDbContext Db
 @inject IPlayerDisplayNameResolver Names
 
-<h1 class="gk-page-heading">Audit log</h1>
+<h1 class="page-head">Audit log</h1>
 
-<MudPaper Class="gk-audit-filters" Elevation="0">
-    <div class="gk-filter-row">
-        <MudSelect T="string"
-                   @bind-Value="_actionFilter"
-                   Label="Action"
-                   Variant="Variant.Outlined"
-                   Dense="true"
-                   Clearable="true">
-            <MudSelectItem T="string" Value="@null">(All)</MudSelectItem>
-            <MudSelectItem T="string" Value="@AdminAuditActions.PlayerBan">@AdminAuditActions.PlayerBan</MudSelectItem>
-            <MudSelectItem T="string" Value="@AdminAuditActions.PlayerUnban">@AdminAuditActions.PlayerUnban</MudSelectItem>
-            <MudSelectItem T="string" Value="@AdminAuditActions.PlayerGdprDelete">@AdminAuditActions.PlayerGdprDelete</MudSelectItem>
-            <MudSelectItem T="string" Value="@AdminAuditActions.PlayerRankAdjust">@AdminAuditActions.PlayerRankAdjust</MudSelectItem>
-            <MudSelectItem T="string" Value="@AdminAuditActions.AdminCreate">@AdminAuditActions.AdminCreate</MudSelectItem>
-            <MudSelectItem T="string" Value="@AdminAuditActions.AdminDelete">@AdminAuditActions.AdminDelete</MudSelectItem>
-            <MudSelectItem T="string" Value="@AdminAuditActions.SigningKeyRotate">@AdminAuditActions.SigningKeyRotate</MudSelectItem>
-        </MudSelect>
-        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="ApplyFiltersAsync">Apply filters</MudButton>
-        <MudLink Href="javascript:void(0)" OnClick="ResetFiltersAsync" Typo="Typo.body2">Reset</MudLink>
-    </div>
-</MudPaper>
+@* Plan 03.1-08 — ChipRail replaces the prior MudSelect filter row (D-04 big-bang
+   re-skin). Single-click toggles the action namespace filter; clicking the active
+   chip again clears the filter. Persistence is component-state only per
+   CONTEXT Claude's Discretion (no localStorage). *@
+<ChipRail Label="Filter by action"
+          Chips="_actionChips"
+          OnToggle="OnActionChipToggle" />
 
 @if (_loading && _rows.Count == 0)
 {
@@ -168,11 +154,30 @@ else
         await LoadAsync(reset: true);
     }
 
-    private async Task ApplyFiltersAsync() => await LoadAsync(reset: true);
+    /// <summary>
+    /// Plan 03.1-08 — ChipRail data source. One <see cref="ChipRail.ChipItem"/> per
+    /// <see cref="AdminAuditActions"/> namespace. <see cref="ChipRail.ChipItem.IsPressed"/>
+    /// reflects whether <see cref="_actionFilter"/> currently matches that namespace.
+    /// </summary>
+    private IReadOnlyList<ChipRail.ChipItem> _actionChips =>
+    [
+        new(AdminAuditActions.PlayerBan,        "Ban",          _actionFilter == AdminAuditActions.PlayerBan),
+        new(AdminAuditActions.PlayerUnban,      "Unban",        _actionFilter == AdminAuditActions.PlayerUnban),
+        new(AdminAuditActions.PlayerGdprDelete, "GDPR-delete",  _actionFilter == AdminAuditActions.PlayerGdprDelete),
+        new(AdminAuditActions.PlayerRankAdjust, "Rank adjust",  _actionFilter == AdminAuditActions.PlayerRankAdjust),
+        new(AdminAuditActions.AdminCreate,      "Create admin", _actionFilter == AdminAuditActions.AdminCreate),
+        new(AdminAuditActions.AdminDelete,      "Delete admin", _actionFilter == AdminAuditActions.AdminDelete),
+        new(AdminAuditActions.SigningKeyRotate, "Rotate key",   _actionFilter == AdminAuditActions.SigningKeyRotate),
+    ];
 
-    private async Task ResetFiltersAsync()
+    /// <summary>
+    /// Single-click toggle handler for <see cref="ChipRail"/>. Clicking the currently-active
+    /// chip clears the filter; clicking any other chip switches to that filter.
+    /// </summary>
+    /// <param name="value">Stable filter key from <see cref="AdminAuditActions"/>.</param>
+    private async Task OnActionChipToggle(string value)
     {
-        _actionFilter = null;
+        _actionFilter = _actionFilter == value ? null : value;
         await LoadAsync(reset: true);
     }
 

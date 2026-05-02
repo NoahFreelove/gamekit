@@ -1,0 +1,57 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §5.4 ChipRail — filter chip primitive for Audit (action namespace) and Players
+    (status). Markup-only state machine: parent passes a list of (Value, Label, IsPressed)
+    tuples + an OnToggle callback. Persistence per CONTEXT Claude's Discretion: session-only
+    via parent component state; no localStorage.
+
+    Renders <div class="chip-rail" role="toolbar" aria-label="..."> containing one
+    <button class="chip" aria-pressed="..."> per chip. Active chip adds .chip-active.
+*@
+@namespace GameKit.Admin.UI.Components.Shared
+
+<div class="chip-rail" role="toolbar" aria-label="@Label">
+    @foreach (var chip in Chips)
+    {
+        <button type="button"
+                class="@ChipClass(chip)"
+                aria-pressed="@(chip.IsPressed ? "true" : "false")"
+                @onclick="() => OnToggle.InvokeAsync(chip.Value)">
+            @chip.Label
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// ARIA label for the toolbar (e.g. <c>Filter by action</c>, <c>Filter by status</c>).
+    /// Drives the <c>aria-label</c> on the wrapping <c>role="toolbar"</c>.
+    /// </summary>
+    [Parameter, EditorRequired] public string Label { get; set; } = "Filters";
+
+    /// <summary>
+    /// Chip data — one entry per filter option. Parent owns selection state; this component
+    /// is purely markup-driven and re-renders when the parent re-renders.
+    /// </summary>
+    [Parameter, EditorRequired] public IReadOnlyList<ChipItem> Chips { get; set; } = Array.Empty<ChipItem>();
+
+    /// <summary>
+    /// Invoked when the operator toggles a chip; receives the chip's <c>Value</c>. The parent
+    /// is expected to update its own filter state and re-render.
+    /// </summary>
+    [Parameter] public EventCallback<string> OnToggle { get; set; }
+
+    private static string ChipClass(ChipItem chip) =>
+        chip.IsPressed ? "chip chip-active" : "chip";
+
+    /// <summary>
+    /// Single chip data point. <see cref="Value"/> is the stable filter key passed to
+    /// <see cref="OnToggle"/>; <see cref="Label"/> is the operator-facing chip text;
+    /// <see cref="IsPressed"/> is whether the chip is currently active (parent-tracked state).
+    /// </summary>
+    /// <param name="Value">Stable filter key passed to OnToggle.</param>
+    /// <param name="Label">Operator-facing chip text.</param>
+    /// <param name="IsPressed">Whether the chip is currently active.</param>
+    public sealed record ChipItem(string Value, string Label, bool IsPressed);
+}

@@ -1,21 +1,36 @@
 @* SPDX-License-Identifier: GPL-3.0-or-later *@
 @* Copyright (c) 2026 GameKit contributors *@
 @*
-    UI-SPEC §9 Audit log — filters row (action namespace + actor username prefix) +
-    MudDataGrid with keyset pagination + expandable rows showing before/after JSON
-    side-by-side in <pre> blocks (12px mono, surface-alt bg).
+    UI-SPEC §5.5 Audit two-column row treatment — replaces the Phase 03 raw
+    JSON dump with:
+      • left column (.audit-left .sentence) — Razor renders SentenceModel
+        ({Actor} {Intro} {Target} [Modifier] [— Reason]); Reason truncated
+        at 60 chars in expanded state.
+      • right column (.audit-right) — key-by-key Before / After diff with
+        [data-diff-state="added|removed|changed"] markers.
 
-    Reads direct from GameKitDbContext (server-rendered component). Keyset pagination
-    uses (CreatedAt DESC, Id DESC) tuple — tail row from the previous page is the cursor.
+    D-13: NO database schema change. The SentenceModel is computed at READ
+    time from the existing admin_audit_log row using AuditSentenceTemplates
+    (in-process registry — see src/GameKit.Admin.UI/Services/AuditSentenceTemplates.cs).
+    Unknown action namespaces fall through to the D-14 generic fallback so
+    the operator never sees a blank cell.
+
+    Reads direct from GameKitDbContext (server-rendered Blazor component);
+    actor/target display names are resolved per loaded page via
+    IPlayerDisplayNameResolver. Keyset pagination preserves Phase 03 shape:
+    (CreatedAt DESC, Id DESC); tail row of the previous page is the cursor.
 *@
 @page "/admin/audit"
 @attribute [Authorize(Policy = AdminPolicies.Admin)]
 @using System.Text.Json
+@using GameKit.Admin.UI.Http.Contracts
 @using GameKit.Admin.UI.Services
 @using GameKit.Core.Data
 @using GameKit.Core.Entities
+@using GameKit.Core.Services
 @using Microsoft.EntityFrameworkCore
 @inject GameKitDbContext Db
+@inject IPlayerDisplayNameResolver Names
 
 <h1 class="gk-page-heading">Audit log</h1>
 
@@ -86,9 +101,9 @@ else
             {
                 <tr>
                     <td class="gk-mono">@row.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</td>
-                    <td>@(row.ActorId?.ToString("N")[..8] ?? "system")</td>
+                    <td>@row.Sentence.Actor</td>
                     <td><span class="gk-mono gk-code-chip">@row.Action</span></td>
-                    <td class="gk-mono">@(row.TargetId?.ToString("N")[..8] ?? "—")</td>
+                    <td>@(row.Sentence.Target)</td>
                     <td>
                         <MudIconButton Icon="@(_expanded.Contains(row.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
                                        Size="Size.Small"
@@ -99,22 +114,35 @@ else
                 </tr>
                 @if (_expanded.Contains(row.Id))
                 {
-                    <tr class="gk-audit-expanded">
+                    <tr class="audit-expanded">
                         <td colspan="5">
-                            <div class="gk-audit-diff">
-                                <div>
-                                    <MudText Typo="Typo.caption" Color="Color.Default">Before</MudText>
-                                    <pre class="gk-json-block">@FormatJson(row.Before)</pre>
+                            @* UI-SPEC §5.5 — 2-col grid (audit-row-grid). Razor `@` interpolation
+                               auto-HTML-encodes (T-03.1-07-01); rendered as plain text. *@
+                            <div class="audit-row audit-row-grid expanded">
+                                <div class="audit-left">
+                                    <div class="sentence">
+                                        <strong>@row.Sentence.Actor</strong>
+                                        @row.Sentence.Intro
+                                        <strong>@row.Sentence.Target</strong>
+                                        @if (!string.IsNullOrEmpty(row.Sentence.Modifier))
+                                        {
+                                            <text> </text>@row.Sentence.Modifier
+                                        }
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(row.Sentence.Reason))
+                                    {
+                                        <div class="reason">@TruncateReason(row.Sentence.Reason)</div>
+                                    }
                                 </div>
-                                <div>
-                                    <MudText Typo="Typo.caption" Color="Color.Default">After</MudText>
-                                    <pre class="gk-json-block">@FormatJson(row.After)</pre>
+                                <div class="audit-right">
+                                    @foreach (var cell in EnumerateDiff(row.Before, row.After))
+                                    {
+                                        <span class="field" data-diff-state="@cell.State">@cell.Key</span>
+                                        <span class="before">@cell.BeforeText</span>
+                                        <span class="after" data-diff-state="@cell.State">@cell.AfterText</span>
+                                    }
                                 </div>
                             </div>
-                            @if (!string.IsNullOrEmpty(row.Reason))
-                            {
-                                <MudText Typo="Typo.caption" Color="Color.Default">Reason: @row.Reason</MudText>
-                            }
                         </td>
                     </tr>
                 }
@@ -127,7 +155,8 @@ else
 
 @code {
     private const int PageSize = 50;
-    private readonly List<AdminAuditLog> _rows = new();
+    private const int ReasonTruncateLength = 60;
+    private readonly List<AuditRowVm> _rows = new();
     private readonly HashSet<Guid> _expanded = new();
     private string? _actionFilter;
     private bool _loading;
@@ -177,13 +206,26 @@ else
             var aid = last.Id;
             q = q.Where(r => r.CreatedAt < ts || (r.CreatedAt == ts && r.Id < aid));
         }
-        var page = await q
+        var entities = await q
             .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
             .Take(PageSize + 1)
             .ToListAsync(ct);
-        _hasMore = page.Count > PageSize;
-        if (_hasMore) page.RemoveAt(PageSize);
-        _rows.AddRange(page);
+        _hasMore = entities.Count > PageSize;
+        if (_hasMore) entities.RemoveAt(PageSize);
+
+        // Project each entity into the page view-model. Display names resolve through
+        // IPlayerDisplayNameResolver (5-minute sliding cache; tombstone for deleted ids).
+        // Sentence is computed via AuditSentenceTemplates (D-12 / D-14).
+        foreach (var e in entities)
+        {
+            var actorName = await Names.ResolveAsync(e.ActorId, ct);
+            var targetName = e.TargetId is null ? null : await Names.ResolveAsync(e.TargetId, ct);
+            var before = e.Before is null ? (JsonElement?)null : e.Before.RootElement.Clone();
+            var after = e.After is null ? (JsonElement?)null : e.After.RootElement.Clone();
+            var sentence = AuditSentenceTemplates.Render(
+                new SentenceContext(e.Action, actorName, targetName, before, after, e.Reason));
+            _rows.Add(new AuditRowVm(e.Id, e.Action, e.CreatedAt, sentence, before, after));
+        }
 
         _loading = false;
         StateHasChanged();
@@ -194,9 +236,80 @@ else
         if (!_expanded.Remove(id)) _expanded.Add(id);
     }
 
-    private static string FormatJson(JsonDocument? doc)
+    private static string TruncateReason(string reason)
+        => reason.Length <= ReasonTruncateLength ? reason : reason[..ReasonTruncateLength] + "…";
+
+    /// <summary>
+    /// Page view-model for one row of the audit grid. Mirrors the AdminEndpoints.AuditRow
+    /// wire shape but is page-local — the Razor page reads entities directly and projects
+    /// in-page rather than refetching through HttpClient (cookie forwarding through a Blazor
+    /// Server interactive circuit is non-trivial; D-13 read-time projection is duplicated
+    /// here, intentionally).
+    /// </summary>
+    private sealed record AuditRowVm(
+        Guid Id,
+        string Action,
+        DateTimeOffset CreatedAt,
+        SentenceModel Sentence,
+        JsonElement? Before,
+        JsonElement? After);
+
+    /// <summary>
+    /// Per-key diff cell for the right-column .audit-right grid. Renders three spans per cell:
+    /// .field (key) + .before (before value) + .after (after value), each tagged with
+    /// [data-diff-state="added|removed|changed"] for color coding (sketch CSS lines 726-731).
+    /// </summary>
+    private readonly record struct DiffCell(string Key, string BeforeText, string AfterText, string State);
+
+    /// <summary>
+    /// Enumerates the union of property keys from both Before and After elements, classifying
+    /// each as added / removed / changed / unchanged. T-03.1-07-02: every value is converted
+    /// via JsonElement.ToString() and rendered through Razor `@` interpolation, which
+    /// HTML-encodes — every diff cell renders as plain text only.
+    /// </summary>
+    private static IEnumerable<DiffCell> EnumerateDiff(JsonElement? before, JsonElement? after)
     {
-        if (doc is null) return "—";
-        return JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true });
+        var bObj = before is { ValueKind: JsonValueKind.Object } b ? b : (JsonElement?)null;
+        var aObj = after is { ValueKind: JsonValueKind.Object } a ? a : (JsonElement?)null;
+        if (bObj is null && aObj is null) yield break;
+
+        var keys = new SortedSet<string>(StringComparer.Ordinal);
+        if (bObj is { } bo)
+        {
+            foreach (var p in bo.EnumerateObject()) keys.Add(p.Name);
+        }
+        if (aObj is { } ao)
+        {
+            foreach (var p in ao.EnumerateObject()) keys.Add(p.Name);
+        }
+
+        foreach (var k in keys)
+        {
+            var hasB = bObj is { } bo2 && bo2.TryGetProperty(k, out var bv);
+            var hasA = aObj is { } ao2 && ao2.TryGetProperty(k, out var av);
+            // Re-fetch to obtain stable JsonElement handles (above out-vars don't persist).
+            string bText = "";
+            string aText = "";
+            if (hasB && bObj!.Value.TryGetProperty(k, out var bElem)) bText = ToText(bElem);
+            if (hasA && aObj!.Value.TryGetProperty(k, out var aElem)) aText = ToText(aElem);
+
+            string state;
+            if (!hasB && hasA) state = "added";
+            else if (hasB && !hasA) state = "removed";
+            else if (string.Equals(bText, aText, StringComparison.Ordinal)) state = "unchanged";
+            else state = "changed";
+
+            yield return new DiffCell(k, bText, aText, state);
+        }
     }
+
+    private static string ToText(JsonElement el) => el.ValueKind switch
+    {
+        JsonValueKind.String => el.GetString() ?? "",
+        JsonValueKind.Null => "null",
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
+        JsonValueKind.Number => el.GetRawText(),
+        _ => el.GetRawText(),
+    };
 }

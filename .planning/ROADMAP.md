@@ -138,7 +138,7 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
 
 **Requirements**: ADMIN-02, ADMIN-03, ADMIN-05, ADMIN-06, ADMIN-09, ADMIN-12 (re-verified post-redesign — none changed semantically)
 **Depends on:** Phase 03 (all admin source files this phase mutates were created there)
-**Plans:** 9/9 plans complete
+**Plans:** 11 plans (9 shipped + 2 gap-closure pending)
 
 **Success Criteria** (what must be TRUE):
 1. The shipped admin console visually matches the prototype at 1280px width: violet primary CTA, density tokens applied, master-detail Players layout, two-column Audit expansion, ban banner shape, command palette opens on ⌘K and routes to all 10 pages.
@@ -158,6 +158,8 @@ Plans:
 - [x] 03.1-07-PLAN.md — SentenceModel DTO + AuditSentenceTemplates registry (7 known + D-14 fallback) + AdminEndpoints AuditRow projection extension + Audit.razor 2-column row template
 - [x] 03.1-08-PLAN.md — ChipRail.razor + 8 page re-skins + 5 dialog re-skins + 5 shared component re-skins + MissingPackageAlert literal substring preserved (ADMIN-09)
 - [x] 03.1-09-PLAN.md — Phase gate: AccessibilityTests live + full automated suite re-run + manual SC#1 visual walkthrough at 1280px + manual SC#6 axe DevTools sweep
+- [ ] 03.1-10-PLAN.md — Gap closure (palette routing): nav.* rows route via data-url + window.location.href; target-search drills into PaginatedResult.items; target-less actions send Guid.Empty literal; MainLayout.OpenDialog accepts string targetId; App.razor exposes GKAdminConfig.apiBase for non-default MountPath consumers (closes GAP-1, GAP-2, GAP-3, WARNING-02)
+- [ ] 03.1-11-PLAN.md — Gap closure (CSP + ARIA + attribution): TopNav search-trigger + TweaksPanel × close converted from inline onclick to Razor @onclick / data-attribute delegate; applyAttrs reflects aria-checked on active Tweaks option; PlayerDetailPane resolves BanBanner ActorName from admin_audit_log (closes GAP-4, WARNING-01, WARNING-06)
 
 ### Phase 4: Rankings + Sessions Wiring + GDPR Export
 

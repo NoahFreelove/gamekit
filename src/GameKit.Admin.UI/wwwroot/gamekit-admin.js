@@ -74,6 +74,19 @@
     Object.keys(ATTR_MAP).forEach(function (k) {
       html.setAttribute(ATTR_MAP[k], t[k] || DEFAULTS[k]);
     });
+    // Phase 03.1-11 gap closure (WARNING-01): reflect the active option in each Tweaks
+    // radiogroup so the existing CSS rule `.tweaks-options button[aria-checked='true']`
+    // can style it AND so screen readers announce the selection. Iterates every
+    // [data-tweak][data-value] button in the document and toggles aria-checked based on
+    // the current tweak value. Idempotent — safe to call on every saveTweaks roundtrip.
+    var optionButtons = document.querySelectorAll('button[data-tweak][data-value]');
+    for (var i = 0; i < optionButtons.length; i++) {
+      var ob  = optionButtons[i];
+      var k   = ob.getAttribute('data-tweak');
+      var v   = ob.getAttribute('data-value');
+      var cur = t[k] || DEFAULTS[k];
+      ob.setAttribute('aria-checked', cur === v ? 'true' : 'false');
+    }
   }
 
   // -------- Palette / Tweaks open/close ---------------------------------------

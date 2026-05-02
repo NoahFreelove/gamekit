@@ -69,4 +69,48 @@ public sealed class TweaksPanelTests : BunitContext
         Assert.NotNull(resetBtn);
         Assert.Contains("Reset", resetBtn.TextContent);
     }
+
+    /// <summary>
+    /// Phase 03.1-11 gap closure (WARNING-01): every interactive option button must carry
+    /// data-tweak + data-value + role=radio. The gamekit-admin.js applyAttrs aria-checked
+    /// reflection iterates exactly this selector — if the data-* attributes are ever removed
+    /// from the markup, the JS reflection silently stops working and this test catches the
+    /// regression.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Component")]
+    public void TweaksPanel_AllOptionButtons_Carry_DataTweak_DataValue_RoleRadio()
+    {
+        var cut = Render<TweaksPanel>();
+        // Every interactive option button (NOT the disabled A/B/C placeholders, NOT the
+        // close button, NOT the reset footer) MUST carry data-tweak + data-value + role=radio.
+        // The Plan 03.1-11 applyAttrs aria-checked reflection iterates exactly this selector.
+        var optionButtons = cut.FindAll("button[data-tweak][data-value]");
+        Assert.True(optionButtons.Count >= 11,
+            $"Expected ≥ 11 active option buttons (5 accent + 2 density + 2 sidebar + 3 banLoud + 1 dashDir-D = 13); found {optionButtons.Count}.");
+        foreach (var btn in optionButtons)
+        {
+            Assert.Equal("radio", btn.GetAttribute("role"));
+            Assert.False(btn.HasAttribute("disabled"),
+                "active option buttons must not be disabled");
+        }
+    }
+
+    /// <summary>
+    /// Phase 03.1-11 gap closure (BLOCKER-01): the TweaksPanel × close button must use
+    /// data-tweaks-action="close" (delegated to gamekit-admin.js) rather than a raw inline
+    /// onclick= attribute (which is blocked by the strict CSP `script-src 'self' 'nonce-{n}'`).
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Component")]
+    public void TweaksPanel_CloseButton_UsesDataAttributeDelegate_NotInlineOnclick()
+    {
+        var cut = Render<TweaksPanel>();
+        var closeBtn = cut.Find("button.tweaks-close");
+        // Phase 03.1-11 BLOCKER-01 closure: the close button MUST use data-tweaks-action="close"
+        // (delegated to gamekit-admin.js); raw onclick= is CSP-blocked.
+        Assert.Equal("close", closeBtn.GetAttribute("data-tweaks-action"));
+        Assert.False(closeBtn.HasAttribute("onclick"),
+            "TweaksPanel × close button must not use inline onclick (CSP-blocked).");
+    }
 }

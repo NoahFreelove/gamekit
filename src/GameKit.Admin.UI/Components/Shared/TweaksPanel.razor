@@ -21,9 +21,13 @@
     <aside class="tweaks-panel" role="dialog" aria-modal="true" aria-label="Admin tweaks">
         <header class="tweaks-head">
             <h2>Tweaks</h2>
+            @* Phase 03.1-11 gap closure (BLOCKER-01): converted from raw onclick= to a
+               data-tweaks-action="close" delegate handled by gamekit-admin.js. Mirrors the
+               existing data-tweak-action="reset" pattern at line 77 — keeps the component
+               markup-only (no @code block) and CSP-compliant. *@
             <button type="button" class="tweaks-close"
                     aria-label="Close tweaks"
-                    onclick="window.GKAdmin && window.GKAdmin.closeTweaks()">×</button>
+                    data-tweaks-action="close">×</button>
         </header>
 
         <div class="tweaks-section" role="radiogroup" aria-label="Accent">

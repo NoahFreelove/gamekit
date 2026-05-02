@@ -19,14 +19,14 @@
                    Edge="Edge.Start"
                    aria-label="Toggle sidebar"
                    OnClick="OnToggleDrawer" />
-    @* Phase 03.1 D-09 — Cmd+K palette opener; clickable for mouse operators. Plain HTML
-       onclick (NOT @onclick) so the dispatch goes straight to gamekit-admin.js without a
-       SignalR roundtrip. The window.GKAdmin && … guard makes it a no-op if the bundle
-       failed to load (CSP would block it; static SSR pages must still render). *@
+    @* Phase 03.1-11 gap closure (BLOCKER-01): converted from raw onclick= to Razor
+       @onclick → JS.InvokeVoidAsync. The strict CSP `script-src 'self' 'nonce-{n}'`
+       blocks inline handler attributes; this matches the working Tune button pattern
+       below. *@
     <button type="button"
             class="search-trigger"
             aria-label="Search commands (Cmd+K)"
-            onclick="window.GKAdmin && window.GKAdmin.openPalette()">
+            @onclick="@(() => JS.InvokeVoidAsync("GKAdmin.openPalette"))">
         <span class="placeholder">Search…</span>
         <kbd>⌘K</kbd>
     </button>

@@ -177,6 +177,11 @@
     }
     var resetBtn = e.target && e.target.closest && e.target.closest('[data-tweak-action="reset"]');
     if (resetBtn) { resetTweaks(); return; }
+    // Phase 03.1-11 gap closure (BLOCKER-01): delegated handler for the × close button.
+    // The Tweaks markup carries data-tweaks-action="close"; convert that to a closeTweaks()
+    // call without an inline onclick= (CSP `script-src 'self' 'nonce-{n}'` would block it).
+    var closeBtn = e.target && e.target.closest && e.target.closest('[data-tweaks-action="close"]');
+    if (closeBtn) { closeTweaks(); return; }
     if (e.target === document.querySelector('.palette-scrim')) closePalette();
     if (e.target === document.querySelector('.tweaks-scrim'))  closeTweaks();
   });

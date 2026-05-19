@@ -92,7 +92,7 @@
 - [x] **MATCH-10**: Default `EloRangeMatchmakingStrategy` with time-based bracket flex (e.g. ±100 → ±500 over 40s)
 - [x] **MATCH-11**: Per-player rate limit on enqueue (no DoS via spam tickets)
 - [x] **MATCH-12**: Chaos test: kill app mid-match → no duplicate sessions, no ghost tickets
-- [ ] **MATCH-13**: Load test as phase gate (1k concurrent tickets sustained for 10 min)
+- [x] **MATCH-13**: Load test as phase gate (1k concurrent tickets sustained for 10 min)
 - [x] **MATCH-14**: Admin UI queue-depth + health panels wired to Redis live state
 - [x] **MATCH-15**: Per-package migrations targeting `gamekit` schema with `__ef_migrations_matchmaking` history table
 
@@ -183,7 +183,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | AUTH-01..16 | Phase 2 | Complete (2026-04-18) |
 | ADMIN-01..12 | Phase 3 | Complete 12/12 (all ADMIN requirements anchored by integration tests in `tests/GameKit.Admin.Integration.Tests/` per plan 03-13 SC-anchor matrix) |
 | RANK-01..14 | Phase 4 | Pending |
-| MATCH-01..15 | Phase 5 | In progress 13/15 (MATCH-01/02/03/04/05/06/07/08/09/10/11/14/15 closed end-to-end by 05-04..05-08; MATCH-12/13 deferred to 05-09 chaos test + 05-10 load test) |
+| MATCH-01..15 | Phase 5 | Complete 15/15 (MATCH-01..11/14/15 closed by 05-04..05-08; MATCH-12 by 05-09 chaos test; MATCH-13 by 05-10 SC#3 load test 2026-05-19 — final run MaxIterationMs=29 / Dropped=0 / Matched=3092 over 10 min sustain) |
 | PRES-01..06 | Phase 6 | Pending |
 | OPEN-01 | Phase 6 | Pending |
 | DIST-02..06 | Phase 6 | Pending |

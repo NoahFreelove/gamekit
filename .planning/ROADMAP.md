@@ -252,7 +252,7 @@ Plans:
 | 2. Authentication | 8/8 | Complete | 2026-04-18 |
 | 3. Admin UI | 6/13 | In progress | - |
 | 4. Rankings + Sessions Wiring + GDPR Export | 8/8 | Complete   | 2026-05-16 |
-| 5. Matchmaking + Parties | 10/10 | Complete   | 2026-05-18 |
+| 5. Matchmaking + Parties | 10/10 | Complete   | 2026-05-19 |
 | 6. Presence + OpenAPI + Distribution | 0/? | Not started | - |
 
 ## Coverage Validation

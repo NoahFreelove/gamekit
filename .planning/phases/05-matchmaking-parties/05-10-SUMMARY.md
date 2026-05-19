@@ -446,15 +446,89 @@ the test passes — OR describe any assertion failure with the histogram output 
 - `dropped_events` MeterListener subscribed in `MatchmakingLoadTests.InitializeAsync` — VERIFIED by source
 - 05-HUMAN-UAT.md lists 4 UAT items with requirement IDs + validation source — VERIFIED by inspection
 
-### Pending (operator gate)
+### Pending (operator gate) — RESOLVED 2026-05-18
 
-- SC#3 phase-gate run — pending operator (Task 3 checkpoint).
-- MATCH-13 — marked complete after operator approval.
-- Phase 5 close — all 6 SCs green after operator approval.
+- SC#3 phase-gate run — **PASSED** (see Post-UAT Resolution below).
+- MATCH-13 — **COMPLETE**.
+- Phase 5 close — **READY** (all 6 SCs green).
+
+---
+
+## Post-UAT Resolution (2026-05-18)
+
+The operator ran SC#3 and the first three attempts failed for unrelated reasons that surfaced four bugs (three real production bugs + one test-driver gap + one test-harness HttpClient lifecycle bug). All were fixed; the final SC#3 run passed all four assertions with substantial headroom.
+
+### Final SC#3 numbers
+
+| Assertion | Bar | Measured | Result |
+|---|---|---|---|
+| `MaxIterationMs ≤ 50` | 50 ms | **29 ms** | ✓ pass (42% headroom) |
+| `PoolExhaustionEvents == 0` | 0 | 0 | ✓ pass |
+| `DroppedEvents == 0` | 0 | 0 | ✓ pass (was 15100 pre-fix) |
+| `Matched tickets ≥ 1000` | 1000 | **3092** | ✓ pass (3.1× requirement) |
+
+Per-tick latency distribution (full 10-min sustain, 1265 observations):
+- p50: 7.98 ms
+- p90: 11.24 ms
+- p99: 13.83 ms
+- max: 29 ms (vs 429 ms pre-fix)
+
+Halfway report at 5 min: 2024 matched (sustained throughput from start of sustain phase to end).
+
+### Bugs surfaced + fixes (chronological)
+
+These commits live in the orphaned line at HEAD@{reflog} (the user's `gsd-ship`-style history squash collapsed them into the consolidated Phase 5 commits 5bdc0c5 / 84b8951 / ef0ca34). Original shas kept here for traceability.
+
+1. **`6a0b76b` — `fix(05-10): do not dispose the fixture's shared HttpClient in load-test loop`**
+   `MatchmakingLoadTests.SustainedThousandTicketLoad_HoldsBudget` ran `using var client = _fx.Client;` inside a `Parallel.ForEachAsync(MaxDegreeOfParallelism=100)` lambda — the first parallel iteration to exit disposed the fixture's SHARED HttpClient, aborting the other ~99 in-flight requests with `TaskCanceledException → HttpRequestException → IOException: The client aborted the request`. The fixture owns the HttpClient's lifetime; the test must not `using` it.
+
+2. **`5689cbe` — `fix(05-10/05-08): rate-limit partition on 'sub' (D-03), and disable for SC#3 load harness`**
+   PRODUCTION BUG in `MatchmakingRateLimitRegistrations.MmEnqueue` partition function. It read `ClaimTypes.NameIdentifier` as the player-id source, but Phase 2 D-03 sets `MapInboundClaims=false` on `AddJwtBearer` — so the JWT `sub` claim is NOT auto-mapped to NameIdentifier on ingress. The partition function silently fell back to RemoteIp for every authenticated request. Effect: in production behind a load balancer that does not forward client IP, every authenticated tenant collapses onto a single per-IP bucket of 5 enqueues / minute. Aligned with how `LongPollStatusHandler.TryGetPlayerId` resolves the claim (sub first, NameIdentifier fallback, RemoteIp last-resort). The `MatchmakingRateLimitTests` SC#5 phase gate still passed both pre- and post-fix because it sends 6 rapid requests from a single player — trips either bucket type.
+
+3. **`a715ffc` — `fix(05-10): omit rate-limiter middleware from load-test pipeline`**
+   Even with partition fix #2, the production policy (5 enq/min/player) would shed ~95% of the SC#3 sustained re-enqueue loop's traffic (~2 enq/sec/player × 1000 players). PostConfigure-replace was attempted but `RateLimiterOptions.AddPolicy` throws on duplicate name and there is no public `RemovePolicy` — reflection on `PolicyMap` would be fragile across .NET versions. Simplest fix: omit `app.UseRateLimiter()` from the load-test pipeline. `.RequireRateLimiting()` metadata on endpoints is inert without the middleware. Rate-limit correctness stays covered by `MatchmakingRateLimitTests` (Plan 05-08 SC#5 phase gate). Test-only — production behaviour unchanged.
+
+4. **`e389a8a` — `fix(05-10): SC#3 phase-gate green — pipeline ticker hot path + FK invariant + auto-acceptor`** (debug-agent investigation)
+   The single biggest commit. Four interlocking root causes:
+
+   - **Ticker hot path didn't scale to 1000 tickets/ladder.** `MatchmakerTickerService.ProcessPoolAsync` did sequential `HashGetAllAsync` per candidate ticket and rebuilt a fresh pool list with `OrderBy(QueuedAt)` on every `_strategy.Match()` call. At N=200+ candidates the budget blew to 400+ ms. Fix: pipelined HGETALL fan-out via `Task.WhenAll`, `CandidatesPerTick=16`, `MaxMatchesPerTick=6`, wall-clock budget bail, pipelined PUBLISH, sync `BuildQueuedPartyFromHash`. `EloRangeMatchmakingStrategy` updated to honor caller-passed oldest-first contract (no defensive `OrderBy`).
+
+   - **Analytics drain FK violations dropped 15100 events.** `MatchmakingService.EnqueueAsync` wrote ONLY to Redis. **Nothing in the codebase ever inserted rows into `gamekit.matchmaking_tickets`.** The drain's `TicketEvent` inserts FK to `matchmaking_tickets.Id`; every batch hit Postgres 23503 → Polly retries × 4 → entire batch silently dropped. Fix: `EnqueueAsync` Step 6 now synchronously INSERTs the matchmaking_tickets row at `Status=Queued` BEFORE the Redis writes — FK is satisfied at write-time, drain succeeds, reconciler retains its crash-recovery role.
+
+   - **`matchmaking_tickets.Status` was never advanced past `Queued`.** Reconciler only expires stale tickets; ProposalService emitted events but did not write Postgres state directly. Fix: `MatchmakingAnalyticsDrainService.FlushBatchAsync` now mirrors the latest event status onto `matchmaking_tickets.Status` (`ApplyStatusFromEvent` helper). The drain is now the single writer of Postgres status transitions (in addition to the reconciler's stale-expiry path).
+
+   - **Test driver gap: SC#3 driver never accepted proposals.** Tickets cycled Queued → Proposed → TimedOut → Queued and could not reach Matched terminal regardless of server correctness. Fix: `MatchmakingLoadTests` runs an `AutoAcceptProposalsAsync` background task that drives `POST /api/mm/proposal/{id}/accept` on every observed proposal.
+
+   - **ProposalSweeper pipelining** + `MaxReapsPerSweep` 256→32 (per-proposal + per-ticket HGETALL fan-out batched, same pattern as the ticker fix).
+
+### Debugger residual-gap notes (carried forward for v1.1)
+
+These are NOT blockers for Phase 5 close. They are tuning + architectural notes the debugger flagged for future consideration:
+
+1. **`WarmupCutoff` design note.** The 5-second warmup window in `TickerBudgetObserver` excludes ticker samples taken during/immediately after the 1000-concurrent enqueue burst. Rationale: the burst saturates the shared `IConnectionMultiplexer` send-queue, and the next 1–2 ticker passes pay queue-wait latency that is NOT a matcher cost. Production deployments don't have an analogous "10× steady-state in 5 seconds" burst pattern. If multi-tenancy ever creates one, a dedicated multiplexer for the ticker is the architectural answer.
+
+2. **Per-tick caps (`CandidatesPerTick=16`, `MaxMatchesPerTick=6`).** Tuned for the SC#3 1k-concurrent target on local Docker Redis. Sustained throughput floor is 12 matches/sec (6 × 2 ticks/sec) = 720/min — well above the SC#3 implied floor. Operators with faster Redis hosts can tune `MaxIterationBudgetMs` upward; the budget bail in `ProcessPoolAsync` naturally lets more matches form per tick.
+
+3. **Status-mirroring drain (architectural shift).** The drain went from "drain inserts events only" to "drain inserts events + mirrors latest state". A future plan could denormalise further (e.g., a `latest_event_at` column) but it's not required for SC#3.
+
+4. **Auto-acceptor is a test-driver concern.** `MatchmakingLoadTests.AutoAcceptProposalsAsync` is purely test-side. Production clients drive accept via the existing `POST /api/mm/proposal/{id}/accept` endpoint with long-poll subscribers. The auto-acceptor exists only to make the throughput-floor assertion physically achievable in a headless harness.
+
+5. **Single-commit deviation (debug session).** The debugger's `e389a8a` collapsed all hot-path fixes into one commit rather than per-task atomic commits. The commit message enumerates per-file changes for archaeology.
+
+### Test suite health after fixes
+
+- `dotnet build GameKit.sln` → 0 warnings / 0 errors
+- `dotnet test tests/GameKit.Matchmaking.Tests` → 76/76 pass (one test contract updated for strategy oldest-first; no regressions)
+- `dotnet test tests/GameKit.Matchmaking.Integration.Tests` → 65/65 pass
+
+### Debug session record
+
+`.planning/debug/resolved/sc3-load-test-failures.md` — root-cause / fix / verification chain captured for archaeology.
 
 ---
 
 *Phase: 05-matchmaking-parties*
 *Plan: 10 (final plan)*
 *Completed (harness ship): 2026-05-18*
-*Phase-close pending: operator SC#3 load-test run*
+*Completed (SC#3 phase-gate green): 2026-05-18*
+*Status: phase close ready — 15/15 requirements complete*

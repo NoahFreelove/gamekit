@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: phase_complete
-stopped_at: Phase 03.1 verified 6/6 — ready to advance to Phase 4
-last_updated: "2026-05-15T00:00:00Z"
+status: executing
+stopped_at: Phase 03.1 context gathered
+last_updated: "2026-05-16T02:23:33.193Z"
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 32
-  completed_plans: 32
-  percent: 100
+  completed_phases: 3
+  total_plans: 40
+  completed_plans: 34
+  percent: 43
 ---
 
 # STATE: GameKit
@@ -26,13 +26,13 @@ progress:
 
 ## Current Position
 
-Phase: 03.1 (admin-ui-redesign-v2) — VERIFIED 6/6 (2026-05-15)
-Plan: 11 of 11 (all plans + quick/20260515-phase-031-verification-gaps complete)
-Next: Phase 4 — Rankings + Sessions Wiring + GDPR Export
+Phase: 04 (rankings-sessions-gdpr) — CONTEXT GATHERED
+Plan: 0 of N (planning not yet run)
+Next: `/gsd-plan-phase 04` to produce the plan set
 **Milestone:** v1 (initial 6-phase build-out)
 **Phase:** 3
 **Plan:** 03-07 + 03-08 complete. 03-07 ships the full `/admin/api/*` minimal-API surface: POST `/login` (rate-limited `gamekit:admin:login`), POST `/logout`, GET `/players/search`, POST `/players/{id}/ban` + `/unban` (antiforgery + `AdminPolicy`), admins CRUD (superadmin policy), GET `/audit`, GET `/health`, GET `/matches`, GET `/queue-depth`, POST `/rank-adjust`; 6 DTOs (LoginRequest, BanPlayerRequest, UnbanPlayerRequest, CreateAdminRequest, PlayerSearchRequest, GdprDeleteRequest); 4 FluentValidation validators (Login / BanPlayer / CreateAdmin / PlayerSearch) registered in AddGameKitAdmin filling the step-13 placeholder left by 03-06. 03-08 ships the Blazor Server shell: nonce-aware App.razor (reads `HttpContext.Items["gamekit.admin.csp-nonce"]` into `<script nonce="...">` for Blazor JS + MudBlazor JS), Routes.razor + _Imports, MainLayout + LoginLayout with scoped CSS, TopNav (env chip + logout) + SideNav (10 nav items), 4 shared components (EnvironmentChip, StatusChip, KeysetPaginator, MissingPackageAlert), GameKitAdminTheme (indigo-600 primary + slate neutrals + 4px spacing), MapRazorComponents wire-up appended to MapGameKitAdmin. Admin.Tests 35→54 (+19), Admin.Integration.Tests 14→23 (+9). ADMIN-02/07/08/12 newly satisfied (ADMIN-05/06 already from 03-06 confirmed by 03-07 integration tests).
-**Status:** Phase 03.1 complete — verified 6/6 (2026-05-15). Ready to advance to Phase 4 (Rankings + Sessions Wiring + GDPR Export).
+**Status:** Ready to execute
 
 **Progress:** [███████████████] 100% (32 / 32 plans; Phase 03.1 verified after `quick/20260515-phase-031-verification-gaps` closed BLOCKER-GAP-01 + INFO-GAP-03)
 
@@ -224,7 +224,9 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-05-15T (quick task) — `.planning/quick/20260515-phase-031-verification-gaps/` complete. Closed the three open Phase 03.1 verification items: (1) BLOCKER-GAP-01 — `PlayerDetailPane.LoadAsync` now resolves the banning admin's username via `Db.Set<AdminUser>().AsNoTracking()` against `gamekit.admin_users` (the prior `IPlayerDisplayNameResolver` path queried `players`, which by design never holds admin IDs, so every human-issued ban rendered the deleted-player tombstone); (2) Blazor Server anti-pattern — removed both `ConfigureAwait(false)` calls in `PlayerDetailPane.LoadAsync` (continuations subsequently call `StateHasChanged()`); (3) INFO-GAP-03 — `openTweaks()` in `gamekit-admin.js` now invokes `applyAttrs(loadTweaks())` so aria-checked reflects the persisted selection before the Tweaks panel becomes visible (the deferred-script bundle-init call ran before Blazor mounted the panel). Removed the stale `@inject IPlayerDisplayNameResolver` directive from `PlayerDetailPane.razor` and the now-unused `NoopDisplayNameResolver` registration from `PlayersWorkspaceTests`. New regression test `PlayerDetailPaneBanAttributionTests` (2 facts) seeds an admin row + admin_audit_log ban row and asserts BanBanner ActorName renders the admin's username, with a paired test for the no-audit-row fallback to "unknown actor". Uses a local `BunitContext` disposed via `await using` to avoid the MudBlazor `KeyInterceptorService` IAsyncDisposable-only teardown trap that fires when the full pane (with MudTabs) renders. Admin.Tests 90 → 92; Admin.Integration.Tests 15/15 in isolation (no functional change). VERIFICATION.md re-verified at 6/6.
+**Last action:** 2026-05-15T (discuss-phase) — Phase 04 context gathered. 23 implementation decisions captured across 4 areas (rating period / session-complete API / seasonal reset / GDPR export). Ready for `/gsd-plan-phase 04`. See `.planning/phases/04-rankings-sessions-gdpr/04-CONTEXT.md`.
+
+**Previous action:** 2026-05-15T (quick task) — `.planning/quick/20260515-phase-031-verification-gaps/` complete. Closed the three open Phase 03.1 verification items: (1) BLOCKER-GAP-01 — `PlayerDetailPane.LoadAsync` now resolves the banning admin's username via `Db.Set<AdminUser>().AsNoTracking()` against `gamekit.admin_users` (the prior `IPlayerDisplayNameResolver` path queried `players`, which by design never holds admin IDs, so every human-issued ban rendered the deleted-player tombstone); (2) Blazor Server anti-pattern — removed both `ConfigureAwait(false)` calls in `PlayerDetailPane.LoadAsync` (continuations subsequently call `StateHasChanged()`); (3) INFO-GAP-03 — `openTweaks()` in `gamekit-admin.js` now invokes `applyAttrs(loadTweaks())` so aria-checked reflects the persisted selection before the Tweaks panel becomes visible (the deferred-script bundle-init call ran before Blazor mounted the panel). Removed the stale `@inject IPlayerDisplayNameResolver` directive from `PlayerDetailPane.razor` and the now-unused `NoopDisplayNameResolver` registration from `PlayersWorkspaceTests`. New regression test `PlayerDetailPaneBanAttributionTests` (2 facts) seeds an admin row + admin_audit_log ban row and asserts BanBanner ActorName renders the admin's username, with a paired test for the no-audit-row fallback to "unknown actor". Uses a local `BunitContext` disposed via `await using` to avoid the MudBlazor `KeyInterceptorService` IAsyncDisposable-only teardown trap that fires when the full pane (with MudTabs) renders. Admin.Tests 90 → 92; Admin.Integration.Tests 15/15 in isolation (no functional change). VERIFICATION.md re-verified at 6/6.
 
 **Previous action:** 2026-04-26T (sequential executor) — Plan 03-13 complete (Wave 6): ROADMAP SC#1–SC#6 integration test matrix. Six new test files in `tests/GameKit.Admin.Integration.Tests/`: RoadmapScenarioTests (SC#1 mount + bootstrap + login + 3-mode search), ProductionGateTests (SC#2 — 4 facts: Production 404 / Development 302 / startup throw / login reachable), CrossSchemeIsolationTests (SC#6 — player JWT 404 in Production + ≠200 in Development via FakePlayerJwtIssuer + Bearer header), CspAndAntiforgeryTests (SC#5 — 7-directive mandatory CSP + unique nonces + scoped to /admin/* + 400 csrf_validation_failed on POST /ban without antiforgery), PanelRenderTests (SC#4 — `Install GameKit.Matchmaking` + `Install GameKit.Rankings` placeholders + 3-probe HealthReport + match-history join), MountPathTests (ADMIN-02 — custom prefix relocates API only; Blazor shell stays at /admin). 1 deviation auto-fixed: AdminCspNonceMiddleware ContainsKey-guard removed so the strict GameKit policy takes precedence over ASP.NET Core's static-SSR default `frame-ancestors 'self'` (Rule 1 bug; the override is safe — middleware is already path-prefix gated). 1 modification: AdminTestHost.StartAsync gains `configureAdmin` callback for per-test options. Commits: `9a862da` (t1: 6 facts) + `954c35e` (t2: 7 facts + middleware fix). Admin.Integration.Tests 23 → 53 (+30 from this plan + sibling Wave 5/6 plans); Admin.Tests unchanged at 54/0/0. Phase 3 SC matrix is now anchored end-to-end. Pre-existing Auth integration `PendingModelChangesWarning` failures (38/44) remain out of scope (deferred-items.md, captured by 03-10 executor). Phase 3 close-out depends only on plan 03-12's pending operator walkthrough.
 

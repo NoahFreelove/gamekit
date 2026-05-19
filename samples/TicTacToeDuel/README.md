@@ -257,6 +257,98 @@ In the Admin console, open the command palette (Ctrl+K) and search "Rank adjust"
 opens a dialog that updates a player's rating on a specific ladder (SERIALIZABLE tx + audit
 row). End-season archives the current season's leaderboard and starts a new one.
 
+## Matchmaking (Phase 5)
+
+`GameKit.Matchmaking` is wired in `Program.cs` with a single 1v1 matchmaking ladder named
+`"tictactoe"` (linear bracket ramp 100 → 500 over 40 s, mean party-rating aggregator per
+CONTEXT.md D-11 / D-13). The matchmaker ticker runs in the background and polls Redis every
+500 ms; the proposal accept-step has a 10-second window (CS:GO-style, CONTEXT.md D-07).
+
+### 1v1 browser demo
+
+A minimal HTML client at `wwwroot/matchmaking.html` drives the enqueue → status long-poll →
+accept → matched flow. The demo is **1v1 only** — party creation/join flows have no UI per
+CONTEXT.md (parties are operator-tested via `curl` below).
+
+UAT:
+
+1. Run the sample: `dotnet run --project samples/TicTacToeDuel`
+2. Open **two browser tabs** (one regular + one private/incognito): both at
+   <http://localhost:5000/matchmaking.html>
+3. Click "Play as Guest" in each tab — two different guest JWTs are minted.
+4. Click "Find Match" in both tabs. Within ~1 s (default 500 ms tick) the matchmaker pairs
+   them and both tabs transition to the "proposed" state with a 10-second countdown.
+5. Click "Accept" in both tabs within the window. The status transitions to "matched" with a
+   shared `sessionId`. (The actual tic-tac-toe board is the existing `/demo/games` flow on
+   `index.html` — wiring a board into matchmaking.html is left as an exercise; the matched
+   `sessionId` would be the `gameId` passed to `/demo/games/{id}`.)
+
+### Endpoints
+
+| Method | Path                                          | Notes                                                          |
+| ------ | --------------------------------------------- | -------------------------------------------------------------- |
+| POST   | `/api/parties`                                | Create a party. Owner-only. Returns `{ id, code }` (6-8 char). |
+| POST   | `/api/parties/join`                           | Join via party code (`{ code }`). Per-IP rate-limited 5/min.   |
+| GET    | `/api/parties/{id}`                           | Read party state + members.                                    |
+| POST   | `/api/parties/{id}/dissolve`                  | Owner-only. Releases the single-active-party constraint.       |
+| POST   | `/api/mm/queue`                               | Enqueue. Body `{ ladderId, poolName, partyId? }`. Rate-limited 5/min/player. |
+| GET    | `/api/mm/queue/{ticketId}/status`             | Long-poll up to 30 s. Status: `queued` / `proposed` / `matched` / `cancelled`. |
+| DELETE | `/api/mm/queue/{ticketId}`                    | Cancel ticket.                                                  |
+| POST   | `/api/mm/proposal/{proposalId}/accept`        | Body `{ ticketId }`. Within the 10s accept window (D-07).       |
+| POST   | `/api/mm/proposal/{proposalId}/decline`       | Body `{ ticketId }`. Triggers escalating cooldown (D-08).        |
+
+### curl walkthrough — parties + enqueue with a party
+
+Run two separate shell sessions (e.g. two terminal tabs). Sign in as guest in each to get a
+JWT (here saved into `$TOK_A` / `$TOK_B`):
+
+```bash
+# Tab A — owner
+TOK_A=$(curl -s -X POST http://localhost:5000/auth/login/guest \
+   -H 'Content-Type: application/json' -H 'X-GameKit-Device: dev-A' -d '{}' | jq -r .accessToken)
+
+# Create the party — returns { id, code } where code is the 6-8 char Crockford base32 join code.
+PARTY=$(curl -s -X POST http://localhost:5000/api/parties \
+   -H "Authorization: Bearer $TOK_A" -H "Content-Type: application/json" -d '{}')
+PARTY_ID=$(echo "$PARTY"  | jq -r .id)
+PARTY_CD=$(echo "$PARTY"  | jq -r .code)
+echo "Created party $PARTY_ID  code=$PARTY_CD"
+```
+
+```bash
+# Tab B — joiner (uses the code printed above)
+TOK_B=$(curl -s -X POST http://localhost:5000/auth/login/guest \
+   -H 'Content-Type: application/json' -H 'X-GameKit-Device: dev-B' -d '{}' | jq -r .accessToken)
+
+curl -s -X POST http://localhost:5000/api/parties/join \
+   -H "Authorization: Bearer $TOK_B" -H "Content-Type: application/json" \
+   -d "{\"code\":\"$PARTY_CD\"}"
+```
+
+```bash
+# Either tab — resolve the matchmaking ladder id (the sample exposes a /demo helper).
+LADDER=$(curl -s http://localhost:5000/demo/ladder-id/tictactoe | jq -r .id)
+
+# Owner enqueues the party.
+TICKET=$(curl -s -X POST http://localhost:5000/api/mm/queue \
+   -H "Authorization: Bearer $TOK_A" -H "Content-Type: application/json" \
+   -d "{\"ladderId\":\"$LADDER\",\"poolName\":\"tictactoe\",\"partyId\":\"$PARTY_ID\"}" | jq -r .ticketId)
+echo "Ticket: $TICKET"
+
+# Long-poll status.
+curl -s "http://localhost:5000/api/mm/queue/$TICKET/status" -H "Authorization: Bearer $TOK_A"
+```
+
+To actually form a match you need a counterpart in the queue — either a second party (repeat
+above for two more guests) or another solo ticket (use the matchmaking.html demo to drive
+the second slot, since solo enqueue from the same player is one ticket).
+
+### Admin queue-depth panel
+
+The Admin UI's matchmaking page (`/admin/matchmaking/queue-depth`) shows live ZCARD per pool
+sourced strictly from Redis (CONTEXT.md MATCH-14 / SC#6). Pause / drain commands are exposed
+via the command palette (Ctrl+K → "Pause queue" / "Drain queue") under the Superadmin policy.
+
 ## Endpoints used
 
 **Phase 2 `/auth/*`** — see table above.

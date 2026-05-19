@@ -38,6 +38,10 @@ public static class AdminCommandRegistry
         new("gdpr-delete",        "GDPR-delete player",    "actions", RequiresSuperadmin: true,  RequiresTarget: true),
         new("rank-adjust",        "Adjust player rank",    "actions", RequiresSuperadmin: true,  RequiresTarget: true),
         new("end-season",         "End ladder season",     "actions", RequiresSuperadmin: true,  RequiresTarget: true),
+        // Matchmaking operations (MATCH-14 / Plan 05-08). Both verbs take a ladder target
+        // per RESEARCH §OQ-5: pause / drain scope is per-ladder, not global.
+        new("pause-queue",        "Pause matchmaking queue", "actions", RequiresSuperadmin: true, RequiresTarget: true),
+        new("drain-queue",        "Drain matchmaking queue", "actions", RequiresSuperadmin: true, RequiresTarget: true),
         // Admin management ---------------------------------------------------
         new("create-admin",       "Create admin",          "admin",   RequiresSuperadmin: true,  RequiresTarget: false),
         new("delete-admin",       "Delete admin",          "admin",   RequiresSuperadmin: true,  RequiresTarget: true),

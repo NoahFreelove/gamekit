@@ -41,4 +41,19 @@ public static class AdminAuditActions
 
     /// <summary>Audit action emitted when an operator exports a player's GDPR data bundle (RANK-13 / D-16 / plan 04-08).</summary>
     public const string PlayerGdprExport = "admin.player.gdpr_export";
+
+    /// <summary>Audit action emitted when an operator pauses the matchmaking queue (MATCH-14 / Plan 05-08 / D-22 port).</summary>
+    public const string MatchmakingPauseQueue = "admin.matchmaking.pause_queue";
+
+    /// <summary>Audit action emitted when an operator drains the matchmaking queue (MATCH-14 / Plan 05-08 / D-22 port).</summary>
+    public const string MatchmakingDrainQueue = "admin.matchmaking.drain_queue";
+
+    /// <summary>Audit action emitted when the reconciler cancels an orphan game session (Plan 05-07 / D-22 port).</summary>
+    /// <remarks>
+    /// The matchmaking reconciler service writes this row with action == this constant; the
+    /// literal is duplicated locally in <c>MatchmakingReconcilerService</c> to avoid a runtime
+    /// dep on Admin.UI's registry. This constant exists so the audit-page sentence template
+    /// has a matching key and so operators can reference it from the command palette.
+    /// </remarks>
+    public const string MatchmakingSessionOrphanCancelled = "admin.matchmaking.session_orphan_cancelled";
 }

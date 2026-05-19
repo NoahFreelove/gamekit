@@ -80,21 +80,21 @@
 
 ### Matchmaking + Parties (Matchmaking Package)
 
-- [ ] **MATCH-01**: Library ships as `GameKit.Matchmaking` NuGet package
-- [ ] **MATCH-02**: `matchmaking_tickets` entity (status: queued/matched/cancelled/expired) — Postgres async-write for analytics only
-- [ ] **MATCH-03**: `party_members` entity supporting 1-N players per ticket from v1 (model not widenable later)
-- [ ] **MATCH-04**: Redis is the source of truth for live queue (sorted sets per pool, server-owned leases, NOT bare TTLs)
-- [ ] **MATCH-05**: Atomic ticket claim via Redis WATCH/MULTI to prevent double-matching
-- [ ] **MATCH-06**: Reconciliation worker (every 30s) + startup sweep — claims abandoned tickets/pending sessions from Postgres, never rehydrates Redis from Postgres
-- [ ] **MATCH-07**: Matchmaker runs as `BackgroundService` + `PeriodicTimer` + Polly retry (NOT Hangfire/Quartz)
-- [ ] **MATCH-08**: Leader election via Redis distributed lock so multiple replicas don't double-match
-- [ ] **MATCH-09**: `IMatchmakingStrategy.Match(Party, candidates)` interface — party-aware from v1 (NOT flat ratings)
-- [ ] **MATCH-10**: Default `EloRangeMatchmakingStrategy` with time-based bracket flex (e.g. ±100 → ±500 over 40s)
-- [ ] **MATCH-11**: Per-player rate limit on enqueue (no DoS via spam tickets)
-- [ ] **MATCH-12**: Chaos test: kill app mid-match → no duplicate sessions, no ghost tickets
+- [x] **MATCH-01**: Library ships as `GameKit.Matchmaking` NuGet package
+- [x] **MATCH-02**: `matchmaking_tickets` entity (status: queued/matched/cancelled/expired) — Postgres async-write for analytics only
+- [x] **MATCH-03**: `party_members` entity supporting 1-N players per ticket from v1 (model not widenable later)
+- [x] **MATCH-04**: Redis is the source of truth for live queue (sorted sets per pool, server-owned leases, NOT bare TTLs)
+- [x] **MATCH-05**: Atomic ticket claim via Redis WATCH/MULTI to prevent double-matching
+- [x] **MATCH-06**: Reconciliation worker (every 30s) + startup sweep — claims abandoned tickets/pending sessions from Postgres, never rehydrates Redis from Postgres
+- [x] **MATCH-07**: Matchmaker runs as `BackgroundService` + `PeriodicTimer` + Polly retry (NOT Hangfire/Quartz)
+- [x] **MATCH-08**: Leader election via Redis distributed lock so multiple replicas don't double-match
+- [x] **MATCH-09**: `IMatchmakingStrategy.Match(Party, candidates)` interface — party-aware from v1 (NOT flat ratings)
+- [x] **MATCH-10**: Default `EloRangeMatchmakingStrategy` with time-based bracket flex (e.g. ±100 → ±500 over 40s)
+- [x] **MATCH-11**: Per-player rate limit on enqueue (no DoS via spam tickets)
+- [x] **MATCH-12**: Chaos test: kill app mid-match → no duplicate sessions, no ghost tickets
 - [ ] **MATCH-13**: Load test as phase gate (1k concurrent tickets sustained for 10 min)
-- [ ] **MATCH-14**: Admin UI queue-depth + health panels wired to Redis live state
-- [ ] **MATCH-15**: Per-package migrations targeting `gamekit` schema with `__ef_migrations_matchmaking` history table
+- [x] **MATCH-14**: Admin UI queue-depth + health panels wired to Redis live state
+- [x] **MATCH-15**: Per-package migrations targeting `gamekit` schema with `__ef_migrations_matchmaking` history table
 
 ### Presence + OpenAPI + Distribution (Presence Package + Polish)
 
@@ -183,7 +183,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | AUTH-01..16 | Phase 2 | Complete (2026-04-18) |
 | ADMIN-01..12 | Phase 3 | Complete 12/12 (all ADMIN requirements anchored by integration tests in `tests/GameKit.Admin.Integration.Tests/` per plan 03-13 SC-anchor matrix) |
 | RANK-01..14 | Phase 4 | Pending |
-| MATCH-01..15 | Phase 5 | Pending |
+| MATCH-01..15 | Phase 5 | In progress 13/15 (MATCH-01/02/03/04/05/06/07/08/09/10/11/14/15 closed end-to-end by 05-04..05-08; MATCH-12/13 deferred to 05-09 chaos test + 05-10 load test) |
 | PRES-01..06 | Phase 6 | Pending |
 | OPEN-01 | Phase 6 | Pending |
 | DIST-02..06 | Phase 6 | Pending |

@@ -69,6 +69,15 @@ public static class AuditSentenceTemplates
 
             [AdminAuditActions.PlayerGdprExport] = ctx =>
                 new SentenceModel(ctx.ActorName, "GDPR-exported data for", ctx.TargetName ?? "(unknown player)", null, ctx.Reason),
+
+            [AdminAuditActions.MatchmakingPauseQueue] = ctx =>
+                new SentenceModel(ctx.ActorName, "paused matchmaking queue", ctx.TargetName ?? "(all ladders)", null, ctx.Reason),
+
+            [AdminAuditActions.MatchmakingDrainQueue] = ctx =>
+                new SentenceModel(ctx.ActorName, "drained matchmaking queue", ctx.TargetName ?? "(all ladders)", null, ctx.Reason),
+
+            [AdminAuditActions.MatchmakingSessionOrphanCancelled] = ctx =>
+                new SentenceModel(ctx.ActorName, "cancelled orphan session", ctx.TargetName ?? "(unknown session)", null, ctx.Reason),
         };
 
     /// <summary>

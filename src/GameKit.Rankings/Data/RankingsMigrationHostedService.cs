@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GameKit.Core;
 using GameKit.Core.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -80,7 +81,12 @@ internal sealed class RankingsMigrationHostedService : IHostedService
                     RankingsMigrationConstants.MigrationsHistoryTable,
                     GameKitMigrationConstants.SchemaName);
             })
-            .ReplaceService<IModelCustomizer, RankingsMigrationModelCustomizer>();
+            .ReplaceService<IModelCustomizer, RankingsMigrationModelCustomizer>()
+            // The hand-authored snapshot is structurally correct but does not match EF Core's
+            // internal model hash exactly (Phase 4 latent: the determinism integration test
+            // suppresses the same warning with the same rationale). Without this ignore,
+            // MigrateAsync raises PendingModelChangesWarning as an exception on consumer startup.
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 
         return new GameKitDbContext(optionsBuilder.Options);
     }

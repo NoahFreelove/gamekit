@@ -13,3 +13,9 @@ using System.Runtime.CompilerServices;
 // the GameKit.Admin.UI → GameKit.Cli InternalsVisibleTo pattern (plan 04-04).
 // AssemblyName in GameKit.Cli.csproj is "gamekit" (the tool command name), not "GameKit.Cli".
 [assembly: InternalsVisibleTo("gamekit")]
+// Phase 5 Plan 05-01: MatchmakingTestModelCustomizer applies RankingsModelBuilderExtension
+// directly so cross-package integration tests (Matchmaking reads player_ranks via
+// EloRangeMatchmakingStrategy) can include Rankings entities in their EF model without
+// re-implementing the seven entity configurations. Mirrors the GameKit.Auth → Admin
+// InternalsVisibleTo grant established in plan 03-06 (CoreInternalsVisibleTo precedent).
+[assembly: InternalsVisibleTo("GameKit.Matchmaking.Integration.Tests")]

@@ -4,11 +4,24 @@
 using GameKit.Admin.UI.Builder;
 using GameKit.Auth.Builder;
 using GameKit.Core.Builder;
+using GameKit.Matchmaking.Builder;
+using GameKit.Matchmaking.Strategy;
 using GameKit.Rankings.Builder;
 using GameKit.Rankings.Entities;
 using TicTacToeDuel.Http;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Register the Redis multiplexer up-front — both GameKit.Rankings (Phase 4 ticker) and
+// GameKit.Matchmaking (Phase 5 ticker / proposal service / observability) take an
+// IConnectionMultiplexer dependency. The package builders intentionally do NOT auto-register
+// the multiplexer because (a) it's a singleton with operator-owned lifecycle, and (b)
+// production deployments often want to wire ConfigurationOptions (TLS, AllowAdmin,
+// AbortOnConnectFail, etc.) manually.
+var redisCs = builder.Configuration.GetConnectionString("Redis")
+    ?? throw new InvalidOperationException("Missing ConnectionStrings:Redis");
+builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
+    StackExchange.Redis.ConnectionMultiplexer.Connect(redisCs));
 
 // Capture the IGameKitBuilder so we can call both .AddAuth() and .AddRankings() on it,
 // then chain .AddGameKitAdmin() on the core builder (not on the rankings builder, which
@@ -69,6 +82,35 @@ gameKitBuilder.AddRankings(opts =>
     c.DefaultVolatility = 0.06;
     c.RatingPeriod      = System.TimeSpan.FromHours(1);
     c.ResetPolicy       = SeasonResetPolicy.SoftRegress;
+})
+.AddLadder("tictactoe", c =>
+{
+    // Tic-tac-toe matchmaking ladder. Sharing the same name space as Rankings — both packages
+    // join on Ladder.Name (CONTEXT.md D-12). The Glicko-2 defaults match the "main" ladder so
+    // any player's rating carries cleanly between modes.
+    c.DefaultRating     = 1500;
+    c.DefaultRd         = 350;
+    c.DefaultVolatility = 0.06;
+    c.RatingPeriod      = System.TimeSpan.FromHours(1);
+    c.ResetPolicy       = SeasonResetPolicy.SoftRegress;
+});
+
+// Plan 05-09 — Matchmaking (Phase 5). Wires the Redis-backed live queue + accept-step
+// proposal flow on top of the Rankings ladder. The "tictactoe" matchmaking ladder shares its
+// name with the Rankings-side AddLadder above; both packages join on Ladder.Name (D-12).
+gameKitBuilder.AddMatchmaking(opts =>
+{
+    // 500 ms tick keeps perceived latency low for the 1v1 demo. Production deployments often
+    // raise this to 1-2 s under heavier load.
+    opts.Ticker.TickIntervalMs = 500;
+})
+.AddLadder("tictactoe", ladder =>
+{
+    // CONTEXT.md D-11 — linear bracket ramp 100 → 500 over 40 s.
+    ladder.BracketStart            = 100;
+    ladder.BracketEnd              = 500;
+    ladder.BracketRampSeconds      = 40;
+    ladder.PartyRatingAggregator   = PartyRatingAggregator.Mean;
 });
 
 gameKitBuilder.AddGameKitAdmin(admin =>
@@ -106,6 +148,25 @@ app.MapGameKit();                   // /api/players (RequireAuthorization — Be
 app.MapAuth();                      // /auth/* — Phase 2
 app.MapDemo();                      // /demo/games (the /demo/players/register endpoint is REMOVED in Phase 2)
 app.MapRankings();                  // /api/players/{id}/export + /admin/api/players/{id}/export + /admin/api/players/{id}/rank-adjust — Phase 4
+app.MapMatchmaking();               // /api/parties/* + /api/mm/* — Phase 5 (Plan 05-08 surface, Plan 05-09 wiring)
 app.MapGameKitAdmin("/admin");      // Plan 03-12 — /admin/api/* HTTP surface + /admin/* Blazor console.
+
+// Sample-only helper: resolves a ladder name to its Guid so the matchmaking.html client can
+// POST /api/mm/queue without hard-coding the ladder id (the id is generated on first startup
+// by the Rankings StartupLadderUpserter). Authorization-free because the ladder name is part
+// of the public ladder catalogue; in production an OpenAPI surface or a tweak page would
+// expose this.
+app.MapGet("/demo/ladder-id/{name}", async (
+    string name,
+    GameKit.Core.Data.GameKitDbContext db,
+    System.Threading.CancellationToken ct) =>
+{
+    var ladder = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Set<GameKit.Rankings.Entities.Ladder>()
+            .Where(l => l.Name == name), ct);
+    return ladder is null
+        ? Results.NotFound(new { error = "unknown_ladder", name })
+        : Results.Ok(new { id = ladder.Id, name = ladder.Name });
+});
 
 app.Run();

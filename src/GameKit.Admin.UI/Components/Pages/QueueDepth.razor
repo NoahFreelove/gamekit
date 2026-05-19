@@ -1,18 +1,21 @@
 @* SPDX-License-Identifier: GPL-3.0-or-later *@
 @* Copyright (c) 2026 GameKit contributors *@
 @*
-    UI-SPEC §11 Queue depth panel — if GameKit.Matchmaking is registered, renders the live
-    queue telemetry panel; if not, renders the MissingPackageAlert placeholder.
+    UI-SPEC §11 Queue depth panel — Plan 05-08 fill-in (MATCH-14).
 
-    The IMatchmakingStrategy interface may not exist yet (Phase 5 deliverable). We use
-    reflection-safe Type.GetType to avoid a compile-time dependency on GameKit.Matchmaking.
+    Renders live queue telemetry by reflectively resolving GameKit.Matchmaking's
+    IMatchmakingObservability port from DI. Reflection-safe because GameKit.Matchmaking
+    already has a ProjectReference to GameKit.Admin.UI (for the migration boundary), and
+    adding the reverse reference here would create a cycle. The reflection-based lookup
+    is the documented v1 contract — see Plan 05-08 SUMMARY §Dependency Direction.
 *@
 @page "/admin/matchmaking"
 @attribute [Authorize(Policy = AdminPolicies.Admin)]
 @implements IDisposable
 @inject IServiceProvider Sp
+@using System.Reflection
+@using System.Threading
 
-@* Plan 03.1-08 — sketch's .page-head class replaces the legacy gk-page-heading. *@
 <div class="page-head">
     <h1>Queue depth</h1>
 </div>
@@ -21,22 +24,176 @@
 {
     <MissingPackageAlert PackageName="Matchmaking" Feature="live queue telemetry" />
 }
+else if (_lastError is not null)
+{
+    <div class="alert" role="status">
+        <div class="alert-body">Failed to load queue telemetry: @_lastError</div>
+    </div>
+}
+else if (_stats is null)
+{
+    <div class="alert" role="status">
+        <div class="alert-body">Loading queue telemetry…</div>
+    </div>
+}
 else
 {
-    @* Placeholder for Phase 5 — reflective lookup resolves only once GameKit.Matchmaking ships. *@
-    <div class="alert" role="status">
-        <div class="alert-body">Queue telemetry will render when GameKit.Matchmaking ships.</div>
+    <div class="card">
+        <div class="card-head">
+            <div>
+                <strong>Leader instance:</strong>
+                @(_leaderInstanceId ?? "(no replica currently holds the lease)")
+            </div>
+            <div>
+                <strong>Active leases:</strong> @_activeLeaseCount
+            </div>
+            <div>
+                <strong>As of:</strong> @_asOf.ToString("yyyy-MM-dd HH:mm:ss zzz")
+            </div>
+        </div>
+        <div class="card-body">
+            @if (_pools.Count == 0)
+            {
+                <p>No queue activity right now.</p>
+            }
+            else
+            {
+                <table class="data-grid">
+                    <thead>
+                        <tr>
+                            <th>Ladder Id</th>
+                            <th>Pool</th>
+                            <th>Depth</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in _pools)
+                        {
+                            <tr>
+                                <td>@p.LadderId</td>
+                                <td>@p.PoolName</td>
+                                <td>@p.Depth</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
     </div>
 }
 
 @code {
     private bool _matchmakingInstalled;
+    private object? _stats;
+    private string? _leaderInstanceId;
+    private int _activeLeaseCount;
+    private DateTimeOffset _asOf;
+    private List<PoolRow> _pools = new();
+    private string? _lastError;
+    private CancellationTokenSource _disposeCts = new();
+    private Timer? _refreshTimer;
 
-    protected override void OnInitialized()
+    /// <summary>Local plain row used for rendering (decoupled from the reflection type).</summary>
+    private sealed record PoolRow(Guid LadderId, string PoolName, long Depth);
+
+    protected override async Task OnInitializedAsync()
     {
-        var mmType = Type.GetType("GameKit.Matchmaking.IMatchmakingStrategy, GameKit.Matchmaking", throwOnError: false);
-        _matchmakingInstalled = mmType is not null && Sp.GetService(mmType) is not null;
+        var observabilityType = Type.GetType(
+            "GameKit.Matchmaking.Services.IMatchmakingObservability, GameKit.Matchmaking",
+            throwOnError: false);
+        if (observabilityType is null)
+        {
+            _matchmakingInstalled = false;
+            return;
+        }
+
+        var observability = Sp.GetService(observabilityType);
+        if (observability is null)
+        {
+            _matchmakingInstalled = false;
+            return;
+        }
+
+        _matchmakingInstalled = true;
+        await RefreshAsync();
+        _refreshTimer = new Timer(async _ => await InvokeAsync(RefreshAsync), null,
+            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
     }
 
-    public void Dispose() { }
+    private async Task RefreshAsync()
+    {
+        if (_disposeCts.IsCancellationRequested) return;
+        var observabilityType = Type.GetType(
+            "GameKit.Matchmaking.Services.IMatchmakingObservability, GameKit.Matchmaking",
+            throwOnError: false);
+        if (observabilityType is null) return;
+
+        var observability = Sp.GetService(observabilityType);
+        if (observability is null) return;
+
+        try
+        {
+            var method = observabilityType.GetMethod(
+                "GetQueueStatsAsync",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (method is null)
+            {
+                _lastError = "GetQueueStatsAsync method not found on observability port.";
+                return;
+            }
+
+            var task = (Task)method.Invoke(observability, new object[] { _disposeCts.Token })!;
+            await task.ConfigureAwait(true);
+
+            // Extract the Result property via reflection (Task<MatchmakingQueueStats>).
+            var resultProp = task.GetType().GetProperty("Result");
+            var stats = resultProp?.GetValue(task);
+            if (stats is null)
+            {
+                _lastError = "GetQueueStatsAsync returned null.";
+                return;
+            }
+
+            _stats = stats;
+
+            // Pull properties off the snapshot.
+            var statsType = stats.GetType();
+            _leaderInstanceId = statsType.GetProperty("LeaderInstanceId")?.GetValue(stats) as string;
+            _activeLeaseCount = (int)(statsType.GetProperty("ActiveLeaseCount")?.GetValue(stats) ?? 0);
+            _asOf = (DateTimeOffset)(statsType.GetProperty("AsOf")?.GetValue(stats) ?? DateTimeOffset.MinValue);
+
+            var poolsValue = statsType.GetProperty("Pools")?.GetValue(stats);
+            var poolList = new List<PoolRow>();
+            if (poolsValue is System.Collections.IEnumerable enumerable)
+            {
+                foreach (var row in enumerable)
+                {
+                    var t = row.GetType();
+                    var ladderId = (Guid)(t.GetProperty("LadderId")?.GetValue(row) ?? Guid.Empty);
+                    var poolName = (string?)t.GetProperty("PoolName")?.GetValue(row) ?? string.Empty;
+                    var depth = (long)(t.GetProperty("Depth")?.GetValue(row) ?? 0L);
+                    poolList.Add(new PoolRow(ladderId, poolName, depth));
+                }
+            }
+            _pools = poolList;
+            _lastError = null;
+        }
+        catch (TargetInvocationException ex)
+        {
+            _lastError = ex.InnerException?.Message ?? ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _lastError = ex.Message;
+        }
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _disposeCts.Cancel();
+        _refreshTimer?.Dispose();
+        _disposeCts.Dispose();
+    }
 }

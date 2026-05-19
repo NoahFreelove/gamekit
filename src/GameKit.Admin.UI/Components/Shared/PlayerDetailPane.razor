@@ -11,14 +11,15 @@
 
     Player.BannedById/BannedByName do not exist on the Phase 1 schema; the BanBanner
     ActorName parameter is resolved at LoadAsync time by reading the most-recent
-    admin.player.ban audit row for this player (via the audit-log table that already
-    captures the banning admin's id) and resolving the name through
-    IPlayerDisplayNameResolver. Falls back to "unknown actor" when no audit row exists
-    (Plan 03.1-11 gap closure for VERIFICATION WARNING-06). ADMIN-06 ban contract is
-    preserved (CSRF + validation + audit write happen in the ban dialog, unchanged from
-    Phase 03).
+    admin.player.ban audit row for this player and looking the ActorId up directly in
+    the gamekit.admin_users table — admin accounts are documented to never overlap with
+    player accounts (AdminUser.cs:11), so going through IPlayerDisplayNameResolver
+    (players-only) would always miss. Falls back to "unknown actor" when no audit row
+    exists. ADMIN-06 ban contract is preserved (CSRF + validation + audit write happen
+    in the ban dialog, unchanged from Phase 03).
 *@
 @namespace GameKit.Admin.UI.Components.Shared
+@using GameKit.Admin.UI.Entities
 @using GameKit.Core.Data
 @using GameKit.Core.Entities
 @using Microsoft.EntityFrameworkCore
@@ -27,7 +28,6 @@
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
 @inject IServiceProvider Sp
-@inject GameKit.Core.Services.IPlayerDisplayNameResolver PlayerNames
 
 @if (Id is null)
 {
@@ -52,10 +52,10 @@ else
 {
     @if (_player.IsBanned && _player.BannedAt is not null)
     {
-        @* Phase 03.1-11 gap closure (WARNING-06): ActorName comes from the most-recent
-           admin.player.ban audit row for this player (resolved via IPlayerDisplayNameResolver
-           in LoadAsync), falling back to "unknown actor" when no row exists. The hardcoded
-           "system" literal that shipped with Plan 03.1-06 is gone. *@
+        @* ActorName comes from the most-recent admin.player.ban audit row for this
+           player; the ActorId is resolved against gamekit.admin_users (admin accounts
+           never appear in the players table — see AdminUser.cs:11). Falls back to
+           "unknown actor" when no row exists. *@
         <BanBanner Reason="@(_player.BanReason ?? "—")"
                    ActorName="@(_bannedByName ?? "unknown actor")"
                    At="@_player.BannedAt.Value"
@@ -253,11 +253,11 @@ else
                 new(_player.DisplayName, href: null, disabled: true),
             };
 
-            // Phase 03.1-11 gap closure (WARNING-06): resolve the banning admin's display name
-            // by reading the most-recent admin.player.ban audit row for this player. Falls back
-            // to null when no row exists; the BanBanner consumer substitutes "unknown actor" so
-            // the operator sees the missing data instead of the false "system" attribution that
-            // shipped with Plan 03.1-06's hardcoded literal.
+            // Resolve the banning admin's display name from the most-recent
+            // admin.player.ban audit row, looked up directly against admin_users
+            // (admin accounts never overlap with players — AdminUser.cs:11). Falls
+            // back to null when no row exists; the BanBanner consumer substitutes
+            // "unknown actor".
             _bannedByName = null;
             if (_player.IsBanned)
             {
@@ -267,10 +267,13 @@ else
                     .OrderByDescending(r => r.CreatedAt)
                     .ThenByDescending(r => r.Id)
                     .Select(r => new { r.ActorId })
-                    .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+                    .FirstOrDefaultAsync(ct);
                 if (banRow is not null && banRow.ActorId.HasValue)
                 {
-                    _bannedByName = await PlayerNames.ResolveAsync(banRow.ActorId.Value, ct).ConfigureAwait(false);
+                    _bannedByName = await Db.Set<AdminUser>().AsNoTracking()
+                        .Where(a => a.Id == banRow.ActorId.Value)
+                        .Select(a => a.Username)
+                        .FirstOrDefaultAsync(ct);
                 }
             }
 

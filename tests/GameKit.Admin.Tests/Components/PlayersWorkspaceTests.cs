@@ -10,7 +10,6 @@ using GameKit.Admin.UI.Components.Shared;
 using GameKit.Admin.UI.Http.Contracts;
 using GameKit.Admin.UI.Services;
 using GameKit.Core.Data;
-using GameKit.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
@@ -40,9 +39,6 @@ public sealed class PlayersWorkspaceTests : BunitContext
         Services.AddAuthorizationCore();
         Services.AddSingleton<IPlayerSearchService, NoopSearchService>();
         Services.AddScoped(_ => TestDbContextFactory.Create($"plw-{Guid.NewGuid():N}"));
-        // Phase 03.1-11: PlayerDetailPane now @injects IPlayerDisplayNameResolver to resolve
-        // BanBanner ActorName from the audit log. Register a stub so bUnit can construct the component.
-        Services.AddSingleton<IPlayerDisplayNameResolver, NoopDisplayNameResolver>();
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
@@ -100,16 +96,5 @@ public sealed class PlayersWorkspaceTests : BunitContext
             int pageSize,
             CancellationToken cancellationToken)
             => Task.FromResult(PaginatedResult<PlayerRow>.Empty);
-    }
-
-    /// <summary>
-    /// Stub <see cref="IPlayerDisplayNameResolver"/> returning "(test)" for any player id.
-    /// Registered so <see cref="PlayerDetailPane"/> can be constructed after the Plan 03.1-11
-    /// @inject directive was added — bUnit component tests do not need a real resolver.
-    /// </summary>
-    private sealed class NoopDisplayNameResolver : IPlayerDisplayNameResolver
-    {
-        public ValueTask<string> ResolveAsync(Guid? playerId, CancellationToken cancellationToken = default)
-            => new ValueTask<string>(playerId.HasValue ? playerId.Value.ToString("N")[..8] : "(deleted)");
     }
 }

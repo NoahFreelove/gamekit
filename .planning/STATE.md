@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 03.1 context gathered
-last_updated: "2026-05-02T19:08:48.873Z"
+status: phase_complete
+stopped_at: Phase 03.1 verified 6/6 — ready to advance to Phase 4
+last_updated: "2026-05-15T00:00:00Z"
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 32
-  completed_plans: 31
-  percent: 97
+  completed_plans: 32
+  percent: 100
 ---
 
 # STATE: GameKit
@@ -26,14 +26,15 @@ progress:
 
 ## Current Position
 
-Phase: 03.1 (admin-ui-redesign-v2) — EXECUTING
-Plan: 1 of 11
+Phase: 03.1 (admin-ui-redesign-v2) — VERIFIED 6/6 (2026-05-15)
+Plan: 11 of 11 (all plans + quick/20260515-phase-031-verification-gaps complete)
+Next: Phase 4 — Rankings + Sessions Wiring + GDPR Export
 **Milestone:** v1 (initial 6-phase build-out)
 **Phase:** 3
 **Plan:** 03-07 + 03-08 complete. 03-07 ships the full `/admin/api/*` minimal-API surface: POST `/login` (rate-limited `gamekit:admin:login`), POST `/logout`, GET `/players/search`, POST `/players/{id}/ban` + `/unban` (antiforgery + `AdminPolicy`), admins CRUD (superadmin policy), GET `/audit`, GET `/health`, GET `/matches`, GET `/queue-depth`, POST `/rank-adjust`; 6 DTOs (LoginRequest, BanPlayerRequest, UnbanPlayerRequest, CreateAdminRequest, PlayerSearchRequest, GdprDeleteRequest); 4 FluentValidation validators (Login / BanPlayer / CreateAdmin / PlayerSearch) registered in AddGameKitAdmin filling the step-13 placeholder left by 03-06. 03-08 ships the Blazor Server shell: nonce-aware App.razor (reads `HttpContext.Items["gamekit.admin.csp-nonce"]` into `<script nonce="...">` for Blazor JS + MudBlazor JS), Routes.razor + _Imports, MainLayout + LoginLayout with scoped CSS, TopNav (env chip + logout) + SideNav (10 nav items), 4 shared components (EnvironmentChip, StatusChip, KeysetPaginator, MissingPackageAlert), GameKitAdminTheme (indigo-600 primary + slate neutrals + 4px spacing), MapRazorComponents wire-up appended to MapGameKitAdmin. Admin.Tests 35→54 (+19), Admin.Integration.Tests 14→23 (+9). ADMIN-02/07/08/12 newly satisfied (ADMIN-05/06 already from 03-06 confirmed by 03-07 integration tests).
-**Status:** Executing Phase 03.1
+**Status:** Phase 03.1 complete — verified 6/6 (2026-05-15). Ready to advance to Phase 4 (Rankings + Sessions Wiring + GDPR Export).
 
-**Progress:** [██████████████░] 95% (20 / 21 plans; 03-12 pending human-verify)
+**Progress:** [███████████████] 100% (32 / 32 plans; Phase 03.1 verified after `quick/20260515-phase-031-verification-gaps` closed BLOCKER-GAP-01 + INFO-GAP-03)
 
 **Pre-Flight Gate (Phase 1):**
 
@@ -219,10 +220,13 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260416-tlm | Build Tic-Tac-Toe Duel sample app demonstrating Phase 1 GameKit | 2026-04-17 | 677260e | [260416-tlm-build-tic-tac-toe-duel-sample-app-demons](./quick/260416-tlm-build-tic-tac-toe-duel-sample-app-demons/) |
+| 20260515 | Phase 03.1 verification-gap closure: BLOCKER-GAP-01 (PlayerDetailPane admin lookup), Blazor Server ConfigureAwait regression, INFO-GAP-03 (Tweaks panel aria-checked timing); +2 bUnit regression tests; VERIFICATION.md flipped to 6/6 | 2026-05-15 | ded277d | [20260515-phase-031-verification-gaps](./quick/20260515-phase-031-verification-gaps/) |
 
 ## Session Continuity
 
-**Last action:** 2026-04-26T (sequential executor) — Plan 03-13 complete (Wave 6): ROADMAP SC#1–SC#6 integration test matrix. Six new test files in `tests/GameKit.Admin.Integration.Tests/`: RoadmapScenarioTests (SC#1 mount + bootstrap + login + 3-mode search), ProductionGateTests (SC#2 — 4 facts: Production 404 / Development 302 / startup throw / login reachable), CrossSchemeIsolationTests (SC#6 — player JWT 404 in Production + ≠200 in Development via FakePlayerJwtIssuer + Bearer header), CspAndAntiforgeryTests (SC#5 — 7-directive mandatory CSP + unique nonces + scoped to /admin/* + 400 csrf_validation_failed on POST /ban without antiforgery), PanelRenderTests (SC#4 — `Install GameKit.Matchmaking` + `Install GameKit.Rankings` placeholders + 3-probe HealthReport + match-history join), MountPathTests (ADMIN-02 — custom prefix relocates API only; Blazor shell stays at /admin). 1 deviation auto-fixed: AdminCspNonceMiddleware ContainsKey-guard removed so the strict GameKit policy takes precedence over ASP.NET Core's static-SSR default `frame-ancestors 'self'` (Rule 1 bug; the override is safe — middleware is already path-prefix gated). 1 modification: AdminTestHost.StartAsync gains `configureAdmin` callback for per-test options. Commits: `9a862da` (t1: 6 facts) + `954c35e` (t2: 7 facts + middleware fix). Admin.Integration.Tests 23 → 53 (+30 from this plan + sibling Wave 5/6 plans); Admin.Tests unchanged at 54/0/0. Phase 3 SC matrix is now anchored end-to-end. Pre-existing Auth integration `PendingModelChangesWarning` failures (38/44) remain out of scope (deferred-items.md, captured by 03-10 executor). Phase 3 close-out depends only on plan 03-12's pending operator walkthrough.
+**Last action:** 2026-05-15T (quick task) — `.planning/quick/20260515-phase-031-verification-gaps/` complete. Closed the three open Phase 03.1 verification items: (1) BLOCKER-GAP-01 — `PlayerDetailPane.LoadAsync` now resolves the banning admin's username via `Db.Set<AdminUser>().AsNoTracking()` against `gamekit.admin_users` (the prior `IPlayerDisplayNameResolver` path queried `players`, which by design never holds admin IDs, so every human-issued ban rendered the deleted-player tombstone); (2) Blazor Server anti-pattern — removed both `ConfigureAwait(false)` calls in `PlayerDetailPane.LoadAsync` (continuations subsequently call `StateHasChanged()`); (3) INFO-GAP-03 — `openTweaks()` in `gamekit-admin.js` now invokes `applyAttrs(loadTweaks())` so aria-checked reflects the persisted selection before the Tweaks panel becomes visible (the deferred-script bundle-init call ran before Blazor mounted the panel). Removed the stale `@inject IPlayerDisplayNameResolver` directive from `PlayerDetailPane.razor` and the now-unused `NoopDisplayNameResolver` registration from `PlayersWorkspaceTests`. New regression test `PlayerDetailPaneBanAttributionTests` (2 facts) seeds an admin row + admin_audit_log ban row and asserts BanBanner ActorName renders the admin's username, with a paired test for the no-audit-row fallback to "unknown actor". Uses a local `BunitContext` disposed via `await using` to avoid the MudBlazor `KeyInterceptorService` IAsyncDisposable-only teardown trap that fires when the full pane (with MudTabs) renders. Admin.Tests 90 → 92; Admin.Integration.Tests 15/15 in isolation (no functional change). VERIFICATION.md re-verified at 6/6.
+
+**Previous action:** 2026-04-26T (sequential executor) — Plan 03-13 complete (Wave 6): ROADMAP SC#1–SC#6 integration test matrix. Six new test files in `tests/GameKit.Admin.Integration.Tests/`: RoadmapScenarioTests (SC#1 mount + bootstrap + login + 3-mode search), ProductionGateTests (SC#2 — 4 facts: Production 404 / Development 302 / startup throw / login reachable), CrossSchemeIsolationTests (SC#6 — player JWT 404 in Production + ≠200 in Development via FakePlayerJwtIssuer + Bearer header), CspAndAntiforgeryTests (SC#5 — 7-directive mandatory CSP + unique nonces + scoped to /admin/* + 400 csrf_validation_failed on POST /ban without antiforgery), PanelRenderTests (SC#4 — `Install GameKit.Matchmaking` + `Install GameKit.Rankings` placeholders + 3-probe HealthReport + match-history join), MountPathTests (ADMIN-02 — custom prefix relocates API only; Blazor shell stays at /admin). 1 deviation auto-fixed: AdminCspNonceMiddleware ContainsKey-guard removed so the strict GameKit policy takes precedence over ASP.NET Core's static-SSR default `frame-ancestors 'self'` (Rule 1 bug; the override is safe — middleware is already path-prefix gated). 1 modification: AdminTestHost.StartAsync gains `configureAdmin` callback for per-test options. Commits: `9a862da` (t1: 6 facts) + `954c35e` (t2: 7 facts + middleware fix). Admin.Integration.Tests 23 → 53 (+30 from this plan + sibling Wave 5/6 plans); Admin.Tests unchanged at 54/0/0. Phase 3 SC matrix is now anchored end-to-end. Pre-existing Auth integration `PendingModelChangesWarning` failures (38/44) remain out of scope (deferred-items.md, captured by 03-10 executor). Phase 3 close-out depends only on plan 03-12's pending operator walkthrough.
 
 **Previous action:** 2026-04-19T14:02:29Z — Plan 03-06 complete (Wave 3): the largest Phase 3 plan. Shipped 6 interface/implementation pairs (IAdminAuditWriter/AdminAuditWriter + 9 namespaced actions in AdminAuditActions; IAdminAuthService/AdminAuthService with real BCrypt 4.1.0 dummy-hash literal for T-03-06-03 timing parity; IPlayerSearchService/PlayerSearchService with public-static ClassifyInput; IPlayerBanService/PlayerBanService with SERIALIZABLE tx + snapshot-before + audit-write; IAdminUserService/AdminUserService with SERIALIZABLE create + 40001-retry + 23505-collision + last-superadmin guard; IHealthProbeService/HealthProbeService with Postgres SELECT 1 + Redis PING + ring-buffer read) + ErrorRateRingBuffer (lock-free, IClock-driven) + LogErrorCounter ILoggerProvider + SuperadminGateHostedService (D-04 Production throw / D-05 Development warn) + 6 DTOs (PaginatedResult<T>, PlayerRow, PlayerSearchResult, HealthReport, HealthTile, SearchMode enum + PlayerSearchClassification record struct) + AdminBuilderExtensions.AddGameKitAdmin (SP-5 wire-up preserving Bearer as default auth scheme per W4) + AdminApplicationBuilderExtensions.UseGameKitAdmin + MapGameKitAdmin + AdminEndpoints placeholder (plan 03-07 replaces body) + AdminTestHost (in-process TestServer with AdminRuntimeQueryCustomizer bypass for FOLLOW-UP-02-03-01 two-service-provider issue under Host.CreateDefaultBuilder + ConfigureWebHostDefaults). 13 new unit tests (audit writer + search classification + auth dummy-hash + ring-buffer decay using FakeClock) + 11 new integration tests (SuperadminGateTests 3 + PlayerBanServiceTests 2 + HealthProbeTests 3 + AuthSchemeIsolationSmokeTests 3). Commits: 3049a3c (t1 services + DTOs + unit tests) + 3aa02bd (t2 health + ring buffer + gate + AdminTestHost + integration tests + GameKit.Auth InternalsVisibleTo grant to GameKit.Admin.Integration.Tests) + fc6abcc (t3 fluent builder). Admin.Tests 35/0/0 (+16 from plan start); Admin.Integration.Tests 14/0/0 (+11). Full solution 17 projects / 0 warnings / 0 errors. Requirements satisfied: ADMIN-03/05/06/10. Ready for Wave 4 plan 03-07 (/admin/api/* 12-endpoint surface).
 

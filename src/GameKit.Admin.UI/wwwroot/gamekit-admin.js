@@ -116,6 +116,13 @@
   function openTweaks() {
     _tweaksOpener = document.activeElement;
     document.documentElement.setAttribute('data-tweaks-open', 'true');
+    // Refresh aria-checked on the radio buttons now that the panel (and its buttons)
+    // are visible. The deferred script's initial applyAttrs() call ran before the
+    // Blazor circuit mounted TweaksPanel, so the button-level reflection found 0
+    // nodes — running it again here guarantees aria-checked is correct before the
+    // operator sees the panel. Idempotent + safe; the <html>-attribute writes inside
+    // applyAttrs are a no-op when the values haven't changed.
+    applyAttrs(loadTweaks());
   }
   function closeTweaks() {
     document.documentElement.removeAttribute('data-tweaks-open');

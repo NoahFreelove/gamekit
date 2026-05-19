@@ -219,9 +219,29 @@ public sealed class MatchmakingService : IMatchmakingService
             return new EnqueueResult(EnqueueOutcome.AlreadyEnqueued, Detail: "ticket_active");
         }
 
-        // Step 6: write Redis state.
+        // Step 6: write Postgres analytics row FIRST so the FK from ticket_events is
+        // satisfied at the moment subsequent Queued/Proposed/Matched/Cancelled events are
+        // drained. Without this, the analytics drain's INSERTs on ticket_events would all
+        // fail with FK_ticket_events_matchmaking_tickets_TicketId — Polly would retry,
+        // exhaust, and drop entire batches (verified at SC#3 load test where 15k events
+        // were silently dropped pre-fix). The cost is one Postgres INSERT per enqueue;
+        // amortised over the existing party + cooldown queries this is a marginal hit.
         var ticketId = _ids.NewId();
         var queuedAtMs = now.ToUnixTimeMilliseconds();
+
+        var ticketRow = new MatchmakingTicket
+        {
+            Id = ticketId,
+            PartyId = partyId,
+            LadderId = ladderId,
+            PoolName = pool,
+            Status = TicketStatus.Queued,
+            QueuedAt = now,
+        };
+        _db.Set<MatchmakingTicket>().Add(ticketRow);
+        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        // Step 7: write Redis state.
         var db = _redis.GetDatabase();
 
         var ticketKey = MatchmakingRedisKeys.Ticket(ticketId);
@@ -245,7 +265,7 @@ public sealed class MatchmakingService : IMatchmakingService
         // ties become indistinguishable and the bracket-flex calculation drifts).
         await db.SortedSetAddAsync(queueKey, ticketId.ToString(), queuedAtMs).ConfigureAwait(false);
 
-        // Step 7: emit Queued ticket event (drained asynchronously into matchmaking_tickets).
+        // Step 8: emit Queued ticket event (drained asynchronously by analytics drain).
         var evt = new TicketEvent
         {
             Id = _ids.NewId(),

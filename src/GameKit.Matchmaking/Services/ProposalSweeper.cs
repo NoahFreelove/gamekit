@@ -61,9 +61,12 @@ public sealed class ProposalSweeper
 
     /// <summary>
     /// Soft cap on proposals reaped per <see cref="SweepAsync"/> call — bounds the per-tick
-    /// work so a backlog cannot stall the matchmaker ticker.
+    /// work so a backlog cannot stall the matchmaker ticker. Empirically tuned for the
+    /// SC#3 1k-concurrent budget: each reap costs ~1-2 ms when pipelined, so 32 reaps fits
+    /// comfortably inside the 50 ms iteration budget alongside the candidate scan phase.
+    /// Remaining over-deadline proposals are picked up on subsequent sweeps (every tick).
     /// </summary>
-    private const int MaxReapsPerSweep = 256;
+    private const int MaxReapsPerSweep = 32;
 
     /// <summary>Constructs the sweeper.</summary>
     /// <param name="redis">Redis connection multiplexer.</param>
@@ -111,40 +114,55 @@ public sealed class ProposalSweeper
 
         var reaped = 0;
 
-        // IServer.Keys is a thin SCAN wrapper (NOT KEYS) — the Redis-internal implementation
-        // pages with COUNT=ScanPageSize without ever blocking the server. We narrow the scan
-        // to proposal hashes only and skip the per-proposal accept-tracker subkeys.
+        // PERF (SC#3): bounded per-pass batch + pipelined HGETALL fan-out. Collect candidate
+        // keys first (cheap SCAN), then fan out a single HashGetAllAsync per key in parallel
+        // via the StackExchange.Redis multiplexer — collapses N round-trips into one batch.
+        var candidateKeys = new List<RedisKey>(ScanPageSize);
         foreach (var key in server.Keys(pattern: "mm:proposal:*", pageSize: ScanPageSize))
+        {
+            var keyString = key.ToString();
+            if (keyString.EndsWith(MatchmakingRedisKeys.ProposalAcceptsSuffix, StringComparison.Ordinal))
+                continue;
+            candidateKeys.Add(key);
+            if (candidateKeys.Count >= MaxReapsPerSweep) break;
+        }
+
+        // Pipeline HGETALL on each candidate proposal hash. The multiplexer batches concurrent
+        // commands; awaiting at the end collapses N round-trips into one.
+        var headTasks = new (RedisKey Key, Task<HashEntry[]> Task)[candidateKeys.Count];
+        for (var idx = 0; idx < candidateKeys.Count; idx++)
+            headTasks[idx] = (candidateKeys[idx], db.HashGetAllAsync(candidateKeys[idx]));
+        await Task.WhenAll(headTasks.Select(t => t.Task)).ConfigureAwait(false);
+
+        foreach (var (key, headTask) in headTasks)
         {
             ct.ThrowIfCancellationRequested();
             if (reaped >= MaxReapsPerSweep) break;
 
             var keyString = key.ToString();
-            // Skip the per-proposal accept-tracker subkey (suffix ":accepts") — we look at it
-            // via HGETALL on the parent below.
-            if (keyString.EndsWith(MatchmakingRedisKeys.ProposalAcceptsSuffix, StringComparison.Ordinal))
+            var hash = headTask.Result;
+            if (hash.Length == 0)
                 continue;
 
-            // HGETALL the proposal hash. The ticker writes a "deadlineMs" field (Unix ms)
-            // alongside the "fields" JSON + "tickets" CSV — the sweeper compares deadlineMs
-            // to the current clock to detect timed-out proposals. We do NOT rely on the
-            // Redis KEY TTL because the Lua script's EXPIRE on the proposal hash is the
-            // proposal-service's expiry-cleanup signal (Plan 05-06): once the TTL expires,
-            // Redis deletes the hash entirely, and SCAN never sees it. The sweeper instead
-            // needs to find proposals whose deadline is past BUT whose hash is still present.
-            var fieldsRedis = await db.HashGetAsync(key, "fields").ConfigureAwait(false);
-            var deadlineMsRedis = await db.HashGetAsync(key, "deadlineMs").ConfigureAwait(false);
+            string? fieldsRedis = null;
+            string? deadlineMsRedis = null;
+            string? ticketsRedis = null;
+            foreach (var e in hash)
+            {
+                var n = e.Name.ToString();
+                switch (n)
+                {
+                    case "fields": fieldsRedis = e.Value.ToString(); break;
+                    case "deadlineMs": deadlineMsRedis = e.Value.ToString(); break;
+                    case "tickets": ticketsRedis = e.Value.ToString(); break;
+                }
+            }
 
-            // Pitfall §11 / consistency: the proposal could have completed between SCAN and
-            // HGETALL — the hash is gone. Skip silently.
-            if (!fieldsRedis.HasValue)
+            if (string.IsNullOrEmpty(fieldsRedis))
                 continue;
 
-            // If the deadlineMs field is missing OR the deadline is in the future, leave the
-            // proposal alone. The proposal service (Plan 05-06) clears the deadline on
-            // all-accept or all-decline so the sweeper does NOT race the happy path.
-            if (!deadlineMsRedis.HasValue ||
-                !long.TryParse(deadlineMsRedis.ToString(), out var deadlineMs) ||
+            if (string.IsNullOrEmpty(deadlineMsRedis) ||
+                !long.TryParse(deadlineMsRedis, out var deadlineMs) ||
                 deadlineMs > now.ToUnixTimeMilliseconds())
             {
                 continue;
@@ -152,25 +170,17 @@ public sealed class ProposalSweeper
 
             // The proposal deadline has elapsed. Identify accepting vs. declining tickets via
             // the accept-tracker subkey set membership (mm:proposal:{id}:accepts). The set's
-            // member format is "ticket:{ticketId}" — Plan 05-06 will write entries on accept.
+            // member format is "ticket:{ticketId}" — Plan 05-06 writes entries on accept.
             var acceptsKey = (RedisKey)(keyString + MatchmakingRedisKeys.ProposalAcceptsSuffix);
 
-            // Parse the participating ticket ids from the "tickets" field of the proposal hash.
-            // The Lua claim writes the JSON blob into "fields"; for the sweeper to know which
-            // ticket ids participated, the proposal hash also gets a "tickets" comma-separated
-            // field (the ticker writes this alongside "fields" — see MatchmakerTickerService
-            // BuildProposalHashFields).
-            var ticketsRedis = await db.HashGetAsync(key, "tickets").ConfigureAwait(false);
-            if (!ticketsRedis.HasValue)
+            if (string.IsNullOrEmpty(ticketsRedis))
             {
-                // Proposal hash is malformed; skip + log once. Do NOT delete — the proposal
-                // service / reconciler will eventually clean it up.
                 _logger.LogWarning(
                     "ProposalSweeper: proposal {Key} missing 'tickets' field — skipping.", keyString);
                 continue;
             }
 
-            var ticketIds = ParseTicketIds(ticketsRedis.ToString());
+            var ticketIds = ParseTicketIds(ticketsRedis);
             if (ticketIds.Count == 0)
                 continue;
 
@@ -188,36 +198,53 @@ public sealed class ProposalSweeper
                 }
             }
 
-            // For each accepting ticket: re-ZADD into the pool queue with the ORIGINAL
-            // queuedAt score (read from the ticket's hash, preserved per D-09). Write
-            // a TimedOut + back-to-Queued ticket-event into the analytics channel.
-            // For each declining/timed-out ticket: PUBLISH "cancelled" to mm:status:{id}
-            // and write a Cancelled ticket-event.
-            foreach (var tid in ticketIds)
+            // PERF (SC#3): pipeline the per-ticket HGETALL fan-out so all participants in a
+            // proposal can be reaped in ~1 round-trip rather than N. Then collect the
+            // mutation tasks (ZADD / PUBLISH / HSET / DEL) and await them in a batch.
+            var ticketHashTasks = new (Guid Tid, Task<HashEntry[]> Task)[ticketIds.Count];
+            for (var ti = 0; ti < ticketIds.Count; ti++)
+            {
+                var tid = ticketIds[ti];
+                ticketHashTasks[ti] = (tid, db.HashGetAllAsync(MatchmakingRedisKeys.Ticket(tid)));
+            }
+            await Task.WhenAll(ticketHashTasks.Select(t => t.Task)).ConfigureAwait(false);
+
+            var mutationTasks = new List<Task>(ticketIds.Count * 3 + 2);
+            foreach (var (tid, hashTask) in ticketHashTasks)
             {
                 ct.ThrowIfCancellationRequested();
-
                 var ticketKey = MatchmakingRedisKeys.Ticket(tid);
-                var ticketHash = await db.HashGetAllAsync(ticketKey).ConfigureAwait(false);
-                var hashMap = ticketHash.ToDictionary(
-                    e => e.Name.ToString(), e => e.Value.ToString());
+                var ticketHash = hashTask.Result;
+
+                // Walk the HashEntry[] once — same pattern as MatchmakerTickerService for parity.
+                long queuedAtMs = 0; bool haveQueuedAt = false;
+                Guid? ladderId = null;
+                string? poolName = null;
+                foreach (var e in ticketHash)
+                {
+                    var n = e.Name.ToString();
+                    if (n == "queuedAt")
+                    {
+                        if (long.TryParse(e.Value.ToString(), out var q)) { queuedAtMs = q; haveQueuedAt = true; }
+                    }
+                    else if (n == "ladderId")
+                    {
+                        if (Guid.TryParse(e.Value.ToString(), out var l)) ladderId = l;
+                    }
+                    else if (n == "poolName")
+                    {
+                        poolName = e.Value.ToString();
+                    }
+                }
 
                 if (acceptedTicketIds.Contains(tid))
                 {
-                    // Accepting party — re-ZADD with original queuedAt score (D-09).
-                    if (hashMap.TryGetValue("queuedAt", out var queuedAtStr) &&
-                        long.TryParse(queuedAtStr, out var queuedAtMs) &&
-                        hashMap.TryGetValue("ladderId", out var ladderIdStr) &&
-                        Guid.TryParse(ladderIdStr, out var ladderId) &&
-                        hashMap.TryGetValue("poolName", out var poolName))
+                    if (haveQueuedAt && ladderId.HasValue && !string.IsNullOrEmpty(poolName))
                     {
-                        var queueKey = MatchmakingRedisKeys.Queue(ladderId, poolName);
-                        await db.SortedSetAddAsync(queueKey, tid.ToString(), queuedAtMs)
-                            .ConfigureAwait(false);
-                        await db.HashSetAsync(
-                            ticketKey,
-                            [new HashEntry("status", "Queued")])
-                            .ConfigureAwait(false);
+                        var queueKey = MatchmakingRedisKeys.Queue(ladderId.Value, poolName);
+                        mutationTasks.Add(db.SortedSetAddAsync(queueKey, tid.ToString(), queuedAtMs));
+                        mutationTasks.Add(db.HashSetAsync(ticketKey,
+                            [new HashEntry("status", "Queued")]));
 
                         await TryWriteEventAsync(new TicketEvent
                         {
@@ -237,11 +264,9 @@ public sealed class ProposalSweeper
                 }
                 else
                 {
-                    // Declining or timed-out ticket — PUBLISH cancellation + write event.
-                    await subscriber.PublishAsync(
+                    mutationTasks.Add(subscriber.PublishAsync(
                         RedisChannel.Literal(MatchmakingRedisKeys.StatusChannel(tid)),
-                        "cancelled")
-                        .ConfigureAwait(false);
+                        "cancelled"));
 
                     await TryWriteEventAsync(new TicketEvent
                     {
@@ -255,14 +280,18 @@ public sealed class ProposalSweeper
             }
 
             // Delete the proposal hash + accept-tracker — proposal is fully reaped.
-            await db.KeyDeleteAsync(key).ConfigureAwait(false);
-            await db.KeyDeleteAsync(acceptsKey).ConfigureAwait(false);
+            mutationTasks.Add(db.KeyDeleteAsync(key));
+            mutationTasks.Add(db.KeyDeleteAsync(acceptsKey));
+
+            await Task.WhenAll(mutationTasks).ConfigureAwait(false);
 
             reaped++;
+        }
 
+        if (reaped > 0)
+        {
             _logger.LogInformation(
-                "ProposalSweeper: reaped proposal {Key} ({Accepted}/{Total} accepted; rest cancelled).",
-                keyString, acceptedTicketIds.Count, ticketIds.Count);
+                "ProposalSweeper: reaped {Count} proposals.", reaped);
         }
 
         return reaped;

@@ -86,7 +86,16 @@ public static class MatchmakingRateLimitRegistrations
         // endpoint requires authorization so the fallback is purely defensive).
         opt.AddPolicy(names.MmEnqueue, httpContext =>
         {
-            var playerId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            // Phase 2 D-03 sets MapInboundClaims=false on AddJwtBearer, so the JWT 'sub'
+            // claim is NOT auto-mapped to ClaimTypes.NameIdentifier. Check the literal 'sub'
+            // first (the canonical authn claim under our token policy), fall back to
+            // NameIdentifier for any consumer that does enable inbound mapping, and only
+            // then fall back to RemoteIp. Without the 'sub' check, every authenticated
+            // request collapses onto a single RemoteIp bucket — production traffic behind
+            // a load balancer that does not forward client IP would hit the per-IP limit
+            // in milliseconds.
+            var playerId = httpContext.User.FindFirst("sub")?.Value
+                        ?? httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var partitionKey = string.IsNullOrEmpty(playerId)
                 ? httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"
                 : $"player:{playerId}";

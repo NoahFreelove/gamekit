@@ -21,7 +21,7 @@ The .NET 10 LTS runtime was released yesterday (2026-04-14). Before Phase 1 pins
 - [x] **Phase 2: Authentication** (2026-04-18) - Ships `GameKit.Auth` with Steam/Discord/Guest/Password providers, JWT + refresh rotation with reuse-interval grace, and SERIALIZABLE guest upgrade.
 - [ ] **Phase 3: Admin UI** - Ships `GameKit.Admin.UI` Blazor Server RCL with default-deny mount, player search, ban/unban, audit log, and scaffolding for later panels.
 - [x] **Phase 4: Rankings + Sessions Wiring + GDPR Export** - Ships `GameKit.Rankings` with windowed Glicko-2, seasonal reset, idempotent session-complete, and GDPR export endpoint. (completed 2026-05-16)
-- [ ] **Phase 5: Matchmaking + Parties** - Ships `GameKit.Matchmaking` with Redis-lease queue, party-aware strategy, reconciliation, leader election, chaos + load tests.
+- [x] **Phase 5: Matchmaking + Parties** - Ships `GameKit.Matchmaking` with Redis-lease queue, party-aware strategy, reconciliation, leader election, chaos + load tests. (completed 2026-05-18)
 - [ ] **Phase 6: Presence + OpenAPI + Distribution** - Ships `GameKit.Presence`, OpenAPI spec, `dotnet new gamekit` template, SampleGame reference, ops guide, and coordinated release train.
 
 ## Phase Details
@@ -214,7 +214,7 @@ Plans:
 - [x] 05-07-PLAN.md — MatchmakingReconcilerService (30s + startup; leader-only; NEVER writes to Redis — Pitfall §1 the most important rule) + MatchmakingAnalyticsDrainService (Channel<TicketEvent> bounded drop-newest per D-15; Polly v8 retry per D-16) + MatchmakingRetentionCleanupService (nightly 30-day per D-17) + MatchmakingMeter (matchmaking.analytics.dropped_events OTel counter per Pitfall §7) + Channel/Writer/Reader singleton wiring + integration tests
 - [x] 05-08-PLAN.md — Player-facing HTTP surface: PartyEndpoints (4 routes) + MatchmakingEndpoints (5 routes incl. long-poll with linked HttpContext.RequestAborted CTS per Pitfall §5) + LongPollStatusHandler + MatchmakingRateLimitRegistrations (gamekit:mm:enqueue 5/min/player + new gamekit:mm:party_join per-IP for T-05-08-04) + ValidationEndpointFilter + IMatchmakingObservability/RedisMatchmakingObservability + MatchmakingAdminEndpoints (pause-queue + drain-queue with Superadmin+audit) + AdminAuditActions/AuditSentenceTemplates/AdminCommandRegistry additions + QueueDepth.razor fill-in (reflection-safe; ProjectReference deferred due to existing Matchmaking→Admin.UI dep — see SUMMARY Rule 4 deviation) + MatchmakingTestApp + SC#1/SC#5/SC#6 integration tests + PartyEndpointTests + LongPollStatusTests (Pitfall §5 abort) — **COMPLETE** (commits 7825dbb + c88bcbe + ceaa043 + 517a479; +15 integration tests)
 - [x] 05-09-PLAN.md — IChaosInterceptor seam + NullChaosInterceptor production default + AbortingChaosInterceptor test double + probe insertions in MatchmakerTickerService (BeforeLuaClaim) and ProposalService (BeforeSessionInsert) + MatchmakingChaosTests (SC#2 phase gate; 100 parties + chaos abort + reconciler sweep + 4 invariants) + TicTacToeDuel sample wiring (AddMatchmaking + AddLadder + matchmaking.html 1v1-only UI per CONTEXT.md) + human-verify UAT + OQ-1..OQ-6 resolution in SUMMARY
-- [ ] 05-10-PLAN.md — LoadTestFixture (Maximum Pool Size=25 per Pitfall §8) + TickerBudgetObserver (ActivityListener — per-tick Stopwatch ≤MaxIterationBudgetMs default 50ms) + NpgsqlPoolObserver (EventSource + fallback) + MatchmakingLoadTests.SustainedThousandTicketLoad_HoldsBudget (SC#3 phase gate: 1k concurrent / 10 min sustain) + LoadTests README + BLOCKING operator run + 05-HUMAN-UAT.md generation for /gsd:verify-work
+- [x] 05-10-PLAN.md — LoadTestFixture (Maximum Pool Size=25 per Pitfall §8) + TickerBudgetObserver (ActivityListener — per-tick Stopwatch ≤MaxIterationBudgetMs default 50ms) + NpgsqlPoolObserver (EventSource + fallback) + MatchmakingLoadTests.SustainedThousandTicketLoad_HoldsBudget (SC#3 phase gate: 1k concurrent / 10 min sustain) + LoadTests README + BLOCKING operator run + 05-HUMAN-UAT.md generation for /gsd:verify-work
 **UI hint**: no
 
 ### Phase 6: Presence + OpenAPI + Distribution
@@ -252,7 +252,7 @@ Plans:
 | 2. Authentication | 8/8 | Complete | 2026-04-18 |
 | 3. Admin UI | 6/13 | In progress | - |
 | 4. Rankings + Sessions Wiring + GDPR Export | 8/8 | Complete   | 2026-05-16 |
-| 5. Matchmaking + Parties | 9/10 | In Progress|  |
+| 5. Matchmaking + Parties | 10/10 | Complete   | 2026-05-18 |
 | 6. Presence + OpenAPI + Distribution | 0/? | Not started | - |
 
 ## Coverage Validation

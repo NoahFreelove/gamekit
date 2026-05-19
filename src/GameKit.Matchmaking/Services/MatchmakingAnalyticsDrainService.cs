@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -243,15 +244,115 @@ internal sealed class MatchmakingAnalyticsDrainService : BackgroundService, IMat
     }
 
     /// <summary>
-    /// Inserts a single batch under a fresh scope. The scope's <see cref="GameKitDbContext"/>
-    /// is disposed before Polly's retry sleep so the Npgsql connection returns to the pool
-    /// (Pitfall §8 — never hold a connection across a Polly retry delay).
+    /// Inserts a single batch under a fresh scope and reflects terminal-state transitions
+    /// onto the corresponding <c>matchmaking_tickets</c> rows. The scope's
+    /// <see cref="GameKitDbContext"/> is disposed before Polly's retry sleep so the Npgsql
+    /// connection returns to the pool (Pitfall §8 — never hold a connection across a Polly
+    /// retry delay).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Status mirroring (Phase 5 SC#3 fix).</b> Beyond inserting the per-event row, the
+    /// drain advances the <c>matchmaking_tickets.Status</c> column to reflect the latest
+    /// observed event type. The row itself is created synchronously by
+    /// <c>MatchmakingService.EnqueueAsync</c> at <see cref="TicketStatus.Queued"/>; this
+    /// method walks the per-batch events in <c>OccurredAt</c> order and applies the highest
+    /// terminal precedence. Mapping:
+    /// <list type="bullet">
+    ///   <item><see cref="TicketEventType.Proposed"/> → <see cref="TicketStatus.Proposed"/></item>
+    ///   <item><see cref="TicketEventType.Accepted"/> → <see cref="TicketStatus.Accepted"/></item>
+    ///   <item><see cref="TicketEventType.Matched"/> → <see cref="TicketStatus.Matched"/> + <c>TerminalAt</c></item>
+    ///   <item><see cref="TicketEventType.Cancelled"/> → <see cref="TicketStatus.Cancelled"/> + <c>TerminalAt</c></item>
+    ///   <item><see cref="TicketEventType.Declined"/> → <see cref="TicketStatus.Declined"/> + <c>TerminalAt</c></item>
+    ///   <item><see cref="TicketEventType.TimedOut"/> → <see cref="TicketStatus.TimedOut"/> + <c>TerminalAt</c></item>
+    ///   <item><see cref="TicketEventType.Expired"/> → <see cref="TicketStatus.Expired"/> + <c>TerminalAt</c></item>
+    ///   <item><see cref="TicketEventType.Queued"/> (re-queue after partial accept) → <see cref="TicketStatus.Queued"/>, clear <c>TerminalAt</c></item>
+    /// </list>
+    /// The reconciler's stale-ticket sweep still owns the orphan-detection path (tickets
+    /// that ended in Redis without a terminal event ever reaching us); this method only
+    /// advances state on observed events.
+    /// </para>
+    /// </remarks>
     private async Task FlushBatchAsync(IReadOnlyList<TicketEvent> batch, CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<GameKitDbContext>();
+
+        // 1) Append the per-event audit rows.
         ctx.Set<TicketEvent>().AddRange(batch);
+
+        // 2) Compute the latest event per ticket, then bulk-load the affected ticket rows
+        //    and apply the new status. We use ExecuteUpdateAsync-equivalent per ticket via
+        //    tracked entities — the batch is small (default DrainBatchSize=100) and grouping
+        //    by ticket keeps the round-trip to one round-trip per distinct ticket id.
+        var latestPerTicket = new Dictionary<Guid, TicketEvent>(capacity: batch.Count);
+        foreach (var ev in batch)
+        {
+            if (!latestPerTicket.TryGetValue(ev.TicketId, out var existing) || ev.OccurredAt > existing.OccurredAt)
+                latestPerTicket[ev.TicketId] = ev;
+        }
+
+        if (latestPerTicket.Count > 0)
+        {
+            var ticketIds = latestPerTicket.Keys.ToArray();
+            var rows = await ctx.Set<MatchmakingTicket>()
+                .Where(t => ticketIds.Contains(t.Id))
+                .ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            foreach (var row in rows)
+            {
+                if (!latestPerTicket.TryGetValue(row.Id, out var ev))
+                    continue;
+                ApplyStatusFromEvent(row, ev);
+            }
+        }
+
         await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
     }
+
+    /// <summary>Maps a <see cref="TicketEvent"/> onto the latest <see cref="TicketStatus"/>.</summary>
+    private static void ApplyStatusFromEvent(MatchmakingTicket row, TicketEvent ev)
+    {
+        switch (ev.EventType)
+        {
+            case TicketEventType.Queued:
+                row.Status = TicketStatus.Queued;
+                row.TerminalAt = null;
+                break;
+            case TicketEventType.Proposed:
+                // Only forward — do not roll back from a terminal status to Proposed.
+                if (!IsTerminal(row.Status))
+                    row.Status = TicketStatus.Proposed;
+                break;
+            case TicketEventType.Accepted:
+                if (!IsTerminal(row.Status))
+                    row.Status = TicketStatus.Accepted;
+                break;
+            case TicketEventType.Matched:
+                row.Status = TicketStatus.Matched;
+                row.TerminalAt = ev.OccurredAt;
+                break;
+            case TicketEventType.Cancelled:
+                row.Status = TicketStatus.Cancelled;
+                row.TerminalAt = ev.OccurredAt;
+                break;
+            case TicketEventType.Declined:
+                row.Status = TicketStatus.Declined;
+                row.TerminalAt = ev.OccurredAt;
+                break;
+            case TicketEventType.TimedOut:
+                row.Status = TicketStatus.TimedOut;
+                row.TerminalAt = ev.OccurredAt;
+                break;
+            case TicketEventType.Expired:
+                row.Status = TicketStatus.Expired;
+                row.TerminalAt = ev.OccurredAt;
+                break;
+        }
+    }
+
+    private static bool IsTerminal(TicketStatus s) =>
+        s == TicketStatus.Matched || s == TicketStatus.Cancelled || s == TicketStatus.Declined ||
+        s == TicketStatus.TimedOut || s == TicketStatus.Expired;
 }

@@ -90,11 +90,15 @@ public sealed class EloRangeMatchmakingStrategy : IMatchmakingStrategy
 
         var candidateBracket = Bracket(cfg, (now - candidate.QueuedAt).TotalSeconds);
 
-        // Iterate pool oldest-waiter-first (Pitfall §6 — sorted-set score = Unix ms). The caller
-        // is expected to pass an oldest-first ordering already; we re-sort defensively to make
-        // the strategy's behavior contract explicit and independent of caller ordering bugs.
-        foreach (var p in pool.OrderBy(x => x.QueuedAt))
+        // PERF (SC#3): caller (MatchmakerTickerService) sources pool from ZRANGEBYSCORE
+        // Ascending → already oldest-first. The previous defensive `.OrderBy(...)` on every
+        // Match() invocation cost O(N log N) per candidate × N candidates = O(N² log N)
+        // overhead on the 50ms hot path. We assume the documented contract (caller passes
+        // oldest-first) and iterate directly. Unit tests pass pre-sorted lists too.
+        for (var idx = 0; idx < pool.Count; idx++)
         {
+            var p = pool[idx];
+
             // A ticket cannot match itself.
             if (p.TicketId == candidate.TicketId)
                 continue;

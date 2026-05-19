@@ -106,6 +106,14 @@ public sealed class EloRangeStrategyTests
     {
         // Candidate rating 1500, queued 30s ago → bracket = 100 + 400 * 30/40 = 400.
         // Two pool entries both in bracket; older one MUST be picked.
+        //
+        // CONTRACT (Phase 5 SC#3 perf fix): the strategy NO LONGER defensively re-sorts the
+        // pool on every Match() invocation — that cost was the dominant overhead at the
+        // 50ms tick budget. The caller (MatchmakerTickerService) is the source of truth for
+        // oldest-first ordering via ZRANGEBYSCORE Ascending. This test honors the contract
+        // by passing the pool in oldest-first order; the OldestFirst_ContractWithCaller
+        // case below verifies the strategy DOES preserve oldest-first when the contract is
+        // honored.
         var strategy = BuildStrategy(DefaultCfg());
         var candidate = Party(1500, Now.AddSeconds(-30));
         var oldId = Guid.NewGuid();
@@ -113,8 +121,8 @@ public sealed class EloRangeStrategyTests
         var older = Party(1550, Now.AddSeconds(-60), ticketId: oldId); // queued 60s ago, very old
         var newer = Party(1550, Now.AddSeconds(-5), ticketId: newId);  // queued 5s ago
 
-        // Pool order intentionally REVERSED to verify the strategy re-sorts by QueuedAt.
-        var result = strategy.Match(candidate, new[] { newer, older }, Now);
+        // Caller passes oldest-first per the new contract (ZRANGEBYSCORE Ascending).
+        var result = strategy.Match(candidate, new[] { older, newer }, Now);
         Assert.NotNull(result);
         Assert.Equal(oldId, result!.MatchedTickets[1].TicketId);
     }

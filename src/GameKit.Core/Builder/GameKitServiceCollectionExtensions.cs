@@ -57,6 +57,17 @@ public static class GameKitServiceCollectionExtensions
 
         services.AddScoped<IGdprDeleteService, GdprDeleteService>();
 
+        // Session-complete service (D-22) — optional ports (IPostSessionCompleteHandler,
+        // IIdempotencyStore, ICanonicalRequestHasher) use GetService<T> (returns null when absent)
+        // so Core-only installs operate in degraded mode (Open Q6) without DI throwing.
+        services.AddScoped<ISessionCompleteService>(sp => new SessionCompleteService(
+            sp.GetRequiredService<GameKitDbContext>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SessionCompleteService>>(),
+            sp.GetService<IPostSessionCompleteHandler>(),
+            sp.GetService<IIdempotencyStore>(),
+            sp.GetService<ICanonicalRequestHasher>()));
+
         services.AddSingleton<IGameKitRateLimitPolicies, GameKitRateLimitPolicies>();
 
         // UseApplicationServiceProvider wires the app DI into EF so GameKitDbContext.OnModelCreating

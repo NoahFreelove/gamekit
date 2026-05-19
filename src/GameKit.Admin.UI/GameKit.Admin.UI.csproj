@@ -23,6 +23,9 @@
          test, and the AdminMigrationModelCustomizer must ExcludeFromMigrations Auth's three entities. -->
     <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
     <ProjectReference Include="..\GameKit.Auth\GameKit.Auth.csproj" />
+    <!-- Plan 04-07 controlled dep-direction: Admin.UI references Rankings so EndSeasonDialog
+         can inject IEndSeasonService directly. Rankings does NOT reference Admin.UI (avoids cycle). -->
+    <ProjectReference Include="..\GameKit.Rankings\GameKit.Rankings.csproj" />
   </ItemGroup>
 
   <ItemGroup>

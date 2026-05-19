@@ -19,6 +19,9 @@
          Transitive Blazor build-time cost is accepted; runtime cost is zero because the
          CLI never mounts Blazor. -->
     <ProjectReference Include="..\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
+    <!-- Plan 04-04: GameKit.Rankings brings ServiceToken entities + RankingsMigrationModelCustomizer
+         (internal, reachable via InternalsVisibleTo("GameKit.Cli") on GameKit.Rankings). -->
+    <ProjectReference Include="..\GameKit.Rankings\GameKit.Rankings.csproj" />
     <PackageReference Include="Spectre.Console.Cli" />
   </ItemGroup>
 </Project>

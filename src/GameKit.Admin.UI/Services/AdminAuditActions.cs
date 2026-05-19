@@ -35,4 +35,10 @@ public static class AdminAuditActions
 
     /// <summary>An admin login attempt failed (wrong password, unknown user, or locked account).</summary>
     public const string SessionLoginFailure = "admin.session.login.failure";
+
+    /// <summary>Audit action emitted when a superadmin ends a ladder season (RANK-10 / D-11 / plan 04-07).</summary>
+    public const string LadderEndSeason = "admin.ladder.end_season";
+
+    /// <summary>Audit action emitted when an operator exports a player's GDPR data bundle (RANK-13 / D-16 / plan 04-08).</summary>
+    public const string PlayerGdprExport = "admin.player.gdpr_export";
 }

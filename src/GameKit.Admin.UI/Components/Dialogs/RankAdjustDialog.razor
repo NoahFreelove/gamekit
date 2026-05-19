@@ -1,0 +1,206 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    Rank-Adjust dialog — Plan 04-08 D-19 / RANK-12.
+    Allows a Superadmin to manually adjust a player's rating on a specific ladder.
+
+    DI PATTERN: same as BanPlayerDialog — calls IRankAdjustService directly via DI
+    rather than HTTP loopback. Blazor Server's authenticated circuit identity authorises
+    the action; CSRF protection exists on the HTTP endpoint for external callers only.
+
+    The dialog populates a ladder selector from gamekit.ladders WHERE IsActive.
+    FluentValidation (RankAdjustRequestValidator) runs inline before the service call.
+
+    On success: dialog closes with Data=RankAdjustResult. On validation failure: inline error.
+    On unexpected exception: inline alert (retryable).
+*@
+@namespace GameKit.Admin.UI.Components.Dialogs
+@using GameKit.Core.Data
+@using GameKit.Rankings.Entities
+@using GameKit.Rankings.Http.Contracts
+@using GameKit.Rankings.Services
+@inject IRankAdjustService RankAdjustSvc
+@inject FluentValidation.IValidator<RankAdjustRequest> Validator
+@inject AuthenticationStateProvider AuthState
+@inject GameKitDbContext Db
+
+<MudDialog Class="dialog dialog-danger">
+    <TitleContent>
+        <span>Adjust rating for @DisplayName</span>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="dialog-body">
+            Manually overrides a player's rating on the selected ladder. The rating-deviation and
+            volatility are NOT changed (D-20). This action writes an entry to the admin audit log.
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" role="alert">@_errorMessage</MudAlert>
+        }
+
+        <MudSelect T="Guid"
+                   @bind-Value="_ladderId"
+                   Label="Ladder"
+                   Variant="Variant.Outlined"
+                   FullWidth="true"
+                   Disabled="@_submitting"
+                   Error="@_ladderError"
+                   ErrorText="@_ladderErrorMessage">
+            @foreach (var ladder in _ladders)
+            {
+                <MudSelectItem T="Guid" Value="@ladder.Id">@ladder.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+        <MudNumericField T="double"
+                         @bind-Value="_newRating"
+                         Label="New Rating"
+                         Min="100"
+                         Max="4000"
+                         Step="1"
+                         Variant="Variant.Outlined"
+                         FullWidth="true"
+                         Disabled="@_submitting"
+                         Error="@_ratingError"
+                         ErrorText="@_ratingErrorMessage" />
+
+        <MudTextField T="string"
+                      @bind-Value="_reason"
+                      Label="Reason (visible to admins only)"
+                      Placeholder="e.g. Rating corrupted during season migration"
+                      HelperText="3–512 characters. Stored verbatim in the audit log."
+                      Lines="3"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Disabled="@_submitting"
+                      Error="@_reasonError"
+                      ErrorText="@_reasonErrorMessage" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="@_submitting">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="SubmitAsync" Disabled="@_submitting">
+            @if (_submitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                <span>Adjusting…</span>
+            }
+            else
+            {
+                <span>Adjust Rating</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    /// <summary>MudDialog instance reference — required to close from within the component.</summary>
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+
+    /// <summary>Target player id.</summary>
+    [Parameter, EditorRequired] public Guid PlayerId { get; set; }
+
+    /// <summary>Target player display name (rendered in the dialog title).</summary>
+    [Parameter, EditorRequired] public string DisplayName { get; set; } = string.Empty;
+
+    private List<Ladder> _ladders = new();
+    private Guid _ladderId;
+    private double _newRating = 1500.0;
+    private string _reason = string.Empty;
+
+    private bool _ladderError;
+    private string? _ladderErrorMessage;
+    private bool _ratingError;
+    private string? _ratingErrorMessage;
+    private bool _reasonError;
+    private string? _reasonErrorMessage;
+
+    private bool _submitting;
+    private string? _errorMessage;
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        // Populate active ladders for the selector.
+        _ladders = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+            .ToListAsync(
+                Db.Set<Ladder>().Where(l => l.IsActive).OrderBy(l => l.Name),
+                CancellationToken.None);
+
+        if (_ladders.Count > 0)
+            _ladderId = _ladders[0].Id;
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private async Task SubmitAsync()
+    {
+        _ladderError = false;
+        _ladderErrorMessage = null;
+        _ratingError = false;
+        _ratingErrorMessage = null;
+        _reasonError = false;
+        _reasonErrorMessage = null;
+        _errorMessage = null;
+
+        var req = new RankAdjustRequest(_ladderId, _newRating, _reason);
+        var validation = await Validator.ValidateAsync(req);
+        if (!validation.IsValid)
+        {
+            foreach (var failure in validation.Errors)
+            {
+                switch (failure.PropertyName)
+                {
+                    case nameof(RankAdjustRequest.LadderId):
+                        _ladderError = true;
+                        _ladderErrorMessage = failure.ErrorMessage;
+                        break;
+                    case nameof(RankAdjustRequest.NewRating):
+                        _ratingError = true;
+                        _ratingErrorMessage = failure.ErrorMessage;
+                        break;
+                    case nameof(RankAdjustRequest.Reason):
+                        _reasonError = true;
+                        _reasonErrorMessage = failure.ErrorMessage;
+                        break;
+                }
+            }
+            return;
+        }
+
+        _submitting = true;
+        try
+        {
+            var actorId = await GetActorIdAsync();
+            var result = await RankAdjustSvc.AdjustAsync(PlayerId, _ladderId, _newRating, _reason, actorId, CancellationToken.None);
+            MudDialog?.Close(DialogResult.Ok(result));
+        }
+        catch (System.Collections.Generic.KeyNotFoundException)
+        {
+            _errorMessage = $"Ladder not found. Please refresh and try again.";
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            _ratingError = true;
+            _ratingErrorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Adjustment failed: {ex.Message}. Try again.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task<Guid> GetActorIdAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var nameId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(nameId, out var id)
+            ? id
+            : throw new InvalidOperationException(
+                "Admin id claim is missing — dialog must run inside an authenticated admin session.");
+    }
+}

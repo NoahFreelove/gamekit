@@ -37,6 +37,7 @@ public static class AdminCommandRegistry
         new("unban",              "Unban player",          "actions", RequiresSuperadmin: false, RequiresTarget: true),
         new("gdpr-delete",        "GDPR-delete player",    "actions", RequiresSuperadmin: true,  RequiresTarget: true),
         new("rank-adjust",        "Adjust player rank",    "actions", RequiresSuperadmin: true,  RequiresTarget: true),
+        new("end-season",         "End ladder season",     "actions", RequiresSuperadmin: true,  RequiresTarget: true),
         // Admin management ---------------------------------------------------
         new("create-admin",       "Create admin",          "admin",   RequiresSuperadmin: true,  RequiresTarget: false),
         new("delete-admin",       "Delete admin",          "admin",   RequiresSuperadmin: true,  RequiresTarget: true),

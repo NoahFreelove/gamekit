@@ -28,6 +28,10 @@
 
     <!-- DI scanning for IModelBuilderExtension / sibling strategies -->
     <PackageReference Include="Scrutor" />
+
+    <!-- HTTP request validation for ValidationEndpointFilter<T> generic filter (plan 04-05) -->
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
   </ItemGroup>
 
 </Project>

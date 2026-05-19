@@ -38,3 +38,9 @@ path = "REUSE.toml"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
 SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["src/GameKit.Rankings/Glicko2/*.cs"]
+precedence = "override"
+SPDX-FileCopyrightText = "2015 Maarten Staa"
+SPDX-License-Identifier = "BSD-3-Clause AND GPL-3.0-or-later"

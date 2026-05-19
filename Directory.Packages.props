@@ -68,6 +68,12 @@
          exempt. AngleSharp resolves transitively. See 03.1-RESEARCH.md §Standard Stack. -->
     <PackageVersion Include="bunit" Version="2.0.66" />
 
+    <!-- Phase 4 Plan 06 — Polly v8 for RankingsTickerLeaseHelper retry pipeline.
+         Pinned deterministically: 8.5.2 is the latest stable 8.5.x patch on nuget.org
+         (released 2025-02-04). Transitive via Microsoft.Extensions.Http.Resilience but
+         the ticker needs ResiliencePipelineBuilder directly for non-HTTP use (CLAUDE.md §7). -->
+    <PackageVersion Include="Polly" Version="8.5.2" />
+
     <!-- Transitive pin to override WireMock.Net.OpenTelemetry/2.2.0's pull of OpenTelemetry.* 1.14.0,
          which carries moderate-severity advisories (GHSA-g94r-2vxg-569j, GHSA-mr8r-92fq-pj8p,
          GHSA-q834-8qmm-v933). 1.15.3 is the lowest stable line clean of all three. The full sibling

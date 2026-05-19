@@ -2,9 +2,18 @@
   <PropertyGroup>
     <RootNamespace>GameKit.Cli.Tests</RootNamespace>
     <AssemblyName>GameKit.Cli.Tests</AssemblyName>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\GameKit.Cli\GameKit.Cli.csproj" />
+    <!-- Rankings is a transitive dep of GameKit.Cli (plan 04-04) but listed explicitly
+         here so the test can reference RankingsMigrationConstants for migration setup. -->
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
     <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
   </ItemGroup>
 </Project>

@@ -9,4 +9,31 @@
   <ItemGroup>
     <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- ASP.NET Core framework reference (AuthenticationHandler, IApplicationBuilder, IEndpointRouteBuilder) -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+    <!-- EF Core + Postgres provider (versions pinned centrally in Directory.Packages.props) -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+
+    <!-- Hosting abstractions for IHostedService supplied by the framework reference above -->
+
+    <!-- Design-time EF Core tooling (dotnet ef migrations add/update) — not shipped in .nupkg -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <!-- FluentValidation for SessionCompleteRequestValidator (plan 04-05) -->
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+
+    <!-- Redis client for RankingsTickerLeaseHelper leader election (plan 04-06, D-03) -->
+    <PackageReference Include="StackExchange.Redis" />
+
+    <!-- Polly v8 for RankingsTickerLeaseHelper resilience pipeline (plan 04-06, D-03) -->
+    <PackageReference Include="Polly" />
+  </ItemGroup>
 </Project>

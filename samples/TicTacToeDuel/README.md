@@ -188,7 +188,8 @@ Signed in as an admin, you can:
 - **Health** — Postgres + Redis connectivity + recent error rate
 - **Admins** (superadmin-only) — list + create + delete admin accounts
 
-Panels for Matchmaking (`Queue depth`) and Rankings (`Rank adjust`) are placeholders until those sibling packages ship (Phases 4 + 5). They detect the missing package at runtime and render installation guidance.
+Rankings (`Rank adjust`, `End season`) verbs are now functional — Phase 4 ships `GameKit.Rankings`.
+Matchmaking (`Queue depth`) remains a placeholder until Phase 5.
 
 ### Security posture
 
@@ -199,6 +200,62 @@ Panels for Matchmaking (`Queue depth`) and Rankings (`Rank adjust`) are placehol
 - Banned players cannot sign in via any provider; their refresh-token family is revoked on the next refresh attempt.
 
 See `.planning/phases/03-admin-ui/03-CONTEXT.md` for the full Phase 3 decision log.
+
+## Rankings (Phase 4)
+
+`GameKit.Rankings` is wired in `Program.cs` with one default ladder named `"main"` (Glicko-2,
+rating period 1 hour, soft-regress on season end). The ticker runs in the background and drains
+batched rating updates every hour.
+
+### Issue a service token (required for session completion)
+
+Match servers report results via `POST /api/sessions/{id}/complete` using a service token
+(not a player JWT). Issue one before running your game server:
+
+```bash
+dotnet gamekit service-token issue --name tic-tac-toe-server \
+  --connection-string "Host=localhost;Port=5432;Database=gamekit;Username=gamekit_owner;Password=gamekit_owner_dev"
+```
+
+Pass the token as `Authorization: Bearer <service-token>` alongside an `Idempotency-Key` header
+(any stable string, e.g. the game session id) in the `POST /api/sessions/{id}/complete` body:
+
+```json
+{
+  "sessionId": "<session-id>",
+  "results": [
+    { "playerId": "<player-a>", "result": "win",  "team": 0, "score": 1 },
+    { "playerId": "<player-b>", "result": "loss", "team": 1, "score": 0 }
+  ]
+}
+```
+
+The ticker will pick up the session on its next drain and update Glicko-2 ratings.
+
+### GDPR export
+
+Players can export their own data bundle:
+
+```
+GET /api/players/{id}/export
+Authorization: Bearer <player-jwt>
+```
+
+Superadmins can export any player's data via the admin API:
+
+```
+GET /admin/api/players/{id}/export
+Cookie: .AspNetCore.GameKitAdmin=<admin-cookie>
+```
+
+Both paths share one REPEATABLE READ snapshot (D-17) and enforce a 25 MB cap (D-18).
+
+### Admin rank-adjust and end-season
+
+In the Admin console, open the command palette (Ctrl+K) and search "Rank adjust" or
+"End season" — both verbs are now functional under the Superadmin policy. Rank-adjust
+opens a dialog that updates a player's rating on a specific ladder (SERIALIZABLE tx + audit
+row). End-season archives the current season's leaderboard and starts a new one.
 
 ## Endpoints used
 

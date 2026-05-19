@@ -5,6 +5,7 @@ using System;
 using System.Threading;
 using GameKit.Core.Data;
 using GameKit.Core.Http;
+using GameKit.Core.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
@@ -63,11 +64,16 @@ public static class GameKitApplicationBuilderExtensions
         return app;
     }
 
-    /// <summary>Maps GameKit.Core endpoints (<c>GET /api/players</c>). Sibling packages add their own maps.</summary>
+    /// <summary>
+    /// Maps GameKit.Core endpoints (<c>GET /api/players</c>, <c>POST /api/sessions/{id}/complete</c>).
+    /// Sibling packages add their own maps.
+    /// </summary>
     public static IEndpointRouteBuilder MapGameKit(this IEndpointRouteBuilder routes)
     {
         ArgumentNullException.ThrowIfNull(routes);
+        var policies = routes.ServiceProvider.GetRequiredService<IGameKitRateLimitPolicies>();
         routes.MapPlayers();
+        routes.MapSessions(policies);
         return routes;
     }
 

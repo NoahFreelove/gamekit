@@ -21,6 +21,9 @@ public sealed class GameKitRateLimitPolicies : IGameKitRateLimitPolicies
     /// <summary>Canonical policy name: <c>gamekit:presence:heartbeat</c>.</summary>
     public const string PresenceHeartbeatPolicy = "gamekit:presence:heartbeat";
 
+    /// <summary>Canonical policy name: <c>gamekit:sessions:complete</c>.</summary>
+    public const string SessionsCompletePolicy = "gamekit:sessions:complete";
+
     /// <inheritdoc />
     public string AuthLogin => AuthLoginPolicy;
 
@@ -35,4 +38,7 @@ public sealed class GameKitRateLimitPolicies : IGameKitRateLimitPolicies
 
     /// <inheritdoc />
     public string PresenceHeartbeat => PresenceHeartbeatPolicy;
+
+    /// <inheritdoc />
+    public string SessionsComplete => SessionsCompletePolicy;
 }

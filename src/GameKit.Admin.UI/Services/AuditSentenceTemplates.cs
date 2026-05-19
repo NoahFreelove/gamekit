@@ -63,6 +63,12 @@ public static class AuditSentenceTemplates
 
             [AdminAuditActions.SigningKeyRotate] = ctx =>
                 new SentenceModel(ctx.ActorName, "rotated JWT signing key", ctx.TargetName ?? "current key", null, ctx.Reason),
+
+            [AdminAuditActions.LadderEndSeason] = ctx =>
+                new SentenceModel(ctx.ActorName, "ended season for ladder", ctx.TargetName ?? "(unknown ladder)", null, ctx.Reason),
+
+            [AdminAuditActions.PlayerGdprExport] = ctx =>
+                new SentenceModel(ctx.ActorName, "GDPR-exported data for", ctx.TargetName ?? "(unknown player)", null, ctx.Reason),
         };
 
     /// <summary>

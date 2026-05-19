@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
   </ItemGroup>
 </Project>

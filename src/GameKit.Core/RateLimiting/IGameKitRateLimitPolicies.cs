@@ -29,4 +29,7 @@ public interface IGameKitRateLimitPolicies
 
     /// <summary><c>POST /presence/heartbeat</c> rate-limit policy name.</summary>
     string PresenceHeartbeat { get; }
+
+    /// <summary>Rate-limit policy name for <c>POST /api/sessions/{id}/complete</c>.</summary>
+    string SessionsComplete { get; }
 }

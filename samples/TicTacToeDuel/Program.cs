@@ -4,18 +4,24 @@
 using GameKit.Admin.UI.Builder;
 using GameKit.Auth.Builder;
 using GameKit.Core.Builder;
+using GameKit.Rankings.Builder;
+using GameKit.Rankings.Entities;
 using TicTacToeDuel.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddGameKit(opts =>
+// Capture the IGameKitBuilder so we can call both .AddAuth() and .AddRankings() on it,
+// then chain .AddGameKitAdmin() on the core builder (not on the rankings builder, which
+// returns IGameKitRankingsBuilder and does not extend IGameKitBuilder).
+var gameKitBuilder = builder.Services.AddGameKit(opts =>
 {
     opts.ConnectionString = builder.Configuration.GetConnectionString("GameKit")
         ?? throw new InvalidOperationException("Missing ConnectionStrings:GameKit");
     opts.MigrationsConnectionString = builder.Configuration.GetConnectionString("GameKitMigrations");
     opts.RedisConnectionString = builder.Configuration.GetConnectionString("Redis");
-})
-.AddAuth(auth =>
+});
+
+gameKitBuilder.AddAuth(auth =>
 {
     // JWT issuance/validation — RSA PEM paths resolve relative to Content Root.
     // Run ./scripts/gen-test-rsa-pem.sh to generate the dev key pair.
@@ -46,8 +52,26 @@ builder.Services.AddGameKit(opts =>
     // Operator-customizable egress allow-list — defaults cover Steam + Discord. Production
     // apps proxying OAuth through another host append here, e.g.:
     //   auth.AllowedProviderHosts.Add("id.internal.example.com");
+});
+
+// Rankings — IGameKitRankingsBuilder does not extend IGameKitBuilder, so AddGameKitAdmin
+// is chained from gameKitBuilder (below), not from AddLadder's return value.
+gameKitBuilder.AddRankings(opts =>
+{
+    // All ranking options are optional — defaults are production-safe.
+    // MinRating/MaxRating guard manual rank-adjust; ticker drains every RatingPeriod.
 })
-.AddGameKitAdmin(admin =>
+.AddLadder("main", c =>
+{
+    // Default Glicko-2 ladder. One ladder per game mode; add more via chained AddLadder calls.
+    c.DefaultRating     = 1500;
+    c.DefaultRd         = 350;
+    c.DefaultVolatility = 0.06;
+    c.RatingPeriod      = System.TimeSpan.FromHours(1);
+    c.ResetPolicy       = SeasonResetPolicy.SoftRegress;
+});
+
+gameKitBuilder.AddGameKitAdmin(admin =>
 {
     admin.MountPath = "/admin";
     // Default cookie/panel/CSP options are production-safe. See GameKitAdminOptions.cs for knobs
@@ -81,6 +105,7 @@ app.MapStaticAssets();
 app.MapGameKit();                   // /api/players (RequireAuthorization — Bearer JWT now enforced)
 app.MapAuth();                      // /auth/* — Phase 2
 app.MapDemo();                      // /demo/games (the /demo/players/register endpoint is REMOVED in Phase 2)
+app.MapRankings();                  // /api/players/{id}/export + /admin/api/players/{id}/export + /admin/api/players/{id}/rank-adjust — Phase 4
 app.MapGameKitAdmin("/admin");      // Plan 03-12 — /admin/api/* HTTP surface + /admin/* Blazor console.
 
 app.Run();

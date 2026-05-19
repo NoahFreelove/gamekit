@@ -74,8 +74,8 @@
 - [ ] **RANK-09**: `AddLadder("name")` registration API
 - [ ] **RANK-10**: Seasonal leaderboard reset + archival (rating snapshots preserved, current rank reset per season config)
 - [ ] **RANK-11**: Session-complete endpoint: `POST /api/sessions/{id}/complete` — idempotent via state-conditional UPDATE + cached rating deltas + `Idempotency-Key` header support
-- [ ] **RANK-12**: Manual rank adjustment writes to `admin_audit_log` with before/after rating
-- [ ] **RANK-13**: GDPR export endpoint: `GET /api/players/{id}/export` returns all PII + identities + sessions + ratings as JSON
+- [x] **RANK-12**: Manual rank adjustment writes to `admin_audit_log` with before/after rating
+- [x] **RANK-13**: GDPR export endpoint: `GET /api/players/{id}/export` returns all PII + identities + sessions + ratings as JSON
 - [ ] **RANK-14**: Per-package migrations targeting `gamekit` schema with `__ef_migrations_rankings` history table
 
 ### Matchmaking + Parties (Matchmaking Package)

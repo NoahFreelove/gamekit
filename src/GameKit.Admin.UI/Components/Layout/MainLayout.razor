@@ -115,11 +115,28 @@
     public async Task OpenDialog(string commandId, string targetId, string targetName)
     {
         var pid = Guid.TryParse(targetId, out var parsed) ? parsed : Guid.Empty;
-        var parameters = new DialogParameters
+
+        // Build DialogParameters — most dialogs use PlayerId + DisplayName; end-season uses
+        // LadderId + LadderName. We add the ladder-specific keys conditionally for "end-season"
+        // so the dialog's [Parameter] LadderId is satisfied without polluting other dialogs.
+        DialogParameters parameters;
+        if (commandId == "end-season")
         {
-            ["PlayerId"] = pid,
-            ["DisplayName"] = targetName ?? string.Empty
-        };
+            parameters = new DialogParameters
+            {
+                ["LadderId"] = pid,
+                ["LadderName"] = targetName ?? string.Empty
+            };
+        }
+        else
+        {
+            parameters = new DialogParameters
+            {
+                ["PlayerId"] = pid,
+                ["DisplayName"] = targetName ?? string.Empty
+            };
+        }
+
         var dialogType = commandId switch
         {
             "ban"          => typeof(BanPlayerDialog),
@@ -127,8 +144,9 @@
             "gdpr-delete"  => typeof(GdprDeleteDialog),
             "create-admin" => typeof(CreateAdminDialog),
             "delete-admin" => typeof(DeleteAdminDialog),
-            // rank-adjust + rotate-signing-key route to dialogs that may not yet exist in v1;
-            // they are filtered out at the registry layer (Plan 04) for this release.
+            "end-season"   => typeof(EndSeasonDialog),
+            "rank-adjust"  => typeof(RankAdjustDialog),
+            // rotate-signing-key is Phase 6 territory.
             _ => null
         };
         if (dialogType is null) return;

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 03.1 context gathered
-last_updated: "2026-05-16T02:23:33.193Z"
+stopped_at: Phase 04 Plan 01 complete
+last_updated: "2026-05-16T15:39:18.164Z"
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 40
-  completed_plans: 34
-  percent: 43
+  completed_plans: 42
+  percent: 57
 ---
 
 # STATE: GameKit
@@ -22,17 +22,17 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 03.1 — admin-ui-redesign-v2
+**Current Focus:** Phase 04 — rankings-sessions-gdpr
 
 ## Current Position
 
-Phase: 04 (rankings-sessions-gdpr) — CONTEXT GATHERED
-Plan: 0 of N (planning not yet run)
+Phase: 04 (rankings-sessions-gdpr) — EXECUTING
+Plan: 8 of 8
 Next: `/gsd-plan-phase 04` to produce the plan set
 **Milestone:** v1 (initial 6-phase build-out)
 **Phase:** 3
 **Plan:** 03-07 + 03-08 complete. 03-07 ships the full `/admin/api/*` minimal-API surface: POST `/login` (rate-limited `gamekit:admin:login`), POST `/logout`, GET `/players/search`, POST `/players/{id}/ban` + `/unban` (antiforgery + `AdminPolicy`), admins CRUD (superadmin policy), GET `/audit`, GET `/health`, GET `/matches`, GET `/queue-depth`, POST `/rank-adjust`; 6 DTOs (LoginRequest, BanPlayerRequest, UnbanPlayerRequest, CreateAdminRequest, PlayerSearchRequest, GdprDeleteRequest); 4 FluentValidation validators (Login / BanPlayer / CreateAdmin / PlayerSearch) registered in AddGameKitAdmin filling the step-13 placeholder left by 03-06. 03-08 ships the Blazor Server shell: nonce-aware App.razor (reads `HttpContext.Items["gamekit.admin.csp-nonce"]` into `<script nonce="...">` for Blazor JS + MudBlazor JS), Routes.razor + _Imports, MainLayout + LoginLayout with scoped CSS, TopNav (env chip + logout) + SideNav (10 nav items), 4 shared components (EnvironmentChip, StatusChip, KeysetPaginator, MissingPackageAlert), GameKitAdminTheme (indigo-600 primary + slate neutrals + 4px spacing), MapRazorComponents wire-up appended to MapGameKitAdmin. Admin.Tests 35→54 (+19), Admin.Integration.Tests 14→23 (+9). ADMIN-02/07/08/12 newly satisfied (ADMIN-05/06 already from 03-06 confirmed by 03-07 integration tests).
-**Status:** Ready to execute
+**Status:** Executing Phase 04
 
 **Progress:** [███████████████] 100% (32 / 32 plans; Phase 03.1 verified after `quick/20260515-phase-031-verification-gaps` closed BLOCKER-GAP-01 + INFO-GAP-03)
 
@@ -76,6 +76,12 @@ Next: `/gsd-plan-phase 04` to produce the plan set
 | Phase 03 P07 | 10min | 3 tasks | 14 files |
 | Phase 03 P08 | 32min | 2 tasks | 18 files |
 | Phase 03 P13 | 18min | 2 tasks | 8 files |
+| Phase 04 P01 | 15min | 3 tasks | 8 files |
+| Phase 04 P02 | — | — | — |
+| Phase 04 P03 | — | — | — |
+| Phase 04 P04 | — | — | — |
+| Phase 04 P05 | 32min | 3 tasks | 16 files |
+| Phase 04 P07 | 45min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -97,7 +103,7 @@ Next: `/gsd-plan-phase 04` to produce the plan set
 | Blazor Server in RCL for Admin UI | PROJECT.md Key Decisions |
 | Rating columns stored as `double precision`, not `NUMERIC(8,2)` | PITFALLS.md #13 |
 | `IRankingAlgorithm.Apply(state, batch)` — batched, not per-match | PITFALLS.md #1 |
-| Glicko-2 vendored from MaartenStaa/glicko2-csharp (MIT) | STACK.md |
+| Glicko-2 vendored from MaartenStaa/glicko2-csharp (**BSD-3-Clause** — NOT MIT; CLAUDE.md/04-CONTEXT.md incorrect; verified by git clone commit 59033eec) | STACK.md + 04-01 execution |
 | Steam provider implemented in-house against xPaw reference with server-side `check_authentication` roundtrip | PITFALLS.md #12 |
 | Redis with `--appendonly yes --appendfsync everysec` in shipped `docker-compose.yml` | PITFALLS.md #17 |
 | Three Postgres roles: `gamekit_owner`, `gamekit_app`, `gamekit_reader`; SampleGame game-server uses reader | PITFALLS.md #7 |
@@ -202,6 +208,12 @@ Next: `/gsd-plan-phase 04` to produce the plan set
 | AdminTestHost.StartAsync gains `Action<GameKitAdminOptions>? configureAdmin` overload — backwards-compatible (default null); enables MountPathTests to override MountPath without a parallel test-host class | 03-13 execution |
 | One [Fact(DisplayName="SC#N: …")] per ROADMAP success criterion in dedicated SC-anchor test classes (RoadmapScenarioTests / ProductionGateTests / CrossSchemeIsolationTests / CspAndAntiforgeryTests / PanelRenderTests / MountPathTests) — `grep 'SC#1'` locates the regression test for any roadmap claim | 03-13 execution |
 | Direct-Npgsql seeding (players, identities, sessions, participants) instead of EF DbContext in integration tests — avoids the FOLLOW-UP-02-03-01 two-service-provider quirk that would otherwise require AdminRuntimeQueryCustomizer plumbing per test | 03-13 execution |
+| GameSessionState stored as text (HasConversion<string>()) — raw SQL in seeds/fixtures MUST use enum name strings ('Active', 'Cancelled', 'Completed') NOT integer cast values; EF WHERE predicates generate 'Active' string comparison | 04-05 execution |
+| Optional port injection via factory lambda (GetService<T>) for IPostSessionCompleteHandler, IIdempotencyStore, ICanonicalRequestHasher — Core operates in degraded mode (session state transition only) when Rankings not installed | 04-05 execution |
+| IIdempotencyStore.StoreAsync + IPostSessionCompleteHandler.OnCompletedAsync run inside the caller's ambient transaction (ReadCommitted) — SaveChanges called internally, Commit is the SessionCompleteService's responsibility | 04-05 execution |
+| EndSeasonService writes audit rows directly via _ctx.Set<AdminAuditLog>() (NOT IAdminAuditWriter) — IAdminAuditWriter lives in Admin.UI; Admin.UI declares a ProjectReference to Rankings (for EndSeasonDialog DI injection). Using IAdminAuditWriter would create a circular dependency. AdminAuditLog is a Core entity; the action literal "admin.ladder.end_season" is duplicated as a private const in EndSeasonService with a sync-comment pointing to AdminAuditActions.LadderEndSeason | 04-07 execution |
+| LeaderboardService assigns ranks in-memory after ORDER BY Rating DESC rather than using EF Core ROW_NUMBER() OVER() window functions — EF Core 10 / Npgsql translation of window functions is inconsistent across query shapes; 500-row cap makes the in-memory sort cost negligible | 04-07 execution |
+| AntiforgeryValidationFilter DRY-cloned into GameKit.Rankings/Http/EndpointFilters/ (not shared) — Open Q4 pattern; sharing would require a fourth package or polluting Core with admin filter concerns | 04-07 execution |
 
 ### Open Questions
 
@@ -224,7 +236,7 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-05-15T (discuss-phase) — Phase 04 context gathered. 23 implementation decisions captured across 4 areas (rating period / session-complete API / seasonal reset / GDPR export). Ready for `/gsd-plan-phase 04`. See `.planning/phases/04-rankings-sessions-gdpr/04-CONTEXT.md`.
+**Last action:** 2026-05-16T (execute-phase) — Plan 04-05 complete. POST /api/sessions/{id}/complete endpoint with idempotency dedup + pending_rating_updates enqueue. Bug fixed: raw SQL seed used integer cast of GameSessionState.Active but column stores text ('Active'). All 6 SessionCompleteIdempotencyTests pass; 20/20 Rankings integration tests green. Commits: 4975588 + 445b3f7 + 998297f.
 
 **Previous action:** 2026-05-15T (quick task) — `.planning/quick/20260515-phase-031-verification-gaps/` complete. Closed the three open Phase 03.1 verification items: (1) BLOCKER-GAP-01 — `PlayerDetailPane.LoadAsync` now resolves the banning admin's username via `Db.Set<AdminUser>().AsNoTracking()` against `gamekit.admin_users` (the prior `IPlayerDisplayNameResolver` path queried `players`, which by design never holds admin IDs, so every human-issued ban rendered the deleted-player tombstone); (2) Blazor Server anti-pattern — removed both `ConfigureAwait(false)` calls in `PlayerDetailPane.LoadAsync` (continuations subsequently call `StateHasChanged()`); (3) INFO-GAP-03 — `openTweaks()` in `gamekit-admin.js` now invokes `applyAttrs(loadTweaks())` so aria-checked reflects the persisted selection before the Tweaks panel becomes visible (the deferred-script bundle-init call ran before Blazor mounted the panel). Removed the stale `@inject IPlayerDisplayNameResolver` directive from `PlayerDetailPane.razor` and the now-unused `NoopDisplayNameResolver` registration from `PlayersWorkspaceTests`. New regression test `PlayerDetailPaneBanAttributionTests` (2 facts) seeds an admin row + admin_audit_log ban row and asserts BanBanner ActorName renders the admin's username, with a paired test for the no-audit-row fallback to "unknown actor". Uses a local `BunitContext` disposed via `await using` to avoid the MudBlazor `KeyInterceptorService` IAsyncDisposable-only teardown trap that fires when the full pane (with MudTabs) renders. Admin.Tests 90 → 92; Admin.Integration.Tests 15/15 in isolation (no functional change). VERIFICATION.md re-verified at 6/6.
 
@@ -242,10 +254,10 @@ None.
 
 **Older action:** 2026-04-18T00:36:06Z — Plan 02-08 complete: TicTacToeDuel sample shipped end-to-end + human-verify approved + three follow-up fixes landed + FOLLOW-UP-02-03-01 CLOSED. Task 1 (994671b) rewrote Program.cs with AddAuth + strict middleware order, added appsettings.Development.json GameKit:Auth section (JWT + Steam realm + Discord placeholder creds), removed Phase-1 /demo/players/register + RegisterPlayerRequest/Response, added keys/{README,.gitignore}, scripts/gen-test-rsa-pem.sh (RSA 2048, 0600/0644), and full README auth section (localStorage/XSS disclaimer, PEM rotation via Kid, AllowedProviderHosts customization). Task 2 (10c0de1) shipped 488-LOC auth-aware SPA: auth panel (guest/register/login/Steam/Discord challenge), session panel (JWT decode + logout + /auth/me probe), gkFetch wrapper with X-GameKit-Device + Bearer + 401-refresh-retry-once. Task 3 human-verify walked all 15 steps in a real browser — approved. **Three follow-up fixes after walkthrough:** (a) 6c73630 fix(core,auth) — FOLLOW-UP-02-03-01 RESOLUTION: GameKitDbContext.OnModelCreating resolves IEnumerable<IModelBuilderExtension> lazily via CoreOptionsExtension.ApplicationServiceProvider; AddGameKit switches to (sp,opts) AddDbContext overload + UseApplicationServiceProvider(sp); new AuthMigrationHostedService applies __ef_migrations_auth under Auth advisory lock (-298890956) in IHost.StartAsync; UseGameKitAuth reduced to pure UseAuthentication. Also fixed: Auth migrations never applied at runtime pre-fix (tables missing on first Auth call). (b) 1f8d4f3 fix(auth) — /auth/logout no longer requires Bearer (refresh token IS the revocation capability; prior RequireAuthorization left refresh family un-revoked if access expired = security hole); OAuth callbacks return HTML BrowserTokenBridge (JSON rendered as text because Steam/Discord redirect the browser). (c) 7e96b00 fix(sample) — PEM paths changed to project-relative (dotnet run --project sets CWD to project dir, repo-root paths broke startup); dedicated upgrade-username/password inputs in session panel (auth-panel inputs were hidden → upgrade silently no-opped); formatAuthError helper parses ProblemDetails + AuthErrorResponse shapes (prior code rendered ProblemDetails as "Bad Request"). Phase 2 success criteria coverage: #1 (4-provider login — Guest/Password/Steam e2e in browser; Discord WireMock + service-layer), #2 (forged Steam — E2E + spot-checked in browser), #3 (refresh rotation UX proven in browser), #4 (concurrent guest-upgrade via plan 02-06), #5 (cross-player link 409), #6 (rate-limit 429). Full unit suite 166/166 green post-fix. AUTH-01 requirement closed.
 
-**Next action:** Plan 03-12 operator walkthrough (human-verify checkpoint) is the only remaining Phase 3 close-out gap. Walkthrough covers the TicTacToeDuel sample with `AddGameKitAdmin` chained — 20-step verification list lives in 03-12-PLAN.md. After that, finalize 03-12-SUMMARY.md and Phase 3 ships.
-**Resume file:** .planning/phases/03.1-admin-ui-redesign-v2/03.1-CONTEXT.md
-**Stopped at:** Phase 03.1 context gathered
-**Blockers:** None (03-12 human-verify is a hold, not a blocker)
+**Next action:** Plan 04-02 (Rankings package skeleton + EF migration). Plan 04-01 complete — license attribution, test csprojs, RankingsFixture, and Glickman fixture all committed.
+**Resume file:** None
+**Stopped at:** Phase 04 Plan 01 complete
+**Blockers:** None
 
 **Follow-up RESOLVED:** FOLLOW-UP-02-03-01 closed in plan 02-08 via commit 6c73630. GameKitDbContext.OnModelCreating now resolves IModelBuilderExtension lazily from CoreOptionsExtension.ApplicationServiceProvider. AddGameKit uses (sp, opts) AddDbContext overload + UseApplicationServiceProvider(sp). Direct-construction migration contexts (design-time factories + BuildMigrationContext) intentionally do NOT attach a provider, preserving the per-package migration boundary. AuthMigrationHostedService owns __ef_migrations_auth application under Auth advisory lock (-298890956). The 02-02 test-local AuthRuntimeQueryCustomizer shim can be removed by future cleanup — the runtime path now works without it. Cross-cutting: Rankings, Matchmaking, Presence can now ship sibling IModelBuilderExtensions + per-package migration hosted services mirroring this pattern.
 

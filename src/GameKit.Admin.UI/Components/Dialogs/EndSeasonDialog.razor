@@ -1,0 +1,120 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §EndSeasonDialog — superadmin-only, type-the-name-to-confirm gate (D-11).
+    Mirrors GdprDeleteDialog pattern:
+      1. Operator types the ladder name exactly (case-sensitive) to enable the End Season button.
+      2. Operator clicks End Season.
+
+    Danger stripe (dialog-danger class). Action is audited and irreversible.
+
+    DI PATTERN: dialog calls IEndSeasonService.EndAsync directly via DI. No HTTP loopback
+    (same pattern as BanPlayerDialog / GdprDeleteDialog — see architecture note in AdminEndpoints.cs).
+    IEndSeasonService is resolved via the Admin.UI → GameKit.Rankings ProjectReference added in plan 04-07.
+
+    The audit row is written inside EndSeasonService.EndAsync (SERIALIZABLE tx).
+*@
+@namespace GameKit.Admin.UI.Components.Dialogs
+@using GameKit.Rankings.Services
+@inject IEndSeasonService EndSeasonSvc
+@inject AuthenticationStateProvider AuthState
+
+<MudDialog Class="dialog dialog-danger">
+    <TitleContent>
+        <span>End current season for ladder "@LadderName"?</span>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="dialog-body">
+            This archives all player_ranks rows into season_rank_archive and applies the configured
+            reset policy. This action is audited and cannot be undone.
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" role="alert">@_errorMessage</MudAlert>
+        }
+
+        <MudTextField T="string"
+                      @bind-Value="_confirmName"
+                      @bind-Value:after="OnConfirmChanged"
+                      Label="@($"Type \"{LadderName}\" to confirm")"
+                      Variant="Variant.Outlined"
+                      Disabled="@_submitting"
+                      FullWidth="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="@_submitting">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Error"
+                   OnClick="SubmitAsync"
+                   Disabled="@(_submitting || !_confirmMatches)">
+            @if (_submitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                <span>Ending season…</span>
+            }
+            else
+            {
+                <span>End Season</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+
+    /// <summary>Target ladder id (passed via DialogParameters["LadderId"] from MainLayout.OpenDialog).</summary>
+    [Parameter, EditorRequired] public Guid LadderId { get; set; }
+
+    /// <summary>Ladder display name (rendered in title + confirm field).</summary>
+    [Parameter, EditorRequired] public string LadderName { get; set; } = string.Empty;
+
+    private string _confirmName = string.Empty;
+    private bool _confirmMatches;
+    private bool _submitting;
+    private string? _errorMessage;
+
+    private void OnConfirmChanged()
+    {
+        // Case-sensitive equality — mirrors GdprDeleteDialog UI-SPEC §8.
+        _confirmMatches = string.Equals(_confirmName, LadderName, StringComparison.Ordinal);
+    }
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private async Task SubmitAsync()
+    {
+        if (!_confirmMatches) return;
+        _submitting = true;
+        _errorMessage = null;
+        try
+        {
+            var actorId = await GetActorIdAsync();
+            var result = await EndSeasonSvc.EndAsync(LadderId, actorId, CancellationToken.None);
+            MudDialog?.Close(DialogResult.Ok(result));
+        }
+        catch (System.Collections.Generic.KeyNotFoundException ex)
+        {
+            _errorMessage = $"Season end failed: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Season end failed: {ex.Message}. The database was not changed. Try again or contact another superadmin.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task<Guid> GetActorIdAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var nameId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(nameId, out var id)
+            ? id
+            : throw new InvalidOperationException(
+                "Admin id claim is missing — dialog must run inside an authenticated admin session.");
+    }
+}

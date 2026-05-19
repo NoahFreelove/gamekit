@@ -55,15 +55,18 @@ decisions:
 metrics:
   duration_min: 25
   completed_date: "2026-05-18"
-  task_count: 2  # Task 3 is checkpoint:human-verify — operator-driven; this SUMMARY records the harness ship
+  task_count: 3  # Task 1 + Task 2 + Task 3 (operator gate now RESOLVED post-UAT — see Post-UAT Resolution section)
   file_count: 8
 checkpoint:
   type: "human-verify"
   gate: "blocking"
   task: 3
-  awaiting: "Operator runs `dotnet test tests/GameKit.Matchmaking.LoadTests --filter Category=LoadTest` and reports PASS within ~15 min"
-  resume_signal: "approved (with the SC#3 numerical bar) — OR describe the assertion failure"
-requirements_completed: []  # MATCH-13 requires the operator-run gate to complete; recorded as pending until checkpoint signal
+  status: "RESOLVED"
+  resolved_on: "2026-05-18"
+  awaiting: null  # SC#3 phase gate GREEN — see Post-UAT Resolution section
+  resume_signal: "approved (operator ran SC#3 twice — first run failed across three independent bugs; fixes landed in 6a0b76b/5689cbe/a715ffc/e389a8a; second run all four assertions GREEN)"
+requirements_completed:
+  - MATCH-13  # SC#3 phase gate closed by operator-run 1k/10min sustained load test (commit e389a8a)
 ---
 
 # Phase 5 Plan 10: SC#3 1k-Concurrent-Ticket Load Test + Human UAT Package Summary

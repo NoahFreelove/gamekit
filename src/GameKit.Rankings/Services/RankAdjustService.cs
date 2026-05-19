@@ -12,7 +12,9 @@ using GameKit.Core.Entities;
 using GameKit.Core.Services;
 using GameKit.Rankings.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly;
 
 namespace GameKit.Rankings.Services;
 
@@ -44,17 +46,21 @@ public sealed class RankAdjustService : IRankAdjustService
     private readonly IClock _clock;
     private readonly IIdGenerator _idGen;
     private readonly IOptions<GameKitRankingsOptions> _opts;
+    private readonly ILogger<RankAdjustService>? _logger;
+    private readonly ResiliencePipeline _serializationRetry;
 
     /// <summary>Constructs the service.</summary>
     /// <param name="ctx">Scoped <see cref="GameKitDbContext"/>.</param>
     /// <param name="clock">UTC clock abstraction.</param>
     /// <param name="idGen">Id generator for new <c>player_ranks</c> rows.</param>
     /// <param name="opts">Rankings options providing MinRating / MaxRating bounds.</param>
+    /// <param name="logger">Logger used for serialization-failure retry diagnostics (CR-03).</param>
     public RankAdjustService(
         GameKitDbContext ctx,
         IClock clock,
         IIdGenerator idGen,
-        IOptions<GameKitRankingsOptions> opts)
+        IOptions<GameKitRankingsOptions> opts,
+        ILogger<RankAdjustService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         ArgumentNullException.ThrowIfNull(clock);
@@ -64,6 +70,8 @@ public sealed class RankAdjustService : IRankAdjustService
         _clock = clock;
         _idGen = idGen;
         _opts = opts;
+        _logger = logger;
+        _serializationRetry = SerializationFailureRetry.Build(logger, nameof(RankAdjustService));
     }
 
     /// <inheritdoc />
@@ -84,89 +92,104 @@ public sealed class RankAdjustService : IRankAdjustService
             throw new ArgumentOutOfRangeException(nameof(newRating),
                 $"newRating {newRating} is outside the allowed range [{min}, {max}].");
 
-        await using var tx = await _ctx.Database
-            .BeginTransactionAsync(IsolationLevel.Serializable, ct)
-            .ConfigureAwait(false);
-
-        // 1. Resolve the ladder — 404 if not found.
-        var ladder = await _ctx.Set<Ladder>()
-            .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.Id == ladderId, ct)
-            .ConfigureAwait(false)
-            ?? throw new KeyNotFoundException($"Ladder {ladderId} not found.");
-
-        // 2. Find or lazy-create the player_ranks row (RANK-07 carry).
-        var rank = await _ctx.Set<PlayerRank>()
-            .FirstOrDefaultAsync(r => r.PlayerId == playerId && r.LadderId == ladderId, ct)
-            .ConfigureAwait(false);
-
-        var (_, defaultRd, defaultVolatility) = ReadLadderDefaults(ladder);
-
-        double beforeRating;
-        if (rank is null)
+        // Wrap the SERIALIZABLE transaction body in a Polly retry pipeline (CR-03).
+        // Postgres 40001 serialization_failure under concurrent writes is now retried up to
+        // 3 times with exponential backoff before bubbling to the caller as a 500.
+        return await _serializationRetry.ExecuteAsync(async cancellationToken =>
         {
-            // Lazy creation — new row with ladder defaults for RD + volatility (RANK-07).
-            beforeRating = 0; // "no prior rating" snapshot
-            rank = new PlayerRank
-            {
-                Id = _idGen.NewId(),
-                PlayerId = playerId,
-                LadderId = ladderId,
-                Rating = newRating,
-                RatingDeviation = defaultRd,
-                Volatility = defaultVolatility,
-                LastMatchAt = _clock.UtcNow,
-            };
-            _ctx.Set<PlayerRank>().Add(rank);
-        }
-        else
-        {
-            beforeRating = rank.Rating;
-            // Manual adjust: override Rating + LastMatchAt only (D-20 — RD + Volatility NOT touched).
-            rank.Rating = newRating;
-            rank.LastMatchAt = _clock.UtcNow;
-        }
+            await using var tx = await _ctx.Database
+                .BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
+                .ConfigureAwait(false);
 
-        // 3. Build before/after JSON snapshots for the audit row.
-        var beforeSnapshot = beforeRating == 0
-            ? null
-            : JsonDocument.Parse(JsonSerializer.Serialize(new
+            // 1. Resolve the ladder — 404 if not found.
+            var ladder = await _ctx.Set<Ladder>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == ladderId, cancellationToken)
+                .ConfigureAwait(false)
+                ?? throw new KeyNotFoundException($"Ladder {ladderId} not found.");
+
+            // 2. Find or lazy-create the player_ranks row (RANK-07 carry).
+            var rank = await _ctx.Set<PlayerRank>()
+                .FirstOrDefaultAsync(r => r.PlayerId == playerId && r.LadderId == ladderId, cancellationToken)
+                .ConfigureAwait(false);
+
+            var (_, defaultRd, defaultVolatility) = ReadLadderDefaults(ladder);
+
+            // WR-02: track lazy-creation as an explicit bool rather than via a 0.0 sentinel
+            // on beforeRating. A configured MinRating of 0 (legitimate skill scale) would
+            // otherwise make "first rank ever" indistinguishable from "adjust from zero".
+            bool wasLazyCreated;
+            double beforeRating;
+            if (rank is null)
             {
-                rating = beforeRating,
+                // Lazy creation — new row with ladder defaults for RD + volatility (RANK-07).
+                wasLazyCreated = true;
+                beforeRating = 0; // value is undefined for lazy-created rows; consult WasLazyCreated.
+                rank = new PlayerRank
+                {
+                    Id = _idGen.NewId(),
+                    PlayerId = playerId,
+                    LadderId = ladderId,
+                    Rating = newRating,
+                    RatingDeviation = defaultRd,
+                    Volatility = defaultVolatility,
+                    LastMatchAt = _clock.UtcNow,
+                };
+                _ctx.Set<PlayerRank>().Add(rank);
+            }
+            else
+            {
+                wasLazyCreated = false;
+                beforeRating = rank.Rating;
+                // Manual adjust: override Rating + LastMatchAt only (D-20 — RD + Volatility NOT touched).
+                rank.Rating = newRating;
+                rank.LastMatchAt = _clock.UtcNow;
+            }
+
+            // 3. Build before/after JSON snapshots for the audit row.
+            var beforeSnapshot = wasLazyCreated
+                ? null
+                : JsonDocument.Parse(JsonSerializer.Serialize(new
+                {
+                    rating = beforeRating,
+                    rating_deviation = rank.RatingDeviation,
+                    volatility = rank.Volatility,
+                }));
+
+            var afterSnapshot = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                rating = newRating,
                 rating_deviation = rank.RatingDeviation,
                 volatility = rank.Volatility,
             }));
 
-        var afterSnapshot = JsonDocument.Parse(JsonSerializer.Serialize(new
-        {
-            rating = newRating,
-            rating_deviation = rank.RatingDeviation,
-            volatility = rank.Volatility,
-        }));
+            await _ctx.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        await _ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+            // 4. Write the audit row — rides the same SERIALIZABLE transaction.
+            // Direct write via Core entity (not IAdminAuditWriter) to avoid circular dep (D-22).
+            var auditRow = new AdminAuditLog
+            {
+                Id = _idGen.NewId(),
+                Action = AuditAction,
+                TargetType = "player",
+                TargetId = playerId,
+                ActorId = actorId,
+                Before = beforeSnapshot,
+                After = afterSnapshot,
+                Reason = reason,
+                CreatedAt = _clock.UtcNow,
+            };
+            _ctx.Set<AdminAuditLog>().Add(auditRow);
+            await _ctx.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        // 4. Write the audit row — rides the same SERIALIZABLE transaction.
-        // Direct write via Core entity (not IAdminAuditWriter) to avoid circular dep (D-22).
-        var auditRow = new AdminAuditLog
-        {
-            Id = _idGen.NewId(),
-            Action = AuditAction,
-            TargetType = "player",
-            TargetId = playerId,
-            ActorId = actorId,
-            Before = beforeSnapshot,
-            After = afterSnapshot,
-            Reason = reason,
-            CreatedAt = _clock.UtcNow,
-        };
-        _ctx.Set<AdminAuditLog>().Add(auditRow);
-        await _ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
 
-        await tx.CommitAsync(ct).ConfigureAwait(false);
-
-        var delta = newRating - beforeRating;
-        return new RankAdjustResult(beforeRating, newRating, delta);
+            // For lazy-created rows there is no meaningful "delta"; surface After as the
+            // delta so existing UI continues to render, but callers can branch on
+            // WasLazyCreated to suppress or relabel.
+            var delta = wasLazyCreated ? newRating : (newRating - beforeRating);
+            return new RankAdjustResult(beforeRating, newRating, delta, wasLazyCreated);
+        }, ct).ConfigureAwait(false);
     }
 
     /// <summary>

@@ -288,7 +288,7 @@ namespace GameKit.Rankings.Migrations
 
                     b.HasIndex("LadderId", "EnqueuedAt")
                         .HasDatabaseName("idx_pending_rating_updates_ladder_pending")
-                        .HasFilter("applied_at IS NULL");
+                        .HasFilter("\"AppliedAt\" IS NULL");
 
                     b.HasIndex("PlayerId");
 

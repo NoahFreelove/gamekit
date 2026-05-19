@@ -61,6 +61,16 @@ public interface IRankingAlgorithm
     /// and has been validated against the published worked example. Custom implementations
     /// inherit numerical-stability responsibility; this interface imposes no convergence
     /// guarantee — that is the implementer's contract.
+    /// <para/>
+    /// <b>Thread-safety (WR-12):</b> implementations MUST either be safe for concurrent
+    /// invocations (e.g. construct any mutable per-call state inside <see cref="Apply"/> and
+    /// hold no instance fields that change across calls), or document their concurrency model
+    /// in their XML doc. The default registration is a singleton; the ticker calls
+    /// <see cref="Apply"/> single-threaded inside a per-ladder lease, but consumers writing
+    /// alternate harnesses (tests, future fan-out paths) may invoke a singleton from multiple
+    /// threads. <see cref="Glicko2Algorithm"/> satisfies the safe-by-construction discipline:
+    /// every <see cref="Apply"/> call builds a fresh <c>RatingCalculator</c> and never mutates
+    /// shared state.
     /// </remarks>
     RankingState Apply(RankingState state, RankingBatch batch);
 }

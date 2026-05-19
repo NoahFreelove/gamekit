@@ -52,7 +52,20 @@ public interface IRankAdjustService
 /// <summary>
 /// Result of a successful <see cref="IRankAdjustService.AdjustAsync"/> call (D-19).
 /// </summary>
-/// <param name="Before">Rating before the adjustment (0 when the row was newly created).</param>
+/// <param name="Before">
+/// Rating before the adjustment. Undefined when <see cref="WasLazyCreated"/> is <c>true</c>
+/// — callers should consult <see cref="WasLazyCreated"/> instead of relying on a sentinel value
+/// (WR-02: <c>Before == 0</c> is ambiguous with configurations whose <c>MinRating</c> permits
+/// a legitimate rating of 0).
+/// </param>
 /// <param name="After">Rating after the adjustment.</param>
-/// <param name="Delta">Signed rating change (<see cref="After"/> - <see cref="Before"/>).</param>
-public sealed record RankAdjustResult(double Before, double After, double Delta);
+/// <param name="Delta">
+/// Signed rating change. When <see cref="WasLazyCreated"/> is <c>true</c> this is <see cref="After"/>
+/// (there is no prior rating to subtract); callers showing a "delta" UI should suppress or label
+/// it for the lazy-created case.
+/// </param>
+/// <param name="WasLazyCreated">
+/// <c>true</c> when the call created a fresh <c>player_ranks</c> row because no prior row existed
+/// for the <c>(playerId, ladderId)</c> pair; <c>false</c> when an existing row was updated in place.
+/// </param>
+public sealed record RankAdjustResult(double Before, double After, double Delta, bool WasLazyCreated);

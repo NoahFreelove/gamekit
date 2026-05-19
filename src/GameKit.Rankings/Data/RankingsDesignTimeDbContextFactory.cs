@@ -41,9 +41,21 @@ public sealed class RankingsDesignTimeDbContextFactory : IDesignTimeDbContextFac
     /// <inheritdoc />
     public GameKitDbContext CreateDbContext(string[] args)
     {
-        var connectionString =
-            Environment.GetEnvironmentVariable("GAMEKIT_MIGRATIONS_CONNECTION")
-            ?? "Host=localhost;Port=5432;Database=gamekit;Username=gamekit_owner;Password=gamekit_owner_dev";
+        // WR-13: never ship a hardcoded password in source. The earlier fallback
+        // ("Password=gamekit_owner_dev") was checked into the GPL repo and several test
+        // fixtures, propagating a "default" credential that operators might paste into
+        // production configs. Require GAMEKIT_MIGRATIONS_CONNECTION explicitly — the
+        // scripts/dev-up.sh shell snippet (docs/MIGRATIONS.md) shows how to set it for
+        // local development.
+        var connectionString = Environment.GetEnvironmentVariable("GAMEKIT_MIGRATIONS_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "GAMEKIT_MIGRATIONS_CONNECTION environment variable is not set. " +
+                "Design-time EF tooling (dotnet ef) requires an explicit connection string. " +
+                "Example: " +
+                "export GAMEKIT_MIGRATIONS_CONNECTION=\"Host=localhost;Port=5432;Database=gamekit;Username=gamekit_owner;Password=...\"");
+        }
 
         var optionsBuilder = new DbContextOptionsBuilder<GameKitDbContext>()
             .UseNpgsql(connectionString, npg =>

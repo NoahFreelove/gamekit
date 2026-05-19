@@ -70,6 +70,16 @@ public interface IServiceTokenService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The matching row, or <see langword="null"/> if the hash is not found.</returns>
     Task<ServiceToken?> FindByRawAsync(string raw, CancellationToken ct);
+
+    /// <summary>
+    /// Records that the named token was just successfully used to authenticate a request.
+    /// Sets <see cref="ServiceToken.LastUsedAt"/> to the current clock value (WR-04). Callers
+    /// (typically <c>ServiceTokenAuthenticationHandler</c>) SHOULD debounce — touching every
+    /// authenticated request would add a DB write to the hot path.
+    /// </summary>
+    /// <param name="id">The token id to touch.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task TouchLastUsedAsync(Guid id, CancellationToken ct);
 }
 
 /// <summary>

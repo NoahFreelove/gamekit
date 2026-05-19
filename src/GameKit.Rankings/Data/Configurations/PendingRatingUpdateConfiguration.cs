@@ -21,11 +21,13 @@ internal sealed class PendingRatingUpdateConfiguration : IEntityTypeConfiguratio
         b.Property(p => p.EnqueuedAt).IsRequired();
 
         // Partial index — ticker drains only unapplied rows per ladder, ordered by enqueue time.
-        // CREATE INDEX idx_pending_rating_updates_ladder_pending ON gamekit.pending_rating_updates
-        //   (ladder_id, enqueued_at) WHERE applied_at IS NULL;
+        // CR-04: HasFilter must use the quoted PascalCase column name to match what the
+        // migration actually creates (WHERE "AppliedAt" IS NULL). The earlier snake_case
+        // form ("applied_at IS NULL") drifted from the on-disk index definition and any
+        // subsequent `dotnet ef migrations add` would emit a drop+recreate migration.
         b.HasIndex(p => new { p.LadderId, p.EnqueuedAt })
             .HasDatabaseName("idx_pending_rating_updates_ladder_pending")
-            .HasFilter("applied_at IS NULL");
+            .HasFilter("\"AppliedAt\" IS NULL");
 
         // FK → game_sessions (ON DELETE CASCADE).
         b.HasOne<GameSession>()

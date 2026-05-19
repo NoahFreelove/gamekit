@@ -101,8 +101,17 @@ public sealed class IdempotencyCleanupService : BackgroundService
     }
 
     /// <summary>
-    /// Executes one cleanup pass: deletes <c>session_complete_idempotency</c> rows older than
-    /// the configured <see cref="GameKitRankingsSessionCompleteOptions.IdempotencyTtl"/>. Public for testing.
+    /// Executes one cleanup pass: deletes
+    /// <list type="bullet">
+    /// <item><description><c>session_complete_idempotency</c> rows older than
+    /// <see cref="GameKitRankingsSessionCompleteOptions.IdempotencyTtl"/>.</description></item>
+    /// <item><description>Applied <c>pending_rating_updates</c> rows (CR-05) older than
+    /// <see cref="GameKitRankingsCleanupOptions.PendingRetentionTtl"/>. Without this pass,
+    /// the audit-trail rows the ticker leaves behind grow unbounded — at 1k matches/hour with
+    /// 2 participants each that's roughly 17M rows/year, all on the ticker's hot
+    /// partial-index read path.</description></item>
+    /// </list>
+    /// Public for testing.
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
     public async Task RunCleanupOnceAsync(CancellationToken ct)
@@ -111,23 +120,48 @@ public sealed class IdempotencyCleanupService : BackgroundService
         var ctx = scope.ServiceProvider.GetRequiredService<GameKitDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
-        var cutoff = clock.UtcNow - _opts.SessionComplete.IdempotencyTtl;
+        var now = clock.UtcNow;
+        var idempotencyCutoff = now - _opts.SessionComplete.IdempotencyTtl;
 
-        var deleted = await ctx.Set<SessionCompleteIdempotency>()
-            .Where(r => r.CreatedAt < cutoff)
+        var deletedIdempotency = await ctx.Set<SessionCompleteIdempotency>()
+            .Where(r => r.CreatedAt < idempotencyCutoff)
             .ExecuteDeleteAsync(ct)
             .ConfigureAwait(false);
 
-        if (deleted > 0)
+        if (deletedIdempotency > 0)
         {
             _logger.LogInformation(
-                "IdempotencyCleanupService: deleted {Count} rows older than {Cutoff:O}.",
-                deleted, cutoff);
+                "IdempotencyCleanupService: deleted {Count} session_complete_idempotency rows older than {Cutoff:O}.",
+                deletedIdempotency, idempotencyCutoff);
         }
         else
         {
             _logger.LogDebug(
-                "IdempotencyCleanupService: no rows to delete (cutoff={Cutoff:O}).", cutoff);
+                "IdempotencyCleanupService: no idempotency rows to delete (cutoff={Cutoff:O}).",
+                idempotencyCutoff);
+        }
+
+        // CR-05: cleanup applied pending_rating_updates rows.
+        // Delete only rows where AppliedAt is set AND old enough — never delete unapplied rows
+        // (those are the ticker's working set).
+        var pendingCutoff = now - _opts.Cleanup.PendingRetentionTtl;
+
+        var deletedPending = await ctx.Set<PendingRatingUpdate>()
+            .Where(r => r.AppliedAt != null && r.AppliedAt < pendingCutoff)
+            .ExecuteDeleteAsync(ct)
+            .ConfigureAwait(false);
+
+        if (deletedPending > 0)
+        {
+            _logger.LogInformation(
+                "IdempotencyCleanupService: deleted {Count} pending_rating_updates rows applied before {Cutoff:O}.",
+                deletedPending, pendingCutoff);
+        }
+        else
+        {
+            _logger.LogDebug(
+                "IdempotencyCleanupService: no pending_rating_updates rows to delete (cutoff={Cutoff:O}).",
+                pendingCutoff);
         }
     }
 }

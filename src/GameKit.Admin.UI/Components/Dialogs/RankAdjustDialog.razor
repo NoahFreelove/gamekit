@@ -16,13 +16,17 @@
 *@
 @namespace GameKit.Admin.UI.Components.Dialogs
 @using GameKit.Core.Data
+@using GameKit.Rankings
 @using GameKit.Rankings.Entities
 @using GameKit.Rankings.Http.Contracts
 @using GameKit.Rankings.Services
+@using Microsoft.Extensions.Options
+@implements IDisposable
 @inject IRankAdjustService RankAdjustSvc
 @inject FluentValidation.IValidator<RankAdjustRequest> Validator
 @inject AuthenticationStateProvider AuthState
 @inject GameKitDbContext Db
+@inject IOptions<GameKitRankingsOptions> RankingsOpts
 
 <MudDialog Class="dialog dialog-danger">
     <TitleContent>
@@ -56,8 +60,8 @@
         <MudNumericField T="double"
                          @bind-Value="_newRating"
                          Label="New Rating"
-                         Min="100"
-                         Max="4000"
+                         Min="@_minRating"
+                         Max="@_maxRating"
                          Step="1"
                          Variant="Variant.Outlined"
                          FullWidth="true"
@@ -108,6 +112,11 @@
     private double _newRating = 1500.0;
     private string _reason = string.Empty;
 
+    // WR-06: bind Min/Max to the same options the server validator reads, so the UI cannot
+    // promise an input range the server will then reject with a 400.
+    private double _minRating = 100;
+    private double _maxRating = 4000;
+
     private bool _ladderError;
     private string? _ladderErrorMessage;
     private bool _ratingError;
@@ -118,14 +127,29 @@
     private bool _submitting;
     private string? _errorMessage;
 
+    // WR-08: tie pending DB and service calls to the component lifetime so closing the
+    // dialog (or disposing the circuit) cancels the SERIALIZABLE transaction rather than
+    // letting it complete with no surface to report the result.
+    private readonly CancellationTokenSource _cts = new();
+
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        // WR-06: read MinRating/MaxRating from the same options the validator uses.
+        var bounds = RankingsOpts.Value.RankAdjust;
+        _minRating = bounds.MinRating;
+        _maxRating = bounds.MaxRating;
+        if (_newRating < _minRating || _newRating > _maxRating)
+        {
+            // Clamp the default starting value into the configured range.
+            _newRating = Math.Clamp(_newRating, _minRating, _maxRating);
+        }
+
         // Populate active ladders for the selector.
         _ladders = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
             .ToListAsync(
                 Db.Set<Ladder>().Where(l => l.IsActive).OrderBy(l => l.Name),
-                CancellationToken.None);
+                _cts.Token);
 
         if (_ladders.Count > 0)
             _ladderId = _ladders[0].Id;
@@ -172,8 +196,12 @@
         try
         {
             var actorId = await GetActorIdAsync();
-            var result = await RankAdjustSvc.AdjustAsync(PlayerId, _ladderId, _newRating, _reason, actorId, CancellationToken.None);
+            var result = await RankAdjustSvc.AdjustAsync(PlayerId, _ladderId, _newRating, _reason, actorId, _cts.Token);
             MudDialog?.Close(DialogResult.Ok(result));
+        }
+        catch (OperationCanceledException)
+        {
+            // Component disposed mid-operation — nothing to surface.
         }
         catch (System.Collections.Generic.KeyNotFoundException)
         {
@@ -202,5 +230,12 @@
             ? id
             : throw new InvalidOperationException(
                 "Admin id claim is missing — dialog must run inside an authenticated admin session.");
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        try { _cts.Cancel(); } catch { /* swallow — best-effort cancellation on dispose */ }
+        _cts.Dispose();
     }
 }

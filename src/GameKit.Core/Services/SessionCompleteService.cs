@@ -186,16 +186,33 @@ public sealed class SessionCompleteService : ISessionCompleteService
             }
 
             // If already Completed and we have a store, check for cached response with this key.
+            // WR-10: when the state UPDATE loses a race with a concurrent A-then-B call, B falls
+            // through here and looks up A's idempotency row. We MUST compare hashes before
+            // returning A's cached response — otherwise B receives 200 OK carrying A's body
+            // even though B's request body differed from A's. Mirrors the pre-update check
+            // at line 121.
             if (session.State == GameSessionState.Completed && _idempotencyStore is not null)
             {
                 var lookup = await _idempotencyStore.TryGetAsync(sessionId, idempotencyKey, ct);
-                if (lookup.Found && lookup.CachedResponseBody is { Length: > 0 })
+                if (lookup.Found)
                 {
-                    await tx.CommitAsync(ct);
-                    var cached = JsonSerializer.Deserialize<SessionCompleteResponse>(
-                        lookup.CachedResponseBody, _jsonOpts);
-                    if (cached is not null)
-                        return new SessionCompleteResult.AlreadyCompletedCached(cached);
+                    if (requestHash is not null
+                        && lookup.ExistingRequestHash is not null
+                        && lookup.ExistingRequestHash != requestHash)
+                    {
+                        // Same key, different body → 409 (same semantics as the pre-update check).
+                        await tx.CommitAsync(ct);
+                        return new SessionCompleteResult.IdempotencyKeyReused();
+                    }
+
+                    if (lookup.CachedResponseBody is { Length: > 0 })
+                    {
+                        await tx.CommitAsync(ct);
+                        var cached = JsonSerializer.Deserialize<SessionCompleteResponse>(
+                            lookup.CachedResponseBody, _jsonOpts);
+                        if (cached is not null)
+                            return new SessionCompleteResult.AlreadyCompletedCached(cached);
+                    }
                 }
             }
 

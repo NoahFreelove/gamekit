@@ -148,11 +148,15 @@ public sealed class LeaderboardService : ILeaderboardService
         CancellationToken ct)
     {
         // Find target player's rank row.
+        // WR-05: return an empty list (not throw) when the player has no rank row yet —
+        // a freshly registered player who has not completed a ranked match is a normal
+        // condition, not a 500. Callers that need a 404 can detect the empty result.
         var target = await _ctx.Set<PlayerRank>()
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.LadderId == ladderId && r.PlayerId == playerId, ct)
-            .ConfigureAwait(false)
-            ?? throw new KeyNotFoundException($"Player {playerId} has no rank on ladder {ladderId}.");
+            .ConfigureAwait(false);
+        if (target is null)
+            return Array.Empty<LeaderboardRowDto>();
 
         // Rows above (higher rating) — ordered by Rating ASC so we get the closest ones.
         var above = await _ctx.Set<PlayerRank>()
@@ -227,11 +231,13 @@ public sealed class LeaderboardService : ILeaderboardService
         CancellationToken ct)
     {
         // Find target archive row.
+        // WR-05: return empty (not throw) for missing archive rows — see AroundLiveAsync.
         var target = await _ctx.Set<SeasonRankArchive>()
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.LadderId == ladderId && r.SeasonId == seasonId && r.PlayerId == playerId, ct)
-            .ConfigureAwait(false)
-            ?? throw new KeyNotFoundException($"Player {playerId} has no archived rank on ladder {ladderId} for season {seasonId}.");
+            .ConfigureAwait(false);
+        if (target is null)
+            return Array.Empty<LeaderboardRowDto>();
 
         var above = await _ctx.Set<SeasonRankArchive>()
             .AsNoTracking()

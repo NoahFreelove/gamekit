@@ -124,6 +124,19 @@ internal sealed class ServiceTokenService : IServiceTokenService
             .ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task TouchLastUsedAsync(Guid id, CancellationToken ct)
+    {
+        // Single ExecuteUpdateAsync — no tracked entity, no SELECT before UPDATE.
+        // Caller (auth handler) debounces via IMemoryCache to keep this off the every-request path.
+        await _ctx.Set<ServiceToken>()
+            .Where(t => t.Id == id)
+            .ExecuteUpdateAsync(
+                u => u.SetProperty(t => t.LastUsedAt, _clock.UtcNow),
+                ct)
+            .ConfigureAwait(false);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers — mirrored verbatim from RefreshTokenService (Phase 2, lines 280-292)
     // -------------------------------------------------------------------------

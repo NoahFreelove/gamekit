@@ -25,6 +25,12 @@ public sealed class GameKitRankingsOptions
 
     /// <summary>Options controlling the session-complete endpoint (plan 04-05, D-10).</summary>
     public GameKitRankingsSessionCompleteOptions SessionComplete { get; set; } = new();
+
+    /// <summary>
+    /// Options controlling cleanup of audit / idempotency tables maintained by Rankings
+    /// (CR-05). Includes the <c>pending_rating_updates</c> retention TTL.
+    /// </summary>
+    public GameKitRankingsCleanupOptions Cleanup { get; set; } = new();
 }
 
 /// <summary>Options for the ranking ticker background service (D-01 / D-03 / D-04).</summary>
@@ -110,4 +116,18 @@ public sealed class GameKitRankingsRateLimitOptions
 
     /// <summary>Sliding-window duration. Default <c>1 minute</c> per D-10.</summary>
     public TimeSpan Window { get; set; } = TimeSpan.FromMinutes(1);
+}
+
+/// <summary>
+/// Cleanup options for Rankings audit / pending-row tables (CR-05).
+/// </summary>
+public sealed class GameKitRankingsCleanupOptions
+{
+    /// <summary>
+    /// Retention TTL for <c>pending_rating_updates</c> rows after they have been marked
+    /// <c>AppliedAt = now</c> by the ticker. Default <c>30 days</c>. Rows older than this
+    /// are deleted by <c>IdempotencyCleanupService</c> alongside the session-complete
+    /// idempotency cleanup pass.
+    /// </summary>
+    public TimeSpan PendingRetentionTtl { get; set; } = TimeSpan.FromDays(30);
 }

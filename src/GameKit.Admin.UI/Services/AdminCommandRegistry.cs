@@ -55,7 +55,9 @@ public static class AdminCommandRegistry
         new("nav.audit",       "Go to Audit log",   "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/audit"),
         new("nav.health",      "Go to Health",      "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/health"),
         new("nav.matchmaking", "Go to Queue depth", "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/matchmaking"),
-        new("nav.rank-adjust", "Go to Rank adjust", "nav", RequiresSuperadmin: true,  RequiresTarget: false, Url: "/admin/rank-adjust"),
+        // WR-09: the page is mapped at "/admin/rankings/adjust" (see RankAdjust.razor @page).
+        // The earlier "/admin/rank-adjust" route navigated users to a 404.
+        new("nav.rank-adjust", "Go to Rank adjust", "nav", RequiresSuperadmin: true,  RequiresTarget: false, Url: "/admin/rankings/adjust"),
         new("nav.admins",      "Go to Admins",      "nav", RequiresSuperadmin: true,  RequiresTarget: false, Url: "/admin/admins"),
         new("nav.login",       "Go to Login",       "nav", RequiresSuperadmin: false, RequiresTarget: false, Url: "/admin/login"),
     };

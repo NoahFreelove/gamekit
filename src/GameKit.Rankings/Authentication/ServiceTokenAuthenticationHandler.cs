@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using GameKit.Core.Services;
 using GameKit.Rankings.Services;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -36,25 +37,32 @@ namespace GameKit.Rankings.Authentication;
 public sealed class ServiceTokenAuthenticationHandler
     : AuthenticationHandler<ServiceTokenAuthenticationOptions>
 {
+    // WR-04: debounce LastUsedAt writes so the DB sees at most one UPDATE per minute per token.
+    private static readonly TimeSpan LastUsedDebounce = TimeSpan.FromMinutes(1);
+
     private readonly IServiceTokenService _tokenService;
     private readonly IClock _clock;
+    private readonly IMemoryCache _lastUsedDebounceCache;
 
     /// <summary>
-    /// Constructs the handler. <paramref name="tokenService"/> and <paramref name="clock"/>
-    /// are injected from the per-request scope.
+    /// Constructs the handler. <paramref name="tokenService"/>, <paramref name="clock"/>,
+    /// and <paramref name="lastUsedDebounceCache"/> are injected from the per-request scope.
     /// </summary>
     public ServiceTokenAuthenticationHandler(
         IOptionsMonitor<ServiceTokenAuthenticationOptions> opts,
         ILoggerFactory log,
         UrlEncoder enc,
         IServiceTokenService tokenService,
-        IClock clock)
+        IClock clock,
+        IMemoryCache lastUsedDebounceCache)
         : base(opts, log, enc)
     {
         ArgumentNullException.ThrowIfNull(tokenService);
         ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(lastUsedDebounceCache);
         _tokenService = tokenService;
         _clock = clock;
+        _lastUsedDebounceCache = lastUsedDebounceCache;
     }
 
     /// <inheritdoc />
@@ -82,6 +90,11 @@ public sealed class ServiceTokenAuthenticationHandler
             return AuthenticateResult.Fail("invalid_service_token");
         }
 
+        // WR-04: touch LastUsedAt, debounced via IMemoryCache so we issue at most one UPDATE
+        // per token per minute. The cache key is the token id; absorbed-set semantics give us
+        // a natural "first request in window wins" guarantee under per-token concurrency.
+        await TouchLastUsedIfDueAsync(row.Id, Context.RequestAborted).ConfigureAwait(false);
+
         var identity = new ClaimsIdentity(new[]
         {
             new Claim(ClaimTypes.NameIdentifier, row.Id.ToString()),
@@ -92,5 +105,28 @@ public sealed class ServiceTokenAuthenticationHandler
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
         return AuthenticateResult.Success(ticket);
+    }
+
+    private async Task TouchLastUsedIfDueAsync(Guid tokenId, System.Threading.CancellationToken ct)
+    {
+        var cacheKey = "gamekit.svctoken.lastused:" + tokenId;
+        if (_lastUsedDebounceCache.TryGetValue(cacheKey, out _))
+        {
+            return;
+        }
+
+        _lastUsedDebounceCache.Set(cacheKey, true, LastUsedDebounce);
+
+        try
+        {
+            await _tokenService.TouchLastUsedAsync(tokenId, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Best-effort — never fail auth because the LastUsedAt write failed.
+            Logger.LogWarning(ex,
+                "ServiceTokenAuthenticationHandler: failed to update LastUsedAt for token {Id}; continuing.",
+                tokenId);
+        }
     }
 }

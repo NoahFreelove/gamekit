@@ -59,12 +59,10 @@ public interface ILeaderboardService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// List of <see cref="LeaderboardRowDto"/> sorted by rating descending, centered on the target player.
-    /// When the target player has no rank row in the specified context, throws
-    /// <see cref="System.Collections.Generic.KeyNotFoundException"/>.
+    /// When the target player has no rank row in the specified context (e.g. a freshly registered
+    /// player who has not completed a ranked match), an empty list is returned (WR-05). Callers
+    /// needing a 404 semantic can detect the empty result and map it themselves.
     /// </returns>
-    /// <exception cref="System.Collections.Generic.KeyNotFoundException">
-    /// Thrown when the target player has no rank row for the given ladder (and optional season).
-    /// </exception>
     Task<IReadOnlyList<LeaderboardRowDto>> AroundAsync(
         Guid ladderId,
         Guid playerId,

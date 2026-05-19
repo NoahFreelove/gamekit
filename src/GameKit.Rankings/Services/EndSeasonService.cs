@@ -13,6 +13,8 @@ using GameKit.Core.Entities;
 using GameKit.Core.Services;
 using GameKit.Rankings.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Polly;
 
 namespace GameKit.Rankings.Services;
 
@@ -42,6 +44,7 @@ public sealed class EndSeasonService : IEndSeasonService
     private readonly GameKitDbContext _ctx;
     private readonly IClock _clock;
     private readonly IIdGenerator _ids;
+    private readonly ResiliencePipeline _serializationRetry;
 
     // Audit action constant — mirrors AdminAuditActions.LadderEndSeason in GameKit.Admin.UI.
     // Duplicated here as a literal to avoid the circular dependency. The value MUST stay in sync.
@@ -51,10 +54,12 @@ public sealed class EndSeasonService : IEndSeasonService
     /// <param name="ctx">Scoped <see cref="GameKitDbContext"/>.</param>
     /// <param name="clock">Clock abstraction.</param>
     /// <param name="ids">Id generator (UUIDv7).</param>
+    /// <param name="logger">Logger for serialization-failure retry diagnostics (CR-03).</param>
     public EndSeasonService(
         GameKitDbContext ctx,
         IClock clock,
-        IIdGenerator ids)
+        IIdGenerator ids,
+        ILogger<EndSeasonService>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         ArgumentNullException.ThrowIfNull(clock);
@@ -62,10 +67,20 @@ public sealed class EndSeasonService : IEndSeasonService
         _ctx = ctx;
         _clock = clock;
         _ids = ids;
+        _serializationRetry = SerializationFailureRetry.Build(logger, nameof(EndSeasonService));
     }
 
     /// <inheritdoc />
     public async Task<EndSeasonResult> EndAsync(Guid ladderId, Guid actorId, CancellationToken ct)
+    {
+        // Wrap the SERIALIZABLE transaction body in a Polly retry pipeline (CR-03) so
+        // concurrent end-season calls against the same ladder do not surface 500s.
+        return await _serializationRetry.ExecuteAsync(async cancellationToken =>
+            await EndCoreAsync(ladderId, actorId, cancellationToken).ConfigureAwait(false),
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task<EndSeasonResult> EndCoreAsync(Guid ladderId, Guid actorId, CancellationToken ct)
     {
         await using var tx = await _ctx.Database
             .BeginTransactionAsync(IsolationLevel.Serializable, ct)

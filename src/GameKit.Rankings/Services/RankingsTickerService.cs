@@ -362,21 +362,54 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
             await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
 
             // Update session_participants with RatingAfter + RatingDelta for drained sessions.
+            //
+            // Glicko-2 batches ALL outcomes from the period into a single update — there is no
+            // per-session intermediate state we can reliably attribute to one session vs. another.
+            // For v1, attribute the entire period-aggregate delta to the player's LATEST session
+            // (by EnqueuedAt) and leave earlier sessions in the same drain with
+            // RatingAfter = pre-drain rating, RatingDelta = 0. This is a known limitation:
+            // per-session deltas are accurate when a player participates in exactly one session
+            // per drain (the common case) and approximate (single-session attribution) otherwise.
+            //
+            // Computed in a single pass per player using a dictionary lookup; the SQL is one
+            // ExecuteUpdateAsync per (player, session) pair we need to write, batched by player.
+            var sessionsByPlayer = pendingRows
+                .Where(r => r.PlayerId.HasValue)
+                .GroupBy(r => r.PlayerId!.Value)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(r => r.EnqueuedAt).Select(r => r.SessionId).Distinct().ToList());
+
             foreach (var pid in playerIds)
             {
                 if (!updatedState.Ratings.TryGetValue(pid, out var newRatingSnapshot)) continue;
+                if (!sessionsByPlayer.TryGetValue(pid, out var playerSessions) || playerSessions.Count == 0) continue;
+
                 var newRating = newRatingSnapshot.Rating;
                 var oldRating = stateDictionary.TryGetValue(pid, out var old) ? old.Rating : defaults.DefaultRating;
                 var delta = newRating - oldRating;
+                var lastSessionId = playerSessions[^1];
 
-                foreach (var sessionId in sessionIds)
+                // Latest session: full period-aggregate delta.
+                await ctx.SessionParticipants
+                    .Where(sp => sp.SessionId == lastSessionId && sp.PlayerId == pid)
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(sp => sp.RatingAfter, newRating)
+                            .SetProperty(sp => sp.RatingDelta, delta),
+                        ct)
+                    .ConfigureAwait(false);
+
+                // Earlier sessions (if any): pre-drain rating, zero delta.
+                if (playerSessions.Count > 1)
                 {
+                    var earlierSessionIds = playerSessions.Take(playerSessions.Count - 1).ToList();
                     await ctx.SessionParticipants
-                        .Where(sp => sp.SessionId == sessionId && sp.PlayerId == pid)
+                        .Where(sp => earlierSessionIds.Contains(sp.SessionId) && sp.PlayerId == pid)
                         .ExecuteUpdateAsync(
                             setters => setters
-                                .SetProperty(sp => sp.RatingAfter, newRating)
-                                .SetProperty(sp => sp.RatingDelta, delta),
+                                .SetProperty(sp => sp.RatingAfter, (double?)oldRating)
+                                .SetProperty(sp => sp.RatingDelta, (double?)0.0),
                             ct)
                         .ConfigureAwait(false);
                 }
@@ -424,8 +457,18 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
     }
 
     /// <summary>
-    /// Builds symmetric match outcomes from pending rating update rows, grouping by session.
+    /// Builds match outcomes from pending rating update rows, grouping by session.
     /// </summary>
+    /// <remarks>
+    /// Emits ONE <see cref="MatchOutcome"/> per pairwise match using a deterministic
+    /// canonical perspective (the participant whose <c>PlayerId</c> sorts lowest). Emitting both
+    /// perspectives — as an earlier revision did — causes <see cref="Glicko2Algorithm.Apply"/> to
+    /// double-count each match: both <c>(A wins, B loses)</c> and <c>(B loses, A wins)</c> records
+    /// resolve to the same <c>RatingPeriodResults.AddResult(winner, loser)</c> call, so the
+    /// underlying <c>_results</c> list contains two identical <c>Result</c> entries and every
+    /// player sees their match twice during <c>UpdateRatings</c>. A single canonical perspective
+    /// is sufficient because <c>Result.GetScore</c> mirrors the score for the opponent side.
+    /// </remarks>
     private static IReadOnlyList<MatchOutcome> BuildMatchOutcomes(List<PendingRatingUpdate> rows)
     {
         // Group by session — within a session, pair each participant against every other.
@@ -440,7 +483,8 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
         {
             var participants = sessionGroup.ToList();
 
-            // For each pair of participants in the session, generate outcomes for both sides.
+            // For each pair of participants in the session, emit ONE outcome using the
+            // participant with the lowest PlayerId as the canonical perspective. See remarks.
             for (var i = 0; i < participants.Count; i++)
             {
                 for (var j = i + 1; j < participants.Count; j++)
@@ -451,13 +495,24 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
                     if (!a.PlayerId.HasValue || !b.PlayerId.HasValue)
                         continue;
 
-                    var resultA = ParseResult(a.Result);
-                    var resultB = ParseResult(b.Result);
+                    // Pick canonical perspective deterministically by PlayerId ordering.
+                    PendingRatingUpdate canonical;
+                    PendingRatingUpdate opponent;
+                    if (a.PlayerId.Value.CompareTo(b.PlayerId.Value) <= 0)
+                    {
+                        canonical = a;
+                        opponent = b;
+                    }
+                    else
+                    {
+                        canonical = b;
+                        opponent = a;
+                    }
 
-                    // Add from A's perspective against B.
-                    outcomes.Add(new MatchOutcome(a.PlayerId.Value, b.PlayerId.Value, resultA));
-                    // Add from B's perspective against A.
-                    outcomes.Add(new MatchOutcome(b.PlayerId.Value, a.PlayerId.Value, resultB));
+                    outcomes.Add(new MatchOutcome(
+                        canonical.PlayerId!.Value,
+                        opponent.PlayerId!.Value,
+                        ParseResult(canonical.Result)));
                 }
             }
         }

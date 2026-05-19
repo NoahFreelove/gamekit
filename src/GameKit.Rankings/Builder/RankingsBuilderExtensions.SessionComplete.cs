@@ -44,6 +44,9 @@ public static partial class RankingsBuilderExtensions
         services.AddScoped<IValidator<SessionCompleteRequest>, Http.Validators.SessionCompleteRequestValidator>();
 
         // Rate-limit policy: 300/min/service-token-name (D-10).
-        services.AddRankingsRateLimits(new Core.RateLimiting.GameKitRateLimitPolicies());
+        // WR-03: prefer the no-arg overload that resolves IGameKitRateLimitPolicies from DI,
+        // rather than constructing a fresh GameKitRateLimitPolicies() that bypasses the
+        // registered singleton.
+        services.AddRankingsRateLimits();
     }
 }

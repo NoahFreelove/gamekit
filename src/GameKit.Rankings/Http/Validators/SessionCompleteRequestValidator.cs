@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Linq;
 using FluentValidation;
 using GameKit.Core.Entities;
 using GameKit.Core.Http.Contracts;
@@ -21,7 +22,13 @@ public sealed class SessionCompleteRequestValidator : AbstractValidator<SessionC
         RuleFor(x => x.Participants)
             .NotEmpty().WithMessage("Participants list must not be empty.")
             .Must(p => p is { Count: >= 1 }).WithMessage("At least one participant is required.")
-            .Must(p => p is { Count: <= 32 }).WithMessage("At most 32 participants are allowed.");
+            .Must(p => p is { Count: <= 32 }).WithMessage("At most 32 participants are allowed.")
+            // WR-01: reject duplicate PlayerIds. Without this guard, RunCompletionAsync would
+            // ExecuteUpdateAsync twice against the same (SessionId, PlayerId) row and the
+            // PendingRatingUpdatesAdapter would enqueue duplicate pending_rating_updates,
+            // making the ticker count the player as having played the session twice.
+            .Must(p => p is null || p.Select(x => x.PlayerId).Distinct().Count() == p.Count)
+            .WithMessage("Each participant PlayerId must appear at most once.");
 
         RuleForEach(x => x.Participants).ChildRules(participant =>
         {

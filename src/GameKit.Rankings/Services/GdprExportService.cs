@@ -73,6 +73,14 @@ public sealed class GdprExportService : IGdprExportService
     /// <inheritdoc />
     public async Task<GdprExportResponse?> ExportAsync(Guid playerId, CancellationToken ct)
     {
+        var (response, _) = await ExportWithSizeAsync(playerId, ct).ConfigureAwait(false);
+        return response;
+    }
+
+    /// <inheritdoc />
+    public async Task<(GdprExportResponse? Response, long ByteSize)> ExportWithSizeAsync(
+        Guid playerId, CancellationToken ct)
+    {
         // Open REPEATABLE READ transaction. All seven reads share a single Postgres snapshot.
         await using var tx = await _ctx.Database
             .BeginTransactionAsync(IsolationLevel.RepeatableRead, ct)
@@ -93,7 +101,7 @@ public sealed class GdprExportService : IGdprExportService
         if (player is null)
         {
             await tx.CommitAsync(ct).ConfigureAwait(false);
-            return null;
+            return (null, 0);
         }
 
         // 2. External identities — use raw SQL to avoid a project-reference on GameKit.Auth (D-22 invariant).
@@ -259,11 +267,13 @@ public sealed class GdprExportService : IGdprExportService
         // Serialize to bytes; compare length against the configured cap.
         // No custom JsonSerializerOptions needed — explicit [JsonPropertyName] attributes handle
         // snake_case serialization deterministically regardless of ambient options (SC#5 pin).
+        // WR-07: return the serialized length so callers writing audit byte_size do not have
+        // to re-serialize the response (which doubled allocations + CPU on every export).
         var json = JsonSerializer.SerializeToUtf8Bytes(response);
         if (json.Length > _opts.Value.GdprExport.MaxBytes)
             throw new GdprExportPayloadTooLargeException(json.Length, _opts.Value.GdprExport.MaxBytes);
 
-        return response;
+        return (response, json.Length);
     }
 
     /// <summary>

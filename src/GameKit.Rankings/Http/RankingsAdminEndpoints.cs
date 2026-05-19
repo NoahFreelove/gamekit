@@ -160,14 +160,18 @@ public static class RankingsAdminEndpoints
         IGdprExportService svc,
         GameKitDbContext ctx,
         IClock clock,
+        IIdGenerator idGen,
         CancellationToken ct)
     {
         var actorId = GetAdminId(http);
 
         GdprExportResponse? response;
+        long byteSize;
         try
         {
-            response = await svc.ExportAsync(id, ct).ConfigureAwait(false);
+            // WR-07: use ExportWithSizeAsync so we get the serialized byte length without
+            // re-serializing the response a second time for the audit row.
+            (response, byteSize) = await svc.ExportWithSizeAsync(id, ct).ConfigureAwait(false);
         }
         catch (GdprExportPayloadTooLargeException ex)
         {
@@ -185,12 +189,15 @@ public static class RankingsAdminEndpoints
         var afterJson = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
             exported_at = exportedAt,
-            byte_size = JsonSerializer.SerializeToUtf8Bytes(response).Length,
+            byte_size = byteSize,
         }));
 
+        // CR-06: use IIdGenerator (UUIDv7, time-ordered) — every other audit row writer in
+        // the codebase does the same. UUIDv4 here would break the implicit timestamp ordering
+        // of admin_audit_log and scatter gdpr_export entries through history.
         var auditRow = new AdminAuditLog
         {
-            Id = Guid.NewGuid(),
+            Id = idGen.NewId(),
             Action = AuditActionGdprExport,
             TargetType = "player",
             TargetId = id,

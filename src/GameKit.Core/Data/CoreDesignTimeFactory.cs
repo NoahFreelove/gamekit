@@ -23,9 +23,16 @@ public sealed class CoreDesignTimeFactory : IDesignTimeDbContextFactory<GameKitD
     /// <inheritdoc />
     public GameKitDbContext CreateDbContext(string[] args)
     {
-        var connectionString =
-            Environment.GetEnvironmentVariable("GAMEKIT_MIGRATIONS_CONNECTION")
-            ?? "Host=localhost;Port=5432;Database=gamekit;Username=gamekit_owner;Password=gamekit_owner_dev";
+        // WR-13: require GAMEKIT_MIGRATIONS_CONNECTION explicitly — no hardcoded dev password.
+        var connectionString = Environment.GetEnvironmentVariable("GAMEKIT_MIGRATIONS_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "GAMEKIT_MIGRATIONS_CONNECTION environment variable is not set. " +
+                "Design-time EF tooling (dotnet ef) requires an explicit connection string. " +
+                "Example: " +
+                "export GAMEKIT_MIGRATIONS_CONNECTION=\"Host=localhost;Port=5432;Database=gamekit;Username=gamekit_owner;Password=...\"");
+        }
 
         var optionsBuilder = new DbContextOptionsBuilder<GameKitDbContext>()
             .UseNpgsql(connectionString, npg =>

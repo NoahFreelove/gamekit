@@ -16,6 +16,7 @@
 *@
 @namespace GameKit.Admin.UI.Components.Dialogs
 @using GameKit.Rankings.Services
+@implements IDisposable
 @inject IEndSeasonService EndSeasonSvc
 @inject AuthenticationStateProvider AuthState
 
@@ -75,6 +76,11 @@
     private bool _submitting;
     private string? _errorMessage;
 
+    // WR-08: tie pending service calls to the component lifetime so closing the dialog (or
+    // disposing the circuit) cancels the SERIALIZABLE transaction instead of letting it
+    // complete with no surface to report the result.
+    private readonly CancellationTokenSource _cts = new();
+
     private void OnConfirmChanged()
     {
         // Case-sensitive equality — mirrors GdprDeleteDialog UI-SPEC §8.
@@ -91,8 +97,12 @@
         try
         {
             var actorId = await GetActorIdAsync();
-            var result = await EndSeasonSvc.EndAsync(LadderId, actorId, CancellationToken.None);
+            var result = await EndSeasonSvc.EndAsync(LadderId, actorId, _cts.Token);
             MudDialog?.Close(DialogResult.Ok(result));
+        }
+        catch (OperationCanceledException)
+        {
+            // Component disposed mid-operation — nothing to surface.
         }
         catch (System.Collections.Generic.KeyNotFoundException ex)
         {
@@ -116,5 +126,12 @@
             ? id
             : throw new InvalidOperationException(
                 "Admin id claim is missing — dialog must run inside an authenticated admin session.");
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        try { _cts.Cancel(); } catch { /* swallow — best-effort cancellation on dispose */ }
+        _cts.Dispose();
     }
 }

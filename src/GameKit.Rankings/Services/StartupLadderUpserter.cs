@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Polly;
 
 namespace GameKit.Rankings.Services;
 
@@ -39,6 +40,7 @@ public sealed class StartupLadderUpserter : IHostedService
 {
     private readonly IServiceProvider _sp;
     private readonly ILogger<StartupLadderUpserter> _logger;
+    private readonly ResiliencePipeline _serializationRetry;
 
     /// <summary>Constructs the upserter with a root service provider and logger.</summary>
     public StartupLadderUpserter(IServiceProvider sp, ILogger<StartupLadderUpserter> logger)
@@ -47,6 +49,7 @@ public sealed class StartupLadderUpserter : IHostedService
         ArgumentNullException.ThrowIfNull(logger);
         _sp = sp;
         _logger = logger;
+        _serializationRetry = SerializationFailureRetry.Build(logger, nameof(StartupLadderUpserter));
     }
 
     /// <inheritdoc />
@@ -67,64 +70,69 @@ public sealed class StartupLadderUpserter : IHostedService
 
         _logger.LogInformation("StartupLadderUpserter: upserting {Count} ladder(s).", configs.Count);
 
-        await using var tx = await ctx.Database
-            .BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken)
-            .ConfigureAwait(false);
-
-        try
+        // Wrap the SERIALIZABLE transaction body in a Polly retry pipeline (CR-03) so two
+        // application replicas booting concurrently do not crash the host on 40001.
+        await _serializationRetry.ExecuteAsync(async ct =>
         {
-            foreach (var config in configs)
-            {
-                var exists = await ctx.Set<Ladder>()
-                    .AnyAsync(l => l.Name == config.Name, cancellationToken)
-                    .ConfigureAwait(false);
+            await using var tx = await ctx.Database
+                .BeginTransactionAsync(IsolationLevel.Serializable, ct)
+                .ConfigureAwait(false);
 
-                if (exists)
+            try
+            {
+                foreach (var config in configs)
                 {
-                    _logger.LogDebug(
-                        "StartupLadderUpserter: ladder '{Name}' already exists — skipping insert.",
-                        config.Name);
-                    continue;
+                    var exists = await ctx.Set<Ladder>()
+                        .AnyAsync(l => l.Name == config.Name, ct)
+                        .ConfigureAwait(false);
+
+                    if (exists)
+                    {
+                        _logger.LogDebug(
+                            "StartupLadderUpserter: ladder '{Name}' already exists — skipping insert.",
+                            config.Name);
+                        continue;
+                    }
+
+                    var configJson = JsonSerializer.SerializeToDocument(new
+                    {
+                        config.DefaultRating,
+                        config.DefaultRd,
+                        config.DefaultVolatility,
+                        RatingPeriodSeconds = (long)config.RatingPeriod.TotalSeconds,
+                        ResetPolicy = config.ResetPolicy.ToString(),
+                        config.RegressionFactor,
+                        config.RdCeiling,
+                        config.RdBump,
+                    });
+
+                    var ladder = new Ladder
+                    {
+                        Id = idGenerator.NewId(),
+                        Name = config.Name,
+                        Algorithm = config.Algorithm,
+                        IsActive = true,
+                        Config = configJson,
+                        CreatedAt = clock.UtcNow,
+                    };
+
+                    ctx.Set<Ladder>().Add(ladder);
+                    _logger.LogInformation(
+                        "StartupLadderUpserter: inserting ladder '{Name}' (algorithm={Algorithm}).",
+                        config.Name, config.Algorithm);
                 }
 
-                var configJson = JsonSerializer.SerializeToDocument(new
-                {
-                    config.DefaultRating,
-                    config.DefaultRd,
-                    config.DefaultVolatility,
-                    RatingPeriodSeconds = (long)config.RatingPeriod.TotalSeconds,
-                    ResetPolicy = config.ResetPolicy.ToString(),
-                    config.RegressionFactor,
-                    config.RdCeiling,
-                    config.RdBump,
-                });
-
-                var ladder = new Ladder
-                {
-                    Id = idGenerator.NewId(),
-                    Name = config.Name,
-                    Algorithm = config.Algorithm,
-                    IsActive = true,
-                    Config = configJson,
-                    CreatedAt = clock.UtcNow,
-                };
-
-                ctx.Set<Ladder>().Add(ladder);
-                _logger.LogInformation(
-                    "StartupLadderUpserter: inserting ladder '{Name}' (algorithm={Algorithm}).",
-                    config.Name, config.Algorithm);
+                await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+                await tx.CommitAsync(ct).ConfigureAwait(false);
+                _logger.LogInformation("StartupLadderUpserter: completed successfully.");
             }
-
-            await ctx.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
-            _logger.LogInformation("StartupLadderUpserter: completed successfully.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "StartupLadderUpserter: failed; rolling back.");
-            await tx.RollbackAsync(cancellationToken).ConfigureAwait(false);
-            throw;
-        }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "StartupLadderUpserter: failed; rolling back.");
+                await tx.RollbackAsync(ct).ConfigureAwait(false);
+                throw;
+            }
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

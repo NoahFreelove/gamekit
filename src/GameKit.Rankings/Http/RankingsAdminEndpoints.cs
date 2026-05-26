@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
@@ -11,12 +12,14 @@ using GameKit.Core.Data;
 using GameKit.Core.Entities;
 using GameKit.Core.Http.EndpointFilters;
 using GameKit.Core.Services;
+using GameKit.Rankings.Entities;
 using GameKit.Rankings.Http.Contracts;
 using GameKit.Rankings.Http.EndpointFilters;
 using GameKit.Rankings.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 
 namespace GameKit.Rankings.Http;
 
@@ -80,6 +83,14 @@ public static class RankingsAdminEndpoints
             .RequireAuthorization(SuperadminPolicy)
             .AddEndpointFilter<AntiforgeryValidationFilter>()
             .AddEndpointFilter<ValidationEndpointFilter<EndSeasonRequest>>();
+
+        // GET /admin/api/ladders — admin-policy list of all ladders. Phase 5 UAT-2 D1: the
+        // command-palette ladder-search subview needs this to populate target picker rows
+        // for end-season, pause-queue, and drain-queue verbs. No filter/search complexity
+        // for v1 — operators typically run 1-3 ladders, so returning the full set is
+        // cheaper than a SCAN-style search index.
+        group.MapGet("/ladders", ListLaddersAsync)
+            .RequireAuthorization(AdminPolicy);
 
         // GET /admin/api/leaderboard?ladderId=&limit= — admin-policy authorized (RANK-08 admin path per D-23).
         group.MapGet("/leaderboard", GetLeaderboardAsync)
@@ -151,6 +162,17 @@ public static class RankingsAdminEndpoints
         CancellationToken ct)
     {
         var rows = await svc.TopAsync(ladderId, limit ?? 100, seasonId, ct).ConfigureAwait(false);
+        return Results.Ok(rows);
+    }
+
+    private static async Task<IResult> ListLaddersAsync(
+        GameKitDbContext ctx,
+        CancellationToken ct)
+    {
+        var rows = await ctx.Set<Ladder>()
+            .OrderBy(l => l.Name)
+            .Select(l => new { id = l.Id, name = l.Name })
+            .ToListAsync(ct).ConfigureAwait(false);
         return Results.Ok(rows);
     }
 

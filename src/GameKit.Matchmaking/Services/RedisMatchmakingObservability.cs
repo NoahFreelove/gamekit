@@ -50,8 +50,13 @@ public sealed class RedisMatchmakingObservability : IMatchmakingObservability
     {
         var db = _redis.GetDatabase();
 
-        // 1. Resolve the lease holder (a single GET on the matcher lock key).
-        var leaseValue = await db.StringGetAsync(MatchmakingRedisKeys.MatcherLock).ConfigureAwait(false);
+        // 1. Resolve the lease holder via the matcher heartbeat key. The lock itself
+        //    (MatchmakingRedisKeys.MatcherLock) is acquired-and-released per tick to
+        //    coordinate with the reconciler + retention sweep, so a single point-read
+        //    catches it ~0.4% of the time and would falsely report the matcher dead.
+        //    The heartbeat is written each successful matcher tick with TTL=5× tick
+        //    interval — present iff a matcher has ticked in the recent past.
+        var leaseValue = await db.StringGetAsync(MatchmakingRedisKeys.MatcherHeartbeat).ConfigureAwait(false);
         var leaderInstanceId = leaseValue.IsNullOrEmpty ? null : (string?)leaseValue;
         var activeLease = leaseValue.IsNullOrEmpty ? 0 : 1;
 

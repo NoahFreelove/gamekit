@@ -180,6 +180,21 @@ public sealed class MatchmakingService : IMatchmakingService
             return new EnqueueResult(EnqueueOutcome.UnknownLadder, Detail: "no_ladders_registered");
         }
 
+        // Step 3.5: admin pause / drain gate. The per-ladder Redis flags are written by
+        // IMatchmakingControlService.PauseAsync / DrainAsync (admin UI → command palette).
+        // Pause and drain both reject new enqueues; the difference is operator intent —
+        // pause is a temporary stop, drain signals an upcoming ladder takedown while the
+        // matcher continues serving existing tickets.
+        var redisDb = _redis.GetDatabase();
+        if (await redisDb.KeyExistsAsync(RedisMatchmakingControlService.ControlPausedKeyForLadder(ladderId)).ConfigureAwait(false))
+        {
+            return new EnqueueResult(EnqueueOutcome.RejectedDueToQueuePaused, Detail: "queue_paused");
+        }
+        if (await redisDb.KeyExistsAsync(RedisMatchmakingControlService.ControlDrainKeyForLadder(ladderId)).ConfigureAwait(false))
+        {
+            return new EnqueueResult(EnqueueOutcome.RejectedDueToQueueDraining, Detail: "queue_draining");
+        }
+
         // Step 4: defence-in-depth MaxPartyRatingSpread gate. v1 cannot query player ratings
         // here without a Rankings runtime dep; member ratings default to zero so the spread
         // is zero — the cap will not trip in v1 enqueue. The strategy enforces the cap at

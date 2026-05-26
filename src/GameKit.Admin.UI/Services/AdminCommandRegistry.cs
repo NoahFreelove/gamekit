@@ -37,11 +37,11 @@ public static class AdminCommandRegistry
         new("unban",              "Unban player",          "actions", RequiresSuperadmin: false, RequiresTarget: true),
         new("gdpr-delete",        "GDPR-delete player",    "actions", RequiresSuperadmin: true,  RequiresTarget: true),
         new("rank-adjust",        "Adjust player rank",    "actions", RequiresSuperadmin: true,  RequiresTarget: true),
-        new("end-season",         "End ladder season",     "actions", RequiresSuperadmin: true,  RequiresTarget: true),
+        new("end-season",         "End ladder season",     "actions", RequiresSuperadmin: true,  RequiresTarget: true, TargetType: "ladder"),
         // Matchmaking operations (MATCH-14 / Plan 05-08). Both verbs take a ladder target
         // per RESEARCH §OQ-5: pause / drain scope is per-ladder, not global.
-        new("pause-queue",        "Pause matchmaking queue", "actions", RequiresSuperadmin: true, RequiresTarget: true),
-        new("drain-queue",        "Drain matchmaking queue", "actions", RequiresSuperadmin: true, RequiresTarget: true),
+        new("pause-queue",        "Pause matchmaking queue", "actions", RequiresSuperadmin: true, RequiresTarget: true, TargetType: "ladder"),
+        new("drain-queue",        "Drain matchmaking queue", "actions", RequiresSuperadmin: true, RequiresTarget: true, TargetType: "ladder"),
         // Admin management ---------------------------------------------------
         new("create-admin",       "Create admin",          "admin",   RequiresSuperadmin: true,  RequiresTarget: false),
         new("delete-admin",       "Delete admin",          "admin",   RequiresSuperadmin: true,  RequiresTarget: true),
@@ -77,6 +77,7 @@ public static class AdminCommandRegistry
 /// <param name="Category">Group key ("actions", "admin", "system", "session", "nav") for section headers in the palette.</param>
 /// <param name="RequiresSuperadmin">When true, the row is filtered out of the GET /admin/api/commands response for non-superadmin operators (D-11).</param>
 /// <param name="RequiresTarget">When true, selecting the row in the palette switches to the two-step target-search subview (D-10) before launching the matching dialog.</param>
+/// <param name="TargetType">When <see cref="RequiresTarget"/> is true, names the entity type the palette must search for ("player" or "ladder"). Defaults to "player" for backward compat with the original Phase 03.1 ban/unban/gdpr-delete/rank-adjust verbs. Ignored when <see cref="RequiresTarget"/> is false. Phase 5 UAT-2 D1: the palette previously hardcoded player-search for every target-requiring verb, leaving end-season + pause-queue + drain-queue unreachable through the UI.</param>
 /// <param name="Url">When non-null, selecting the row navigates the browser to this absolute /admin/* path; used exclusively by nav.* rows. Action rows leave this null and dispatch through MainLayout.OpenDialog instead.</param>
 public sealed record AdminCommand(
     string Id,
@@ -84,4 +85,5 @@ public sealed record AdminCommand(
     string Category,
     bool RequiresSuperadmin,
     bool RequiresTarget,
+    string TargetType = "player",
     string? Url = null);

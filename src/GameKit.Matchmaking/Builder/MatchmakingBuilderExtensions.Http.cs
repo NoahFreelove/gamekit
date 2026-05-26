@@ -32,6 +32,9 @@ public static partial class MatchmakingBuilderExtensions
     {
         services.TryAddScoped<IMatchmakingService, MatchmakingService>();
         services.TryAddSingleton<IMatchmakingObservability, RedisMatchmakingObservability>();
+        // Admin control surface (Phase 5 UAT-2 D1) — pause/drain flag + audit row.
+        // Scoped because IAdminAuditWriter is scoped (writes via the request's DbContext).
+        services.TryAddScoped<IMatchmakingControlService, RedisMatchmakingControlService>();
 
         // FluentValidation 12 — register every validator in this assembly via the canonical
         // AddValidatorsFromAssemblyContaining helper.

@@ -147,7 +147,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var mmType = Type.GetType("GameKit.Matchmaking.IMatchmakingStrategy, GameKit.Matchmaking", throwOnError: false);
+        var mmType = Type.GetType("GameKit.Matchmaking.Strategy.IMatchmakingStrategy, GameKit.Matchmaking", throwOnError: false);
         _matchmakingInstalled = mmType is not null && Sp.GetService(mmType) is not null;
 
         // Sequential await per query: EF Core forbids concurrent operations on a single

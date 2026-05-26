@@ -1,0 +1,130 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC — superadmin-only dialog that pauses the matchmaking queue on a single ladder.
+    Phase 5 UAT-2 D1: dispatched from the command palette's "Pause matchmaking queue" verb
+    once a ladder target has been picked from the ladder-search subview.
+
+    Operator types an optional reason (stored as the Redis value AND the audit row reason).
+    Submit invokes IMatchmakingControlService.PauseAsync via reflection — Admin.UI cannot
+    ProjectReference GameKit.Matchmaking (Matchmaking already references Admin.UI for the
+    audit-writer interface; a reverse ref would cycle). Same pattern as QueueDepth.razor.
+*@
+@namespace GameKit.Admin.UI.Components.Dialogs
+@implements IDisposable
+@inject IServiceProvider Sp
+@inject AuthenticationStateProvider AuthState
+@using System.Reflection
+
+<MudDialog Class="dialog">
+    <TitleContent>
+        <span>Pause matchmaking queue for ladder "@LadderName"?</span>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="dialog-body">
+            New ticket enqueues on this ladder will be rejected with HTTP 503 until the queue is
+            resumed. Existing queued + proposed tickets are unaffected. This action is audited.
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" role="alert">@_errorMessage</MudAlert>
+        }
+
+        <MudTextField T="string"
+                      @bind-Value="_reason"
+                      Label="Reason (optional)"
+                      Variant="Variant.Outlined"
+                      Disabled="@_submitting"
+                      FullWidth="true"
+                      Counter="512"
+                      MaxLength="512" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="@_submitting">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="SubmitAsync"
+                   Disabled="@_submitting">
+            @if (_submitting)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                <span>Pausing…</span>
+            }
+            else
+            {
+                <span>Pause queue</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance? MudDialog { get; set; }
+
+    /// <summary>Target ladder id (passed via DialogParameters["LadderId"]).</summary>
+    [Parameter, EditorRequired] public Guid LadderId { get; set; }
+
+    /// <summary>Ladder display name (rendered in title).</summary>
+    [Parameter, EditorRequired] public string LadderName { get; set; } = string.Empty;
+
+    private string _reason = string.Empty;
+    private bool _submitting;
+    private string? _errorMessage;
+
+    private readonly CancellationTokenSource _cts = new();
+
+    private void Cancel() => MudDialog?.Cancel();
+
+    private async Task SubmitAsync()
+    {
+        _submitting = true;
+        _errorMessage = null;
+        try
+        {
+            var actorId = await GetActorIdAsync();
+            await InvokeControlMethodAsync("PauseAsync", LadderId, _reason, actorId, _cts.Token);
+            MudDialog?.Close(DialogResult.Ok(new { paused = true, ladderId = LadderId }));
+        }
+        catch (OperationCanceledException)
+        {
+            // Component disposed mid-operation.
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Pause failed: {ex.Message}. The queue state was not changed.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task InvokeControlMethodAsync(string methodName, Guid ladderId, string reason, Guid actorId, CancellationToken ct)
+    {
+        var t = Type.GetType("GameKit.Matchmaking.Services.IMatchmakingControlService, GameKit.Matchmaking", throwOnError: false)
+            ?? throw new InvalidOperationException("GameKit.Matchmaking is not installed in this host.");
+        var svc = Sp.GetService(t)
+            ?? throw new InvalidOperationException("IMatchmakingControlService is not registered. Call AddMatchmaking() in the host's service registration.");
+        var method = t.GetMethod(methodName, BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException($"IMatchmakingControlService.{methodName} not found.");
+        var task = (Task)method.Invoke(svc, new object[] { ladderId, reason ?? string.Empty, actorId, ct })!;
+        await task.ConfigureAwait(true);
+    }
+
+    private async Task<Guid> GetActorIdAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var nameId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(nameId, out var id)
+            ? id
+            : throw new InvalidOperationException(
+                "Admin id claim is missing — dialog must run inside an authenticated admin session.");
+    }
+
+    public void Dispose()
+    {
+        try { _cts.Cancel(); } catch { /* best-effort cancellation */ }
+        _cts.Dispose();
+    }
+}

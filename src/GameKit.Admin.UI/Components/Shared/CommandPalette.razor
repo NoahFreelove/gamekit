@@ -50,6 +50,7 @@
                                 aria-selected="false"
                                 data-command-id="@cmd.Id"
                                 data-requires-target="@(cmd.RequiresTarget ? "true" : "false")"
+                                data-target-type="@cmd.TargetType"
                                 data-label="@cmd.Label"
                                 data-url="@cmd.Url">
                             <span class="palette-row-label">@cmd.Label</span>
@@ -100,7 +101,7 @@
             var isSuper = string.Equals(role, AdminRoles.Superadmin, StringComparison.Ordinal);
             _visible = AdminCommandRegistry.AllCommands
                 .Where(c => isSuper || !c.RequiresSuperadmin)
-                .Select(c => new AdminCommandDto(c.Id, c.Label, c.Category, c.RequiresTarget, c.Url))
+                .Select(c => new AdminCommandDto(c.Id, c.Label, c.Category, c.RequiresTarget, c.TargetType, c.Url))
                 .ToArray();
         }
         catch (Exception)

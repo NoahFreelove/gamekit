@@ -345,7 +345,7 @@ the second slot, since solo enqueue from the same player is one ticket).
 
 ### Admin queue-depth panel
 
-The Admin UI's matchmaking page (`/admin/matchmaking/queue-depth`) shows live ZCARD per pool
+The Admin UI's matchmaking page (`/admin/matchmaking`) shows live ZCARD per pool
 sourced strictly from Redis (CONTEXT.md MATCH-14 / SC#6). Pause / drain commands are exposed
 via the command palette (Ctrl+K → "Pause queue" / "Drain queue") under the Superadmin policy.
 

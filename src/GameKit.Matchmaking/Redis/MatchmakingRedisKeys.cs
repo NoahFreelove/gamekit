@@ -38,6 +38,17 @@ public static class MatchmakingRedisKeys
     public const string MatcherLock = "gamekit:matchmaking:matcher:lock";
 
     /// <summary>
+    /// Matcher liveness heartbeat. The lock above is acquired-and-released per tick to
+    /// coordinate mutual exclusion across the matcher ticker, reconciler, and retention
+    /// sweep — so a point-in-time read of the lock catches it only ~0.4% of the time and
+    /// cannot reliably answer "is a matcher alive?". The heartbeat is a separate key
+    /// written each successful matcher tick with the holding instance id and a TTL
+    /// generously larger than the tick cadence; observability reads it to answer the
+    /// liveness question without disturbing the lock semantics.
+    /// </summary>
+    public const string MatcherHeartbeat = "gamekit:matchmaking:matcher:heartbeat";
+
+    /// <summary>
     /// Admin "pause queue" flag — when present (any value), the matchmaker skips its tick.
     /// </summary>
     public const string ControlPaused = "mm:control:paused";

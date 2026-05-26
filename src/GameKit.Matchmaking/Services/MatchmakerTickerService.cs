@@ -190,6 +190,18 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
             // Admin pause flag — when set the matcher skips the tick (D-21 control surface).
             // Read once per tick; per-pool checks would be wasteful.
             var db = _redis.GetDatabase();
+
+            // Liveness heartbeat for observability. The lock above is held only ~1ms per
+            // tick (released in the finally block to free it for the reconciler + retention
+            // sweep), so observability can't answer "is the matcher alive?" by point-reading
+            // the lock. Write a separate heartbeat key with the holding instance id and a
+            // TTL of 5× the tick interval so a missed tick or two doesn't false-flag the
+            // matcher as dead. Read by RedisMatchmakingObservability.
+            await db.StringSetAsync(
+                MatchmakingRedisKeys.MatcherHeartbeat,
+                _lease.InstanceId,
+                TimeSpan.FromMilliseconds(_opts.Ticker.TickIntervalMs * 5)).ConfigureAwait(false);
+
             var paused = await db.KeyExistsAsync(MatchmakingRedisKeys.ControlPaused).ConfigureAwait(false);
             if (paused)
             {
@@ -313,8 +325,24 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
         {
             ct.ThrowIfCancellationRequested();
 
+            var ladderIdForKey = ExtractLadderId(queueKey.ToString());
+
+            // Per-ladder admin pause flag. The global `mm:control:paused` kill-switch is
+            // checked once per tick in RunOnceAsync; this is the per-ladder admin pause set
+            // by IMatchmakingControlService.PauseAsync (admin UI palette). When set we skip
+            // match-formation for this ladder but continue processing other ladders in the
+            // same tick. Existing tickets stay in the queue and resume matching when the
+            // pause is cleared. Drain has no equivalent skip — drained ladders should keep
+            // matching existing tickets per the drain contract.
+            if (await db.KeyExistsAsync(RedisMatchmakingControlService.ControlPausedKeyForLadder(ladderIdForKey)).ConfigureAwait(false))
+            {
+                _logger.LogDebug("MatchmakerTickerService: ladder {LadderId} paused — skipping pool '{Pool}'.",
+                    ladderIdForKey, poolName);
+                continue;
+            }
+
             using var poolActivity = MatchmakingActivitySource.StartPoolActivity(
-                ExtractLadderId(queueKey.ToString()), poolName);
+                ladderIdForKey, poolName);
 
             // Pull up to CandidatesPerTick candidate ticket ids (Unix-ms scored, oldest first).
             var entries = await db.SortedSetRangeByScoreAsync(

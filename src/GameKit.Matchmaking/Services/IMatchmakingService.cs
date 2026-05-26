@@ -90,6 +90,12 @@ public enum EnqueueOutcome
 
     /// <summary>The supplied party id is not in <see cref="Entities.PartyState.Open"/> or the player is not a member.</summary>
     InvalidParty = 5,
+
+    /// <summary>An admin has paused the requested ladder's queue via the admin UI / control service. New enqueues are rejected until the pause flag is cleared.</summary>
+    RejectedDueToQueuePaused = 6,
+
+    /// <summary>An admin has marked the requested ladder for drain — existing tickets continue to match, but new enqueues are rejected.</summary>
+    RejectedDueToQueueDraining = 7,
 }
 
 /// <summary>Structured result of <see cref="IMatchmakingService.EnqueueAsync"/>.</summary>

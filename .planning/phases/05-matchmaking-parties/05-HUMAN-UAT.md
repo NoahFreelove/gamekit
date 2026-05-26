@@ -34,19 +34,24 @@ snapshot tests are brittle and Phase 3 set the precedent of UAT for admin chrome
    ```
 3. **Log in as admin.** Navigate to `http://localhost:5000/admin`. Authenticate using the
    seeded admin credentials (`docker/postgres/init/*` defaults).
-4. **Navigate to the matchmaking health panel:** `/admin/matchmaking/health`
-   (the panel is rendered by `QueueDepth.razor` resolving
-   `IMatchmakingObservability` via reflection — Plan 05-08 Task 4).
-5. **Enqueue test tickets via curl** (use a guest-login JWT from `/api/auth/guest`):
+4. **Navigate to the matchmaking panel:** `/admin/matchmaking`
+   (the panel is rendered by `QueueDepth.razor` at `@page "/admin/matchmaking"`,
+   resolving `IMatchmakingObservability` via reflection — Plan 05-08 Task 4).
+5. **Enqueue test tickets via curl** (use a guest-login JWT from `/auth/login/guest`):
    ```bash
-   TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/guest | jq -r .accessToken)
+   TOKEN=$(curl -s -X POST http://localhost:5000/auth/login/guest \
+     -H 'X-GameKit-Device: uat-mm' -H 'Content-Type: application/json' -d '{}' \
+     | jq -r .accessToken)
+   LID=$(curl -s http://localhost:5000/demo/ladder-id/tictactoe | jq -r .id)
    for i in $(seq 1 3); do
      curl -X POST http://localhost:5000/api/mm/queue \
        -H "Authorization: Bearer $TOKEN" \
        -H "Content-Type: application/json" \
-       -d '{"ladderId":"<resolved-from-/demo/ladder-id/tictactoe>","poolName":"tictactoe"}'
+       -d "{\"ladderId\":\"$LID\",\"poolName\":\"tictactoe\"}"
    done
    ```
+   Note: each enqueue from the same `X-GameKit-Device` value reuses the same guest
+   player; vary it (`uat-mm-a`, `uat-mm-b`, …) if you want distinct queued tickets.
 6. **Confirm the panel updates** within the polling interval (default 2 s):
    - Queue depth row for ladder `tictactoe` shows depth = 3 (or whatever the matcher has
      not yet drained).
@@ -211,10 +216,10 @@ passes.
 
 | UAT | Status |
 |-----|--------|
-| UAT-1 (admin UI live panels) | ⬜ pending |
+| UAT-1 (admin UI live panels) | 🟡 issue → fixed 2026-05-22 (Dashboard ns typo + ticker-vs-observability lock-pattern bug; heartbeat key added) — retest in 05-UAT.md |
 | UAT-2 (pause-queue / drain-queue verbs) | ⬜ pending |
-| UAT-3 (TicTacToeDuel 1v1 happy path) | ⬜ pending (Plan 05-09 Task 3 checkpoint covers this — re-reference here) |
-| SC#3 load test | ⬜ pending (operator runs 10-min sustain) |
+| UAT-3 (TicTacToeDuel 1v1 happy path) | ✅ pass 2026-05-22 (recorded in 05-UAT.md) |
+| SC#3 load test | ✅ pass 2026-05-18 (commit `8809c77`; MaxIterationMs=29, Matched=3092, Dropped=0 — see 05-10-SUMMARY.md §Post-UAT Resolution) |
 
 ---
 

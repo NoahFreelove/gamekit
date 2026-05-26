@@ -6,12 +6,11 @@ using System.Security.Claims;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using GameKit.Admin.UI.Services;
-using GameKit.Matchmaking.Redis;
+using GameKit.Admin.UI.Http.EndpointFilters;
+using GameKit.Matchmaking.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using StackExchange.Redis;
 
 namespace GameKit.Matchmaking.Http;
 
@@ -23,9 +22,13 @@ namespace GameKit.Matchmaking.Http;
 /// <para>
 /// Authorization constants are referenced as string literals because <c>GameKit.Matchmaking</c>
 /// does NOT have a runtime API dependency on <c>GameKit.Admin.UI</c> at the policy layer
-/// (D-22 invariant; mirrors the Rankings.AdminEndpoints pattern). The audit-writer
-/// <see cref="IAdminAuditWriter"/> IS resolved from DI — the audit row is the cross-package
-/// integration point.
+/// (D-22 invariant; mirrors the Rankings.AdminEndpoints pattern). The audit row is written
+/// inside <see cref="IMatchmakingControlService"/> — the cross-package integration point.
+/// </para>
+/// <para>
+/// Phase 5 UAT-2 D1 refactor: handlers now delegate to <see cref="IMatchmakingControlService"/>
+/// so the Blazor admin chrome (PauseQueueDialog / DrainQueueDialog) can invoke the same
+/// behaviour through DI rather than HTTP loopback.
 /// </para>
 /// <para>
 /// Cookie scheme: <c>GameKitAdmin</c> (<c>AdminAuthenticationSchemeConstants.Scheme</c>).
@@ -37,12 +40,6 @@ public static class MatchmakingAdminEndpoints
     // Source of truth: GameKit.Admin.UI.Authorization.AdminPolicies.Superadmin
     private const string SuperadminPolicy = "gamekit.admin.superadmin";
 
-    // Source of truth: GameKit.Admin.UI.Services.AdminAuditActions.MatchmakingPauseQueue
-    private const string AuditActionPauseQueue = "admin.matchmaking.pause_queue";
-
-    // Source of truth: GameKit.Admin.UI.Services.AdminAuditActions.MatchmakingDrainQueue
-    private const string AuditActionDrainQueue = "admin.matchmaking.drain_queue";
-
     /// <summary>Maps the matchmaking admin endpoints onto the provided route group.</summary>
     /// <param name="routes">The endpoint route builder.</param>
     /// <returns><paramref name="routes"/> for chaining.</returns>
@@ -52,11 +49,17 @@ public static class MatchmakingAdminEndpoints
 
         var group = routes.MapGroup("/admin/api/matchmaking");
 
+        // Antiforgery filter chain matches the Rankings precedent
+        // (RankingsAdminEndpoints.cs:83-85). Without this filter, a logged-in admin
+        // could be CSRF'd by an attacker page into pausing/draining any ladder —
+        // T-05-08-05 (CSRF on superadmin state-changing POST) remediation.
         group.MapPost("/pause-queue", PauseQueueAsync)
-            .RequireAuthorization(SuperadminPolicy);
+            .RequireAuthorization(SuperadminPolicy)
+            .AddEndpointFilter<AntiforgeryValidationFilter>();
 
         group.MapPost("/drain-queue", DrainQueueAsync)
-            .RequireAuthorization(SuperadminPolicy);
+            .RequireAuthorization(SuperadminPolicy)
+            .AddEndpointFilter<AntiforgeryValidationFilter>();
 
         return routes;
     }
@@ -69,62 +72,24 @@ public static class MatchmakingAdminEndpoints
     private static async Task<IResult> PauseQueueAsync(
         MatchmakingControlRequest req,
         HttpContext http,
-        IConnectionMultiplexer redis,
-        IAdminAuditWriter audit,
+        IMatchmakingControlService control,
         CancellationToken ct)
     {
         var actorId = GetAdminId(http);
-
-        var db = redis.GetDatabase();
-        var key = ControlPausedKeyForLadder(req.LadderId);
-        await db.StringSetAsync(key, req.Reason ?? "(no reason)").ConfigureAwait(false);
-
-        await audit.WriteAsync(
-            action: AuditActionPauseQueue,
-            targetType: "ladder",
-            targetId: req.LadderId,
-            actorId: actorId,
-            before: null,
-            after: new { paused = true, reason = req.Reason },
-            reason: req.Reason,
-            cancellationToken: ct).ConfigureAwait(false);
-
+        await control.PauseAsync(req.LadderId, req.Reason, actorId, ct).ConfigureAwait(false);
         return Results.Ok(new { paused = true, ladderId = req.LadderId });
     }
 
     private static async Task<IResult> DrainQueueAsync(
         MatchmakingControlRequest req,
         HttpContext http,
-        IConnectionMultiplexer redis,
-        IAdminAuditWriter audit,
+        IMatchmakingControlService control,
         CancellationToken ct)
     {
         var actorId = GetAdminId(http);
-
-        var db = redis.GetDatabase();
-        var key = ControlDrainKeyForLadder(req.LadderId);
-        await db.StringSetAsync(key, req.Reason ?? "(no reason)").ConfigureAwait(false);
-
-        await audit.WriteAsync(
-            action: AuditActionDrainQueue,
-            targetType: "ladder",
-            targetId: req.LadderId,
-            actorId: actorId,
-            before: null,
-            after: new { drain = true, reason = req.Reason },
-            reason: req.Reason,
-            cancellationToken: ct).ConfigureAwait(false);
-
+        await control.DrainAsync(req.LadderId, req.Reason, actorId, ct).ConfigureAwait(false);
         return Results.Ok(new { drain = true, ladderId = req.LadderId });
     }
-
-    /// <summary>Per-ladder pause key. Mirrors <see cref="MatchmakingRedisKeys.ControlPaused"/> base.</summary>
-    private static string ControlPausedKeyForLadder(Guid ladderId)
-        => $"{MatchmakingRedisKeys.ControlPaused}:{ladderId}";
-
-    /// <summary>Per-ladder drain key.</summary>
-    private static string ControlDrainKeyForLadder(Guid ladderId)
-        => $"{MatchmakingRedisKeys.ControlDrain}:{ladderId}";
 
     private static Guid GetAdminId(HttpContext http)
     {

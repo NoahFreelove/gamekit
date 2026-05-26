@@ -957,11 +957,15 @@ button.chip:hover { background: var(--surface-3); border-color: var(--border-str
   font-size: 13px;
   align-items: center;
 }
-.palette-row.active { background: var(--accent-50); color: var(--accent-700); }
+.palette-row.active,
+.palette-row[aria-selected="true"] { background: var(--accent-50); color: var(--accent-700); }
+.palette-row[aria-selected="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .palette-row .icon { color: var(--fg-3); }
-.palette-row.active .icon { color: var(--accent); }
+.palette-row.active .icon,
+.palette-row[aria-selected="true"] .icon { color: var(--accent); }
 .palette-row .hint { color: var(--fg-3); font-size: 12px; font-family: var(--font-mono); }
-.palette-row.active .hint { color: var(--accent-700); }
+.palette-row.active .hint,
+.palette-row[aria-selected="true"] .hint { color: var(--accent-700); }
 .palette-foot {
   border-top: 1px solid var(--border);
   padding: 8px 16px;

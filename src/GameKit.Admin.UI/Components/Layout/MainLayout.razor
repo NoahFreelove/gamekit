@@ -116,11 +116,13 @@
     {
         var pid = Guid.TryParse(targetId, out var parsed) ? parsed : Guid.Empty;
 
-        // Build DialogParameters — most dialogs use PlayerId + DisplayName; end-season uses
-        // LadderId + LadderName. We add the ladder-specific keys conditionally for "end-season"
-        // so the dialog's [Parameter] LadderId is satisfied without polluting other dialogs.
+        // Build DialogParameters — most dialogs use PlayerId + DisplayName; ladder verbs
+        // (end-season, pause-queue, drain-queue) use LadderId + LadderName. We branch on
+        // the verb so each dialog's [Parameter] members are satisfied without polluting
+        // unrelated dialogs.
+        var isLadderVerb = commandId == "end-season" || commandId == "pause-queue" || commandId == "drain-queue";
         DialogParameters parameters;
-        if (commandId == "end-season")
+        if (isLadderVerb)
         {
             parameters = new DialogParameters
             {
@@ -146,6 +148,8 @@
             "delete-admin" => typeof(DeleteAdminDialog),
             "end-season"   => typeof(EndSeasonDialog),
             "rank-adjust"  => typeof(RankAdjustDialog),
+            "pause-queue"  => typeof(PauseQueueDialog),
+            "drain-queue"  => typeof(DrainQueueDialog),
             // rotate-signing-key is Phase 6 territory.
             _ => null
         };

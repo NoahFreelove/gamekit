@@ -95,8 +95,46 @@ public static class MatchmakingEndpoints
             EnqueueOutcome.AlreadyEnqueued => Results.Conflict(new { error = "ticket_active", detail = result.Detail }),
             EnqueueOutcome.UnknownLadder => Results.BadRequest(new { error = "unknown_ladder", detail = result.Detail }),
             EnqueueOutcome.InvalidParty => Results.BadRequest(new { error = "invalid_party", detail = result.Detail }),
+            EnqueueOutcome.RejectedDueToQueuePaused or EnqueueOutcome.RejectedDueToQueueDraining =>
+                ServiceUnavailable(
+                    error: result.Outcome == EnqueueOutcome.RejectedDueToQueuePaused ? "queue_paused" : "queue_draining",
+                    detail: result.Detail,
+                    retryAfterSeconds: 60),
             _ => Results.StatusCode(StatusCodes.Status500InternalServerError),
         };
+    }
+
+    // 503 helper — sets Retry-After (RFC 7231 §7.1.3) on top of the JSON body so HTTP
+    // clients with built-in retry policies (Polly, axios-retry, etc.) can back off without
+    // parsing the payload. Used for the admin pause/drain rejection path.
+    private static IResult ServiceUnavailable(string error, string? detail, int retryAfterSeconds) =>
+        new ServiceUnavailableResult(error, detail, retryAfterSeconds);
+
+    private sealed class ServiceUnavailableResult : IResult
+    {
+        private readonly string _error;
+        private readonly string? _detail;
+        private readonly int _retryAfter;
+
+        public ServiceUnavailableResult(string error, string? detail, int retryAfter)
+        {
+            _error = error;
+            _detail = detail;
+            _retryAfter = retryAfter;
+        }
+
+        public async Task ExecuteAsync(HttpContext http)
+        {
+            http.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            http.Response.Headers["Retry-After"] = _retryAfter.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            http.Response.ContentType = "application/json; charset=utf-8";
+            await http.Response.WriteAsJsonAsync(new
+            {
+                error = _error,
+                detail = _detail,
+                retryAfterSeconds = _retryAfter,
+            }).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

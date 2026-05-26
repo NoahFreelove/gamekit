@@ -17,6 +17,13 @@
     outline-offset: -2px;
 }
 
+/* Selection highlight for keyboard-navigated rows lives in the GLOBAL
+   gamekit-admin.css. A scoped [aria-selected="true"] rule does NOT match buttons
+   that JS creates with document.createElement (the [b-XXXXXX] Blazor scope
+   attribute is only stamped at SSR-render time), so target-search subview rows
+   would never highlight. Keep this comment to deter future drift back into the
+   scoped stylesheet. */
+
 .palette-row-label {
     flex: 1;
     text-align: left;

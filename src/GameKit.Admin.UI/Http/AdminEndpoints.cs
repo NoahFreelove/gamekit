@@ -483,7 +483,7 @@ public static class AdminEndpoints
         var isSuper = string.Equals(role, AdminRoles.Superadmin, StringComparison.Ordinal);
         var visible = AdminCommandRegistry.AllCommands
             .Where(c => isSuper || !c.RequiresSuperadmin)
-            .Select(c => new AdminCommandDto(c.Id, c.Label, c.Category, c.RequiresTarget, c.Url))
+            .Select(c => new AdminCommandDto(c.Id, c.Label, c.Category, c.RequiresTarget, c.TargetType, c.Url))
             .ToArray();
         return Task.FromResult<IResult>(Results.Ok(visible));
     }

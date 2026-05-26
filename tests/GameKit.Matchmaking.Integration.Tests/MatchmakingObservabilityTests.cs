@@ -51,6 +51,7 @@ public sealed class MatchmakingObservabilityTests : IAsyncLifetime
             await _mux.GetDatabase().KeyDeleteAsync(k);
         }
         await _mux.GetDatabase().KeyDeleteAsync(MatchmakingRedisKeys.MatcherLock);
+        await _mux.GetDatabase().KeyDeleteAsync(MatchmakingRedisKeys.MatcherHeartbeat);
     }
 
     public async Task DisposeAsync()
@@ -100,11 +101,17 @@ public sealed class MatchmakingObservabilityTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetQueueStats_LeaderIdentity_Comes_From_LockKey_Not_Postgres()
+    public async Task GetQueueStats_LeaderIdentity_Comes_From_HeartbeatKey_Not_Postgres()
     {
+        // The matcher lock is held only ~1ms per 500ms tick (released in the ticker's
+        // finally block to free it for the reconciler + retention sweep), so a snapshot
+        // read of the lock catches it ~0.4% of the time. Observability instead reads
+        // MatcherHeartbeat, which is written each successful matcher tick with a TTL
+        // generously larger than the cadence. The lock-vs-heartbeat split keeps mutex
+        // semantics for inter-service coordination separate from observability liveness.
         var db = _mux!.GetDatabase();
         const string instance = "test-instance-abc";
-        await db.StringSetAsync(MatchmakingRedisKeys.MatcherLock, instance, TimeSpan.FromMinutes(1));
+        await db.StringSetAsync(MatchmakingRedisKeys.MatcherHeartbeat, instance, TimeSpan.FromMinutes(1));
 
         try
         {
@@ -115,7 +122,7 @@ public sealed class MatchmakingObservabilityTests : IAsyncLifetime
         }
         finally
         {
-            await db.KeyDeleteAsync(MatchmakingRedisKeys.MatcherLock);
+            await db.KeyDeleteAsync(MatchmakingRedisKeys.MatcherHeartbeat);
         }
     }
 

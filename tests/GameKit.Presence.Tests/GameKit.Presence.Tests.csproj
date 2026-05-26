@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Presence.Tests</RootNamespace>
+    <AssemblyName>GameKit.Presence.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Microsoft.Extensions.Hosting + ASP.NET types supplied transitively; the unit
+         project deliberately omits FrameworkReference so Plan 06-04's pure-unit tests
+         do not pick up ambient ASP.NET dependencies. Mirror of
+         tests/GameKit.Matchmaking.Tests/GameKit.Matchmaking.Tests.csproj which DOES
+         declare the framework ref — Presence unit project does NOT because the
+         RedisPresenceProvider tests run against Moq<IConnectionMultiplexer>, no HTTP. -->
+    <PackageReference Include="Moq" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+  </ItemGroup>
+</Project>

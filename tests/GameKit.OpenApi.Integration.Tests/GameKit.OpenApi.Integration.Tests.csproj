@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.OpenApi.Integration.Tests</RootNamespace>
+    <AssemblyName>GameKit.OpenApi.Integration.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Microsoft.Extensions.Hosting intentionally omitted: supplied by the
+         Microsoft.AspNetCore.App framework reference above (Phase 1 NU1510
+         precedent — same pattern as GameKit.Auth.Integration.Tests). -->
+    <PackageReference Include="Moq" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- All 7 GameKit src ProjectRefs — the OPEN-01 contract test (Plan 06-06)
+         boots the full sample app via WebApplicationFactory<Program> and asserts
+         every player-facing endpoint from every package appears in the generated
+         /openapi/v1.json. Admin endpoints are intentionally excluded by the
+         OpenApiOptions.ShouldInclude filter (D-19). -->
+    <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.OpenApi\GameKit.OpenApi.csproj" />
+    <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
+    <!-- TicTacToeDuel sample ProjectRef so Plan 06-06's contract test can boot
+         WebApplicationFactory<Program> against the real sample (the sample's
+         Program class is auto-public via top-level statements in .NET 6+). -->
+    <ProjectReference Include="..\..\samples\TicTacToeDuel\TicTacToeDuel.csproj" />
+  </ItemGroup>
+</Project>

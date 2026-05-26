@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 6 UI-SPEC approved
-last_updated: "2026-05-26T02:11:16.227Z"
+last_updated: "2026-05-26T02:12:31.643Z"
 progress:
   total_phases: 7
   completed_phases: 5
@@ -22,17 +22,17 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 6 — presence + openapi + distribution
+**Current Focus:** Phase 06 — Presence + OpenAPI + Distribution
 
 ## Current Position
 
-Phase: 06 (presence-+-openapi-+-distribution) — READY TO DISCUSS
-Plan: Not started — Phase 6 has no CONTEXT.md yet; next workflow is `/gsd:discuss-phase 6`
+Phase: 06 (Presence + OpenAPI + Distribution) — EXECUTING
+Plan: 1 of 10
 Next: Discuss Phase 6 scope (Presence package lights up Admin UI + gates abandonment; OpenAPI doc per HTTP package; `dotnet new gamekit` template + coordinated release train).
 **Milestone:** v1 (initial 6-phase build-out)
 **Phase:** 6
 **Plan:** Not started
-**Status:** Ready to execute
+**Status:** Executing Phase 06
 
 **Progress:** [██████████] 100%
 

@@ -3,10 +3,12 @@
 
 using System;
 using GameKit.Core.Data;
+using GameKit.Core.Hosting;
 using GameKit.Core.RateLimiting;
 using GameKit.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace GameKit.Core.Builder;
 
@@ -29,6 +31,16 @@ public static class GameKitServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
+
+        // D-16 / OPS-05 / PATTERNS warning #2: GameKitVersionAssertionHostedService MUST be the
+        // FIRST IHostedService in the container so it runs BEFORE every sibling-package migration
+        // hosted service (AuthMigrationHostedService, RankingsMigrationHostedService,
+        // MatchmakingMigrationHostedService, AdminMigrationHostedService). Appending via
+        // services.AddHostedService<T>() would let mismatched-version migrations land first,
+        // leaving the database in an inconsistent state before the mismatch is detected.
+        // services.Insert(0, ...) guarantees first-position; sibling packages register their
+        // migration services with the default-append AddHostedService<T>() and land after this.
+        services.Insert(0, ServiceDescriptor.Singleton<IHostedService, GameKitVersionAssertionHostedService>());
 
         var opts = new GameKitOptions();
         configure(opts);

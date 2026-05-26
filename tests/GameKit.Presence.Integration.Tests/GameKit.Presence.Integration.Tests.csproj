@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Presence.Integration.Tests</RootNamespace>
+    <AssemblyName>GameKit.Presence.Integration.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Microsoft.Extensions.Hosting intentionally omitted: supplied by the
+         Microsoft.AspNetCore.App framework reference above (Phase 1 NU1510
+         precedent — same pattern as GameKit.Auth.Integration.Tests). -->
+    <PackageReference Include="Moq" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Auth ProjectRef required for the JWT bearer scheme on the heartbeat
+         integration test (Plan 06-04 / 06-05). Rankings + Matchmaking + Admin.UI
+         intentionally dropped — Presence does not depend on them at runtime
+         (PATTERNS Block 12 line 925). -->
+    <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
+  </ItemGroup>
+</Project>

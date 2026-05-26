@@ -1095,7 +1095,7 @@ gameKitBuilder.AddPresence();   // NEW Phase 6
 | A9 | `gamekit_reader` test fixture can bind-mount `docker/postgres/init/01-roles.sql` via Testcontainers | Pitfall 8 + DIST-02 | Verified by Phase 1 docker-compose pattern; Testcontainers supports `WithBindMount` and `WithResourceMapping`. |
 | A10 | Sample-app `Program.cs` `.AddPresence()` chain compiles without breaking existing TicTacToeDuel functionality | DIST-03 + sample modify | Low risk — fluent chain is additive; existing Phase 2-5 services unaffected. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **OQ1: Should GameKit ship a Swagger UI or just the JSON doc?**
    - What we know: CONTEXT D-07 says JSON only; Swashbuckle is officially deprecated from .NET 9/10 default templates; Scalar is MIT-licensed and would be GPL-compatible.

@@ -1,0 +1,38 @@
+<!--
+  GameKit.targets — coordinated release-train exact-pin metadata
+  (Phase 6 D-17 + D-26, Plan 06-01 Task 2)
+
+  Purpose: when an in-repo ProjectReference (sibling src/GameKit.* package)
+  is converted to a NuGet PackageReference during Pack, the GenerateNuspec
+  task reads the <PackageVersion> metadata declared here and emits the
+  exact-pin square-bracket syntax `[X.Y.Z]` into the produced .nuspec.
+  Exact pins block NuGet's restore graph from accepting any version other
+  than the literal MinVer-resolved stamp (NU1605 fires on mismatch),
+  giving the coordinated release train teeth at the consumer's restore
+  step instead of waiting until runtime.
+
+  Layered defense (D-17 + D-26):
+    1. PRIMARY (this file): MSBuild ItemDefinitionGroup stamps the metadata
+       at Pack time. Authored once; applied to every csproj that imports
+       Directory.Build.props.
+    2. SECONDARY (Plan 06-08 CI workflow): grep over produced .nupkg
+       .nuspec files asserts the literal `version="[X.Y.Z]"` syntax is
+       present and no wildcard / caret pins leaked in.
+    3. RUNTIME (Plan 06-02 GameKitVersionAssertionHostedService):
+       reflects on loaded GameKit.* assemblies and throws
+       GameKitVersionMismatchException if any GameKitVersion const
+       diverges across the loaded set.
+
+  Imported by Directory.Build.props at repo root via
+  <Import Project="$(MSBuildThisFileDirectory)GameKit.targets" />.
+-->
+<Project>
+  <ItemDefinitionGroup>
+    <ProjectReference>
+      <!-- Read by GenerateNuspec when a ProjectReference is converted to a
+           PackageReference. Exact-pin syntax `[X.Y.Z]` blocks any other
+           version from satisfying the dependency at restore time. -->
+      <PackageVersion>[$(Version)]</PackageVersion>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+</Project>

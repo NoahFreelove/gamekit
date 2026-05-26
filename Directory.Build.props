@@ -38,4 +38,21 @@
     <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Visible="false" />
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- D-23 + 06-RESEARCH Pitfall 1: expose MinVer's $(Version) to the
+         GameKit.Build Roslyn source generator at compile time. Without this,
+         AnalyzerConfigOptionsProvider.GlobalOptions cannot read
+         build_property.Version and GameKitVersionGenerator emits the
+         "0.0.0" fallback stamp — making the OPS-04 release-train assertion
+         silently degenerate to a tautology. -->
+    <CompilerVisibleProperty Include="Version" />
+  </ItemGroup>
+
+  <!-- D-17 + D-26: GameKit.targets contributes an <ItemDefinitionGroup> that
+       stamps PackageVersion="[$(Version)]" exact-pin metadata onto every
+       ProjectReference at Pack time. Primary defense for the coordinated
+       release train; CI grep on produced .nuspec files (Plan 06-08) is the
+       layered secondary defense. -->
+  <Import Project="$(MSBuildThisFileDirectory)GameKit.targets" />
 </Project>

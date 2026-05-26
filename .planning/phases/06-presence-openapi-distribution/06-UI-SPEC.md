@@ -2,7 +2,8 @@
 phase: 06
 slug: presence-openapi-distribution
 type: ui-design-contract
-status: draft
+status: approved
+reviewed_at: 2026-05-25
 shadcn_initialized: false
 preset: not applicable (Blazor Server, no shadcn)
 component_library: MudBlazor 9.3.0 (re-skinned per Phase 03.1)

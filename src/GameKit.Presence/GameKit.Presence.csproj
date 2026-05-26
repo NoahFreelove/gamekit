@@ -9,6 +9,20 @@
   <ItemGroup>
     <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- ASP.NET Core framework reference: required for HttpContext, IEndpointRouteBuilder,
+         IApplicationBuilder, RequireAuthorization, Results.NoContent — used by the heartbeat
+         endpoint (Plan 06-04 Task 3) and the AddPresence/MapPresence builder extensions.
+         Supplied by the Microsoft.AspNetCore.App shared framework (NU1510 precedent —
+         same pattern as src/GameKit.Matchmaking/GameKit.Matchmaking.csproj). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+    <!-- StackExchange.Redis: presence storage backend. Single Redis key per player
+         (presence:{playerId}) with TTL refresh + atomic Lua script for in-match precedence
+         (PATTERNS warning #6 / RESEARCH Pattern 1 §CRITICAL precedence rule). Version pinned
+         centrally via Directory.Packages.props (2.8.41 — repo-wide pin from Phase 1). -->
+    <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
   <!-- D-15 + 06-PATTERNS Critical Misuse Warning #5: GameKit.Build emits
        internal GameKitMarker.GameKitVersion + GameKitMarker.AssemblyName
        consts at compile time. OutputItemType=Analyzer routes the

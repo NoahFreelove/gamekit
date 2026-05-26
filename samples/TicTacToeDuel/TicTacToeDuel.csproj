@@ -10,6 +10,8 @@
     <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <!-- Plan 06-04 — Presence package: Redis TTL-keyed heartbeat + in-match precedence Lua. -->
+    <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
   </ItemGroup>
 </Project>

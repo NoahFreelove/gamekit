@@ -6,6 +6,7 @@ using GameKit.Auth.Builder;
 using GameKit.Core.Builder;
 using GameKit.Matchmaking.Builder;
 using GameKit.Matchmaking.Strategy;
+using GameKit.Presence.Builder;
 using GameKit.Rankings.Builder;
 using GameKit.Rankings.Entities;
 using TicTacToeDuel.Http;
@@ -113,6 +114,13 @@ gameKitBuilder.AddMatchmaking(opts =>
     ladder.PartyRatingAggregator   = PartyRatingAggregator.Mean;
 });
 
+// Plan 06-04 — Presence (Phase 6). Redis TTL-keyed heartbeat (30s default per CONTEXT D-01) +
+// in-match precedence Lua script. The PresenceSessionObserver registered here observes the
+// /api/sessions/{id}/start + /complete + /abandon endpoints (wired in Plan 06-05) to flip the
+// in_match marker per CONTEXT D-03. No options override needed — defaults (TtlSeconds=30,
+// HeartbeatIntervalSeconds=10) match the 3× safety factor.
+gameKitBuilder.AddPresence();
+
 gameKitBuilder.AddGameKitAdmin(admin =>
 {
     admin.MountPath = "/admin";
@@ -149,6 +157,7 @@ app.MapAuth();                      // /auth/* — Phase 2
 app.MapDemo();                      // /demo/games (the /demo/players/register endpoint is REMOVED in Phase 2)
 app.MapRankings();                  // /api/players/{id}/export + /admin/api/players/{id}/export + /admin/api/players/{id}/rank-adjust — Phase 4
 app.MapMatchmaking();               // /api/parties/* + /api/mm/* — Phase 5 (Plan 05-08 surface, Plan 05-09 wiring)
+app.MapPresence();                  // POST /api/presence/heartbeat — Phase 6 (Plan 06-04 — JWT-bearer required, no rate limit per D-05)
 app.MapGameKitAdmin("/admin");      // Plan 03-12 — /admin/api/* HTTP surface + /admin/* Blazor console.
 
 // Sample-only helper: resolves a ladder name to its Guid so the matchmaking.html client can

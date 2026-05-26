@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: ready_to_plan
-stopped_at: Phase 5 complete (10/10) — ready to discuss Phase 6
-last_updated: 2026-05-25T13:55:47.282Z
+status: planning
+stopped_at: Phase 6 context gathered
+last_updated: "2026-05-26T00:35:50.592Z"
 progress:
   total_phases: 7
   completed_phases: 5
@@ -290,8 +290,8 @@ None.
 **Older action:** 2026-04-18T00:36:06Z — Plan 02-08 complete: TicTacToeDuel sample shipped end-to-end + human-verify approved + three follow-up fixes landed + FOLLOW-UP-02-03-01 CLOSED. Task 1 (994671b) rewrote Program.cs with AddAuth + strict middleware order, added appsettings.Development.json GameKit:Auth section (JWT + Steam realm + Discord placeholder creds), removed Phase-1 /demo/players/register + RegisterPlayerRequest/Response, added keys/{README,.gitignore}, scripts/gen-test-rsa-pem.sh (RSA 2048, 0600/0644), and full README auth section (localStorage/XSS disclaimer, PEM rotation via Kid, AllowedProviderHosts customization). Task 2 (10c0de1) shipped 488-LOC auth-aware SPA: auth panel (guest/register/login/Steam/Discord challenge), session panel (JWT decode + logout + /auth/me probe), gkFetch wrapper with X-GameKit-Device + Bearer + 401-refresh-retry-once. Task 3 human-verify walked all 15 steps in a real browser — approved. **Three follow-up fixes after walkthrough:** (a) 6c73630 fix(core,auth) — FOLLOW-UP-02-03-01 RESOLUTION: GameKitDbContext.OnModelCreating resolves IEnumerable<IModelBuilderExtension> lazily via CoreOptionsExtension.ApplicationServiceProvider; AddGameKit switches to (sp,opts) AddDbContext overload + UseApplicationServiceProvider(sp); new AuthMigrationHostedService applies __ef_migrations_auth under Auth advisory lock (-298890956) in IHost.StartAsync; UseGameKitAuth reduced to pure UseAuthentication. Also fixed: Auth migrations never applied at runtime pre-fix (tables missing on first Auth call). (b) 1f8d4f3 fix(auth) — /auth/logout no longer requires Bearer (refresh token IS the revocation capability; prior RequireAuthorization left refresh family un-revoked if access expired = security hole); OAuth callbacks return HTML BrowserTokenBridge (JSON rendered as text because Steam/Discord redirect the browser). (c) 7e96b00 fix(sample) — PEM paths changed to project-relative (dotnet run --project sets CWD to project dir, repo-root paths broke startup); dedicated upgrade-username/password inputs in session panel (auth-panel inputs were hidden → upgrade silently no-opped); formatAuthError helper parses ProblemDetails + AuthErrorResponse shapes (prior code rendered ProblemDetails as "Bad Request"). Phase 2 success criteria coverage: #1 (4-provider login — Guest/Password/Steam e2e in browser; Discord WireMock + service-layer), #2 (forged Steam — E2E + spot-checked in browser), #3 (refresh rotation UX proven in browser), #4 (concurrent guest-upgrade via plan 02-06), #5 (cross-player link 409), #6 (rate-limit 429). Full unit suite 166/166 green post-fix. AUTH-01 requirement closed.
 
 **Next action:** Discuss Phase 6 — `/gsd:discuss-phase 6` (Presence + OpenAPI + Distribution). Phase 6 directory does not yet exist on disk.
-**Resume file:** None
-**Stopped at:** Phase 5 complete (10/10 plans, UAT 4/4 pass, SECURITY 0 open / 7 accepted residual risks) — milestone v1 at 5/6 phases done.
+**Resume file:** .planning/phases/06-presence-openapi-distribution/06-CONTEXT.md
+**Stopped at:** Phase 6 context gathered
 **Blockers:** None
 
 **Follow-up RESOLVED:** FOLLOW-UP-02-03-01 closed in plan 02-08 via commit 6c73630. GameKitDbContext.OnModelCreating now resolves IModelBuilderExtension lazily from CoreOptionsExtension.ApplicationServiceProvider. AddGameKit uses (sp, opts) AddDbContext overload + UseApplicationServiceProvider(sp). Direct-construction migration contexts (design-time factories + BuildMigrationContext) intentionally do NOT attach a provider, preserving the per-package migration boundary. AuthMigrationHostedService owns __ef_migrations_auth application under Auth advisory lock (-298890956). The 02-02 test-local AuthRuntimeQueryCustomizer shim can be removed by future cleanup — the runtime path now works without it. Cross-cutting: Rankings, Matchmaking, Presence can now ship sibling IModelBuilderExtensions + per-package migration hosted services mirroring this pattern.

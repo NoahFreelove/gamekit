@@ -23,12 +23,16 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Auth ProjectRef required for the JWT bearer scheme on the heartbeat
-         integration test (Plan 06-04 / 06-05). Rankings + Matchmaking + Admin.UI
-         intentionally dropped — Presence does not depend on them at runtime
-         (PATTERNS Block 12 line 925). -->
+         integration test (Plan 06-04 / 06-05). Presence runtime does NOT depend
+         on Rankings, Matchmaking, or Admin.UI (PATTERNS Block 12 line 925).
+         The Rankings ProjectReference below is a TEST-ONLY coupling for the
+         end-to-end SessionsLifecycleObserverTests in Plan 06-05 — the test
+         needs the service-token auth handler and ladder seeding helpers that
+         live in GameKit.Rankings. Runtime package boundary is unchanged. -->
     <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
     <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
   </ItemGroup>
 </Project>

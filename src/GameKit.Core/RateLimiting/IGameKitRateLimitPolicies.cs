@@ -32,4 +32,10 @@ public interface IGameKitRateLimitPolicies
 
     /// <summary>Rate-limit policy name for <c>POST /api/sessions/{id}/complete</c>.</summary>
     string SessionsComplete { get; }
+
+    /// <summary>Rate-limit policy name for <c>POST /api/sessions/{id}/start</c> (Phase 6 — PRES-05, D-20).</summary>
+    string SessionsStart { get; }
+
+    /// <summary>Rate-limit policy name for <c>POST /api/sessions/{id}/abandon</c> (Phase 6 — PRES-05, D-20).</summary>
+    string SessionsAbandon { get; }
 }

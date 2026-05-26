@@ -16,7 +16,9 @@ namespace GameKit.Core.Http;
 
 /// <summary>
 /// Registers the session-management endpoint group (<c>/api/sessions</c>) in <c>GameKit.Core</c>.
-/// Currently exposes <c>POST /api/sessions/{id}/complete</c> (D-07, D-08, D-22, RANK-11).
+/// Exposes <c>POST /api/sessions/{id}/complete</c> (D-07, D-08, D-22, RANK-11),
+/// <c>POST /api/sessions/{id}/start</c> (Phase 6 PRES-05, D-20), and
+/// <c>POST /api/sessions/{id}/abandon</c> (Phase 6 PRES-05, D-20).
 /// </summary>
 public static class SessionEndpoints
 {
@@ -47,6 +49,22 @@ public static class SessionEndpoints
             // GameKit.Rankings (D-22 invariant).
             // The literal "RequiresServiceToken" matches ServiceTokenAuthenticationDefaults.PolicyName
             // in src/GameKit.Rankings/Authentication/ServiceTokenAuthenticationDefaults.cs.
+            .RequireAuthorization("RequiresServiceToken");
+
+        // Phase 6 PRES-05, D-20: game-server-authoritative session-lifecycle endpoints.
+        // /start transitions Pending → Active; /abandon transitions Active → Abandoned.
+        // Both share /complete's auth + rate-limit + validation-filter shape (the validator
+        // is a no-op when no IValidator<SessionStartRequest> / SessionAbandonRequest is
+        // registered — the request types are empty in v1 so the filter is wired purely for
+        // consumer extensibility).
+        group.MapPost("/{id}/start", StartSessionAsync)
+            .AddEndpointFilter<ValidationEndpointFilter<SessionStartRequest>>()
+            .RequireRateLimiting(policies.SessionsStart)
+            .RequireAuthorization("RequiresServiceToken");
+
+        group.MapPost("/{id}/abandon", AbandonSessionAsync)
+            .AddEndpointFilter<ValidationEndpointFilter<SessionAbandonRequest>>()
+            .RequireRateLimiting(policies.SessionsAbandon)
             .RequireAuthorization("RequiresServiceToken");
 
         return group;
@@ -107,6 +125,82 @@ public static class SessionEndpoints
                 detail = $"Player '{m.PlayerId}' is recorded on the session but was not included in the request.",
                 status = 400,
                 error = "missing_participant",
+            }),
+            _ => Results.StatusCode(500),
+        };
+    }
+
+    /// <summary>
+    /// Handler for <c>POST /api/sessions/{id}/start</c> — Phase 6 PRES-05, D-20.
+    /// Mirrors <see cref="CompleteSessionAsync"/>'s result-switch shape.
+    /// </summary>
+    private static async Task<IResult> StartSessionAsync(
+        Guid id,
+        SessionStartRequest req,
+        ISessionStartService service,
+        CancellationToken ct)
+    {
+        var result = await service.StartAsync(id, req, ct);
+
+        return result switch
+        {
+            SessionStartResult.Started s => Results.Ok(new
+            {
+                state = s.NewState.ToString(),
+            }),
+            SessionStartResult.SessionNotFound => Results.NotFound(new
+            {
+                type = "https://gamekit.dev/errors/session-not-found",
+                title = "Session Not Found",
+                detail = $"No session with id '{id}' was found.",
+                status = 404,
+            }),
+            SessionStartResult.InvalidState s => Results.Conflict(new
+            {
+                type = "https://gamekit.dev/errors/invalid-session-state",
+                title = "Invalid Session State",
+                detail = $"Session is in state '{s.CurrentState}' and cannot be started.",
+                status = 409,
+                error = "invalid_session_state",
+                currentState = s.CurrentState.ToString(),
+            }),
+            _ => Results.StatusCode(500),
+        };
+    }
+
+    /// <summary>
+    /// Handler for <c>POST /api/sessions/{id}/abandon</c> — Phase 6 PRES-05, D-20.
+    /// Mirrors <see cref="CompleteSessionAsync"/>'s result-switch shape.
+    /// </summary>
+    private static async Task<IResult> AbandonSessionAsync(
+        Guid id,
+        SessionAbandonRequest req,
+        ISessionAbandonService service,
+        CancellationToken ct)
+    {
+        var result = await service.AbandonAsync(id, req, ct);
+
+        return result switch
+        {
+            SessionAbandonResult.Abandoned a => Results.Ok(new
+            {
+                state = a.NewState.ToString(),
+            }),
+            SessionAbandonResult.SessionNotFound => Results.NotFound(new
+            {
+                type = "https://gamekit.dev/errors/session-not-found",
+                title = "Session Not Found",
+                detail = $"No session with id '{id}' was found.",
+                status = 404,
+            }),
+            SessionAbandonResult.InvalidState s => Results.Conflict(new
+            {
+                type = "https://gamekit.dev/errors/invalid-session-state",
+                title = "Invalid Session State",
+                detail = $"Session is in state '{s.CurrentState}' and cannot be abandoned.",
+                status = 409,
+                error = "invalid_session_state",
+                currentState = s.CurrentState.ToString(),
             }),
             _ => Results.StatusCode(500),
         };

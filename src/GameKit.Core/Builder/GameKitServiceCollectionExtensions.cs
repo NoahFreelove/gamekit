@@ -72,13 +72,34 @@ public static class GameKitServiceCollectionExtensions
         // Session-complete service (D-22) — optional ports (IPostSessionCompleteHandler,
         // IIdempotencyStore, ICanonicalRequestHasher) use GetService<T> (returns null when absent)
         // so Core-only installs operate in degraded mode (Open Q6) without DI throwing.
+        //
+        // Phase 6 (D-21): observers are injected as IEnumerable<ISessionLifecycleObserver> so
+        // cross-package hooks (e.g. Presence's in-match transition) coexist with the existing
+        // IPostSessionCompleteHandler port. IEnumerable<T> resolves to an empty sequence when
+        // no observer is registered — Core-only installs continue to work.
         services.AddScoped<ISessionCompleteService>(sp => new SessionCompleteService(
             sp.GetRequiredService<GameKitDbContext>(),
             sp.GetRequiredService<IClock>(),
             sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SessionCompleteService>>(),
+            sp.GetServices<ISessionLifecycleObserver>(),
             sp.GetService<IPostSessionCompleteHandler>(),
             sp.GetService<IIdempotencyStore>(),
             sp.GetService<ICanonicalRequestHasher>()));
+
+        // Phase 6 (PRES-05, D-20): session-start + session-abandon services with the same
+        // observer-fan-out shape as session-complete. IEnumerable<ISessionLifecycleObserver>
+        // resolves to empty when no observer is registered (Core-only install).
+        services.AddScoped<ISessionStartService>(sp => new SessionStartService(
+            sp.GetRequiredService<GameKitDbContext>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SessionStartService>>(),
+            sp.GetServices<ISessionLifecycleObserver>()));
+
+        services.AddScoped<ISessionAbandonService>(sp => new SessionAbandonService(
+            sp.GetRequiredService<GameKitDbContext>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SessionAbandonService>>(),
+            sp.GetServices<ISessionLifecycleObserver>()));
 
         services.AddSingleton<IGameKitRateLimitPolicies, GameKitRateLimitPolicies>();
 

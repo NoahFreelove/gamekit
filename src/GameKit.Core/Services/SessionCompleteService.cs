@@ -50,6 +50,7 @@ public sealed class SessionCompleteService : ISessionCompleteService
     private readonly GameKitDbContext _ctx;
     private readonly IClock _clock;
     private readonly ILogger<SessionCompleteService> _logger;
+    private readonly IEnumerable<ISessionLifecycleObserver> _lifecycleObservers;
     private readonly IPostSessionCompleteHandler? _postCompleteHandler;
     private readonly IIdempotencyStore? _idempotencyStore;
     private readonly ICanonicalRequestHasher? _hasher;
@@ -61,13 +62,19 @@ public sealed class SessionCompleteService : ISessionCompleteService
     };
 
     /// <summary>
-    /// Constructs the service. All three port dependencies are nullable — when absent, the service
-    /// operates in degraded mode (Open Q6). Use the factory registration in <c>AddGameKit()</c>
-    /// which calls <c>GetService&lt;T&gt;()</c> for optional ports.
+    /// Constructs the service. The optional port dependencies are nullable — when absent, the
+    /// service operates in degraded mode (Open Q6). Use the factory registration in
+    /// <c>AddGameKit()</c> which calls <c>GetService&lt;T&gt;()</c> for optional ports.
     /// </summary>
     /// <param name="ctx">Request-scoped <see cref="GameKitDbContext"/>.</param>
     /// <param name="clock">Authoritative UTC clock.</param>
     /// <param name="logger">Logger.</param>
+    /// <param name="lifecycleObservers">
+    /// Cross-package lifecycle observers (D-21 — Phase 6 PRES-05). Kept for backwards-compat
+    /// alongside <see cref="IPostSessionCompleteHandler"/>: both interfaces coexist and may be
+    /// registered independently in the same container. Pass <see cref="Enumerable.Empty{TResult}"/>
+    /// in Core-only installs.
+    /// </param>
     /// <param name="postCompleteHandler">
     /// Optional post-completion handler (e.g. Rankings enqueue adapter). Absent in Core-only installs.
     /// </param>
@@ -81,13 +88,16 @@ public sealed class SessionCompleteService : ISessionCompleteService
         GameKitDbContext ctx,
         IClock clock,
         ILogger<SessionCompleteService> logger,
+        IEnumerable<ISessionLifecycleObserver> lifecycleObservers,
         IPostSessionCompleteHandler? postCompleteHandler = null,
         IIdempotencyStore? idempotencyStore = null,
         ICanonicalRequestHasher? hasher = null)
     {
+        ArgumentNullException.ThrowIfNull(lifecycleObservers);
         _ctx = ctx;
         _clock = clock;
         _logger = logger;
+        _lifecycleObservers = lifecycleObservers;
         _postCompleteHandler = postCompleteHandler;
         _idempotencyStore = idempotencyStore;
         _hasher = hasher;
@@ -279,6 +289,26 @@ public sealed class SessionCompleteService : ISessionCompleteService
         if (_postCompleteHandler is not null)
         {
             await _postCompleteHandler.OnCompletedAsync(sessionId, participantSnapshots, ct);
+        }
+
+        // Step 6b (Phase 6 — D-21, PRES-05): fan out to cross-package lifecycle observers
+        // AFTER the post-complete handler ran. Both ports coexist (IPostSessionCompleteHandler
+        // continues to fire for Rankings' rating-update enqueue; ISessionLifecycleObserver fires
+        // for Presence's in-match clearance). Observers run inside the same transaction — a
+        // throwing observer rolls back the whole completion (including the rating-update
+        // enqueue). Per the ISessionLifecycleObserver contract, implementations MUST be
+        // idempotent and MUST NOT throw under non-fatal conditions.
+        if (participantSnapshots.Count > 0)
+        {
+            var participantIds = participantSnapshots
+                .Select(p => p.PlayerId)
+                .ToList();
+            foreach (var observer in _lifecycleObservers)
+            {
+                await observer
+                    .OnSessionCompletedAsync(sessionId, participantIds, ct)
+                    .ConfigureAwait(false);
+            }
         }
 
         // Reload participants to get rating_before values set by the post-handler.

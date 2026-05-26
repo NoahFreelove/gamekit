@@ -24,6 +24,12 @@ public sealed class GameKitRateLimitPolicies : IGameKitRateLimitPolicies
     /// <summary>Canonical policy name: <c>gamekit:sessions:complete</c>.</summary>
     public const string SessionsCompletePolicy = "gamekit:sessions:complete";
 
+    /// <summary>Canonical policy name: <c>gamekit:sessions:start</c> (Phase 6 — PRES-05, D-20).</summary>
+    public const string SessionsStartPolicy = "gamekit:sessions:start";
+
+    /// <summary>Canonical policy name: <c>gamekit:sessions:abandon</c> (Phase 6 — PRES-05, D-20).</summary>
+    public const string SessionsAbandonPolicy = "gamekit:sessions:abandon";
+
     /// <inheritdoc />
     public string AuthLogin => AuthLoginPolicy;
 
@@ -41,4 +47,10 @@ public sealed class GameKitRateLimitPolicies : IGameKitRateLimitPolicies
 
     /// <inheritdoc />
     public string SessionsComplete => SessionsCompletePolicy;
+
+    /// <inheritdoc />
+    public string SessionsStart => SessionsStartPolicy;
+
+    /// <inheritdoc />
+    public string SessionsAbandon => SessionsAbandonPolicy;
 }

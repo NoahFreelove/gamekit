@@ -19,3 +19,10 @@ using System.Runtime.CompilerServices;
 // re-implementing the seven entity configurations. Mirrors the GameKit.Auth → Admin
 // InternalsVisibleTo grant established in plan 03-06 (CoreInternalsVisibleTo precedent).
 [assembly: InternalsVisibleTo("GameKit.Matchmaking.Integration.Tests")]
+// Phase 6 Plan 06-05: SessionsLifecycleObserverTests in GameKit.Presence.Integration.Tests
+// applies RankingsModelBuilderExtension + RankingsMigrationModelCustomizer to build a hybrid
+// Core + Rankings + Presence test host that empirically validates the cross-package
+// ISessionLifecycleObserver wire-up (game-server-authoritative POST /api/sessions/{id}/start
+// sets Redis presence:{playerId}=in_match via PresenceSessionObserver). Test-only coupling —
+// Presence runtime still does NOT depend on Rankings.
+[assembly: InternalsVisibleTo("GameKit.Presence.Integration.Tests")]

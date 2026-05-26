@@ -11,6 +11,11 @@ using System.Runtime.CompilerServices;
 // ConfigureWebHostDefaults. Auth's entity configurations are internal sealed; granting
 // InternalsVisibleTo lets the test customizer apply them directly.
 [assembly: InternalsVisibleTo("GameKit.Admin.Integration.Tests")]
+// Plan 06-05 (SessionsLifecycleObserverTests): the cross-package lifecycle observer test
+// composes Core + Auth + Rankings + Presence in one hybrid host and needs
+// AuthModelBuilderExtension to compose all three packages' entities into a single test
+// DbContext (mirrors the Admin.Integration.Tests IVT precedent above).
+[assembly: InternalsVisibleTo("GameKit.Presence.Integration.Tests")]
 
 namespace GameKit.Auth;
 

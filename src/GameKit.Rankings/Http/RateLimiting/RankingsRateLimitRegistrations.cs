@@ -15,8 +15,9 @@ namespace GameKit.Rankings.Http.RateLimiting;
 
 /// <summary>
 /// Registers rate-limit policies used by <c>GameKit.Rankings</c> endpoints.
-/// Currently registers the <c>gamekit:sessions:complete</c> fixed-window policy
-/// (300 requests/min partitioned by service-token name, D-10).
+/// Registers the <c>gamekit:sessions:complete</c>, <c>gamekit:sessions:start</c>, and
+/// <c>gamekit:sessions:abandon</c> fixed-window policies (300 requests/min partitioned by
+/// service-token name, D-10 / PRES-05).
 /// </summary>
 public static class RankingsRateLimitRegistrations
 {
@@ -25,6 +26,18 @@ public static class RankingsRateLimitRegistrations
 
     /// <summary>Fixed-window width for the session-complete policy.</summary>
     public static TimeSpan SessionsCompleteWindow => TimeSpan.FromMinutes(1);
+
+    /// <summary>Permit limit for the session-start policy: 300 requests per minute per service-token (Phase 6 — PRES-05).</summary>
+    public const int SessionsStartPermitLimit = 300;
+
+    /// <summary>Fixed-window width for the session-start policy (Phase 6 — PRES-05).</summary>
+    public static TimeSpan SessionsStartWindow => TimeSpan.FromMinutes(1);
+
+    /// <summary>Permit limit for the session-abandon policy: 300 requests per minute per service-token (Phase 6 — PRES-05).</summary>
+    public const int SessionsAbandonPermitLimit = 300;
+
+    /// <summary>Fixed-window width for the session-abandon policy (Phase 6 — PRES-05).</summary>
+    public static TimeSpan SessionsAbandonWindow => TimeSpan.FromMinutes(1);
 
     /// <summary>
     /// Registers the <c>gamekit:sessions:complete</c> fixed-window rate-limit policy (D-10).
@@ -87,21 +100,40 @@ public static class RankingsRateLimitRegistrations
     {
         // Partition key: service-token name from ClaimTypes.Name; fallback to IP (D-10).
         opt.AddPolicy(names.SessionsComplete, httpContext =>
-        {
-            var tokenName = httpContext.User.FindFirst(ClaimTypes.Name)?.Value;
-            var partitionKey = string.IsNullOrEmpty(tokenName)
-                ? httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"
-                : $"svc:{tokenName}";
+            BuildSvcTokenPartition(httpContext, SessionsCompletePermitLimit, SessionsCompleteWindow));
 
-            return RateLimitPartition.GetFixedWindowLimiter(
-                partitionKey: partitionKey,
-                factory: _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = SessionsCompletePermitLimit,
-                    Window = SessionsCompleteWindow,
-                    QueueLimit = 0,
-                    AutoReplenishment = true,
-                });
-        });
+        // Phase 6 (PRES-05, D-20): /api/sessions/{id}/start uses the same partition shape
+        // (per-service-token, 300/min/token). Lower-traffic endpoint than /complete in steady
+        // state but identical compromise envelope, so we mirror the limits.
+        opt.AddPolicy(names.SessionsStart, httpContext =>
+            BuildSvcTokenPartition(httpContext, SessionsStartPermitLimit, SessionsStartWindow));
+
+        // Phase 6 (PRES-05, D-20): /api/sessions/{id}/abandon — same shape as /start.
+        opt.AddPolicy(names.SessionsAbandon, httpContext =>
+            BuildSvcTokenPartition(httpContext, SessionsAbandonPermitLimit, SessionsAbandonWindow));
+    }
+
+    /// <summary>
+    /// Shared partition-key + limiter-factory for service-token-authoritative endpoints.
+    /// Partition by <see cref="ClaimTypes.Name"/> (the service-token's friendly name), falling
+    /// back to remote IP when the claim is absent (mirrors the Auth precedent).
+    /// </summary>
+    private static RateLimitPartition<string> BuildSvcTokenPartition(
+        HttpContext httpContext, int permitLimit, TimeSpan window)
+    {
+        var tokenName = httpContext.User.FindFirst(ClaimTypes.Name)?.Value;
+        var partitionKey = string.IsNullOrEmpty(tokenName)
+            ? httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"
+            : $"svc:{tokenName}";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: partitionKey,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = window,
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
     }
 }

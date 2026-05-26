@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "GameKit contributors",
+  "classifications": [ "GameKit", "Sample", "WebAPI" ],
+  "identity": "GameKit.SampleGame",
+  "name": "GameKit Sample Game (TicTacToeDuel topology)",
+  "shortName": "gamekit",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "GameKit.SampleGame",
+  "preferNameDirectory": true,
+  "defaultName": "MyGame",
+  "symbols": {
+    "skipAuth": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "Omit GameKit.Auth wiring (PackageReference + AddAuth + MapAuth)."
+    },
+    "skipRankings": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "Omit GameKit.Rankings wiring (PackageReference + AddRankings + ladder config + MapRankings)."
+    },
+    "skipMatchmaking": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "Omit GameKit.Matchmaking wiring (PackageReference + AddMatchmaking + ladder + MapMatchmaking)."
+    },
+    "skipPresence": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "Omit GameKit.Presence wiring (PackageReference + AddPresence + MapPresence)."
+    }
+  },
+  "postActions": [
+    {
+      "description": "Generate dev RSA key pair for JWT signing.",
+      "manualInstructions": [
+        { "text": "Run ./scripts/gen-test-rsa-pem.sh from the project root to generate the dev keypair. Windows users without WSL: install OpenSSL + bash, OR generate the keypair manually and place dev-priv.pem + dev-pub.pem under src/<YourName>/keys/." }
+      ],
+      "actionId": "3A7C4B45-1F5D-4A30-959A-51B88E82B5D2",
+      "args": {
+        "executable": "bash",
+        "args": "./scripts/gen-test-rsa-pem.sh"
+      },
+      "continueOnError": true
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      Standalone game-server console process that demonstrates the production
+      topology (D-13): web tier WRITES to Postgres via gamekit_owner, this
+      game-server READS via gamekit_reader (role separation enforced by
+      docker/postgres/init/01-roles.sql). Cross-tier orchestration uses HTTP
+      against the web app's /api/sessions/{id}/{start,complete,abandon}
+      endpoints with a service-account JWT.
+    -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>GameKit.SampleGame.GameServer</RootNamespace>
+    <AssemblyName>GameKit.SampleGame.GameServer</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Direct Npgsql — NO DbContext. The game-server tier intentionally does NOT
+      reference GameKit.* runtime packages: it is an OUTSIDE consumer of the
+      web API (HTTP-only) and an OUTSIDE consumer of Postgres (Npgsql-only).
+      This mirrors real production topology where game servers are independent
+      processes from the web tier's assembly graph (often a different language,
+      multiple instances per host).
+    -->
+    <PackageReference Include="Npgsql" Version="*" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="*" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- appsettings copied to output so the binary can be launched in-place
+         (e.g. via `dotnet run`) without requiring a publish step. -->
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

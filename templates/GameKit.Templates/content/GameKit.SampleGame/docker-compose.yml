@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 GameKit contributors
+#
+# docker-compose.yml — GameKit.SampleGame dev stack (Postgres 17.9 + Redis 8.6.2).
+# Container names are scoped with a `samplegame-` prefix so the stack runs alongside
+# the upstream GameKit repo's docker-compose without port/container-name collisions
+# (host ports 5432/6379 still need to be free — override here if you collide).
+#
+# Production: operators run Postgres + Redis on hardware they control; this file
+# is NOT a production recipe — see docs/ops in the GameKit repo for production guidance.
+
+services:
+  postgres:
+    image: postgres:17.9
+    container_name: samplegame-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_bootstrap_dev_only
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - samplegame-postgres-data:/var/lib/postgresql/data
+      # Mount the 3-role init script — same shape as the upstream GameKit repo.
+      # See README.md for the role bootstrap details.
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gamekit"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    shm_size: "256mb"
+
+  redis:
+    image: redis:8.6.2
+    container_name: samplegame-redis
+    restart: unless-stopped
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--appendfsync"
+      - "everysec"
+      - "--maxmemory-policy"
+      - "noeviction"
+      - "--save"
+      - "3600 1 300 100 60 10000"
+    volumes:
+      - samplegame-redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  samplegame-postgres-data:
+  samplegame-redis-data:

@@ -1,0 +1,565 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (c) 2026 GameKit contributors -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tic-Tac-Toe Duel — GameKit Phase 2 Sample</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { margin-bottom: 0.25rem; }
+    .banner { background: #fff4c2; border: 1px solid #d9b800; padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.9rem; margin: 1rem 0; }
+    .banner-demo { background: #fff3cd; padding: 0.5rem 0.75rem; margin-bottom: 1rem; border-left: 4px solid #ffc107; font-size: 0.9rem; }
+    .panel { border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .panel h2 { margin-top: 0; font-size: 1.1rem; }
+    .hidden { display: none; }
+    .row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+    .row input { flex: 1; padding: 0.4rem; box-sizing: border-box; }
+    .row button { padding: 0.4rem 0.75rem; cursor: pointer; }
+    button.secondary { background: #eee; border: 1px solid #bbb; }
+    .muted { color: #666; font-size: 0.85rem; }
+    .players { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+    .player { border: 1px solid #ccc; border-radius: 6px; padding: 0.75rem; }
+    .player h3 { margin: 0 0 0.5rem 0; font-size: 1rem; }
+    .player .id { display: block; margin-top: 0.4rem; font-family: monospace; font-size: 0.75rem; color: #555; word-break: break-all; }
+    .controls { margin: 1rem 0; display: flex; gap: 0.5rem; }
+    .controls button { padding: 0.5rem 1rem; cursor: pointer; }
+    .controls button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .grid { display: grid; grid-template-columns: repeat(3, 80px); grid-template-rows: repeat(3, 80px); gap: 4px; margin: 1rem 0; }
+    .cell { font-size: 2em; background: #f4f4f4; border: 1px solid #999; cursor: pointer; }
+    .cell:disabled { cursor: not-allowed; }
+    .cell:hover:not(:disabled) { background: #e4e4e4; }
+    .status { padding: 0.5rem 0; font-weight: bold; }
+    .status.error { color: #b00; }
+    .auth-error { color: #b00; font-size: 0.9rem; margin-top: 0.5rem; min-height: 1.2em; }
+    footer { margin-top: 2rem; font-size: 0.8rem; color: #666; }
+    code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>Tic-Tac-Toe Duel</h1>
+  <div style="color:#666">GameKit Phase 2 executable demo</div>
+
+  <div class="banner-demo">
+    <strong>Demo-only client:</strong> tokens are stored in <code>localStorage</code> (XSS-vulnerable).
+    Do not copy this pattern into production. See <code>README.md</code> for alternatives.
+  </div>
+
+  <!-- Auth panel — shown when not logged in. -->
+  <section id="auth-panel" class="panel">
+    <h2>Sign in</h2>
+    <div class="row">
+      <button id="btn-guest">Play as Guest</button>
+      <span class="muted">No account — anonymous JWT.</span>
+    </div>
+    <hr>
+    <h3 style="margin-bottom:0.5rem;">Register / Login (password)</h3>
+    <div class="row">
+      <input id="auth-username" type="text" placeholder="username (3-32 chars)" autocomplete="username" />
+    </div>
+    <div class="row">
+      <input id="auth-password" type="password" placeholder="password (min 12 chars)" autocomplete="current-password" />
+    </div>
+    <div class="row">
+      <button id="btn-register">Register</button>
+      <button id="btn-login">Login</button>
+      <button id="btn-steam" class="secondary" title="Opens /auth/challenge/steam">Steam</button>
+      <button id="btn-discord" class="secondary" title="Opens /auth/challenge/discord (requires Discord creds in appsettings)">Discord</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+  </section>
+
+  <!-- Session panel — shown when logged in. -->
+  <section id="session-panel" class="panel hidden">
+    <h2>Signed in</h2>
+    <div class="muted">Player id (<code>sub</code>): <span id="me-sub"></span></div>
+    <div class="muted">Provider: <span id="me-provider"></span> — is_guest: <span id="me-isguest"></span></div>
+    <div class="row" style="margin-top:0.75rem;">
+      <button id="btn-me" class="secondary">Call /auth/me</button>
+      <button id="btn-logout" class="secondary">Logout</button>
+    </div>
+    <div id="upgrade-box" class="hidden" style="margin-top:0.75rem; padding-top:0.5rem; border-top:1px solid #333;">
+      <div class="muted" style="margin-bottom:0.25rem;">Upgrade guest → password (keeps same <code>sub</code>):</div>
+      <div class="row">
+        <input id="upgrade-username" type="text" placeholder="username (3-32 chars)" autocomplete="username" />
+      </div>
+      <div class="row">
+        <input id="upgrade-password" type="password" placeholder="password (min 12 chars)" autocomplete="new-password" />
+      </div>
+      <div class="row">
+        <button id="btn-upgrade" class="secondary">Upgrade</button>
+      </div>
+      <div id="upgrade-error" class="auth-error"></div>
+    </div>
+    <div id="me-result" class="muted" style="margin-top:0.5rem; font-family:monospace; white-space:pre-wrap;"></div>
+  </section>
+
+  <!-- Game panel — available once at least one player is authed; the demo supports a
+       shared-browser two-player flow so both X and O can act from the same device. -->
+  <section id="game-panel" class="panel hidden">
+    <h2>Game</h2>
+    <div class="banner">
+      <strong>Two-player demo:</strong> sign in as Player X (top panel), start the game, then sign out + sign in as Player O
+      before making O's moves. Each move is posted with the currently-authenticated player's id.
+    </div>
+    <section class="players">
+      <div class="player" data-team="0">
+        <h3>Player X</h3>
+        <button type="button" data-action="claim">Claim as current user</button>
+        <span class="id"></span>
+      </div>
+      <div class="player" data-team="1">
+        <h3>Player O</h3>
+        <button type="button" data-action="claim">Claim as current user</button>
+        <span class="id"></span>
+      </div>
+    </section>
+
+    <div class="controls">
+      <button type="button" id="start" disabled>Start game</button>
+      <button type="button" id="new" style="display:none">New game</button>
+    </div>
+
+    <div class="status" id="status">Claim both player slots to begin.</div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <footer>
+    GPL-3.0-or-later — see repo root <code>LICENSE</code>.
+  </footer>
+
+  <script>
+    // ---------------------------------------------------------------------
+    // GameKit.Auth HTML client — Phase 2 sample
+    // ---------------------------------------------------------------------
+    // Behaviours:
+    //   * Every fetch carries `X-GameKit-Device: <uuid>` (generated once per browser
+    //     via crypto.randomUUID(), persisted in localStorage).
+    //   * When an access token is present, `Authorization: Bearer <jwt>` is added.
+    //   * On 401, the client POSTs /auth/refresh once and retries. A second 401
+    //     (or a 401 on the refresh itself) clears localStorage and shows the auth UI.
+    //
+    // Security trade-off:
+    //   localStorage is XSS-vulnerable — any script on this page can read the tokens.
+    //   Acceptable for a demo; production apps should use HttpOnly cookies or a
+    //   native keystore (see README.md "Client token storage").
+    // ---------------------------------------------------------------------
+
+    const KEY_ACCESS  = "gk.access_token";
+    const KEY_REFRESH = "gk.refresh_token";
+    const KEY_DEVICE  = "gk.device_id";
+
+    function getOrCreateDeviceId() {
+      let id = localStorage.getItem(KEY_DEVICE);
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(KEY_DEVICE, id);
+      }
+      return id;
+    }
+
+    function setTokens(access, refresh) {
+      if (access) localStorage.setItem(KEY_ACCESS, access);
+      if (refresh) localStorage.setItem(KEY_REFRESH, refresh);
+    }
+
+    function clearTokens() {
+      localStorage.removeItem(KEY_ACCESS);
+      localStorage.removeItem(KEY_REFRESH);
+    }
+
+    function getAccess()  { return localStorage.getItem(KEY_ACCESS); }
+    function getRefresh() { return localStorage.getItem(KEY_REFRESH); }
+
+    // Client-side JWT payload decoder — DISPLAY ONLY. The server validates signatures.
+    function decodeJwtPayload(jwt) {
+      try {
+        const parts = jwt.split(".");
+        if (parts.length !== 3) return null;
+        const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        return JSON.parse(atob(b64));
+      } catch { return null; }
+    }
+
+    async function refreshTokens() {
+      const refresh = getRefresh();
+      if (!refresh) return false;
+      const resp = await fetch("/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-GameKit-Device": getOrCreateDeviceId() },
+        body: JSON.stringify({ refreshToken: refresh }),
+      });
+      if (!resp.ok) return false;
+      const body = await resp.json();
+      // Server may omit refreshToken when returning an idempotent replay inside the grace window.
+      setTokens(body.accessToken, body.refreshToken ?? refresh);
+      return true;
+    }
+
+    // Auth-aware fetch wrapper — adds headers, does 401→refresh→retry once.
+    async function gkFetch(path, init) {
+      init = init || {};
+      init.headers = Object.assign({}, init.headers || {});
+      init.headers["X-GameKit-Device"] = getOrCreateDeviceId();
+      const access = getAccess();
+      if (access && !("Authorization" in init.headers)) {
+        init.headers["Authorization"] = "Bearer " + access;
+      }
+
+      let resp = await fetch(path, init);
+      if (resp.status === 401 && getRefresh()) {
+        const ok = await refreshTokens();
+        if (ok) {
+          init.headers["Authorization"] = "Bearer " + getAccess();
+          resp = await fetch(path, init);
+        }
+        if (resp.status === 401) {
+          clearTokens();
+          renderAuthUi();
+          // Caller will see the 401; they can choose whether to treat it as a hard failure.
+        }
+      }
+      return resp;
+    }
+
+    // ----- UI state -----
+
+    const statusEl = document.getElementById("status");
+    const gridEl   = document.getElementById("grid");
+    const startBtn = document.getElementById("start");
+    const newBtn   = document.getElementById("new");
+    const authPanel    = document.getElementById("auth-panel");
+    const sessionPanel = document.getElementById("session-panel");
+    const gamePanel    = document.getElementById("game-panel");
+    const authError    = document.getElementById("auth-error");
+
+    const players = { 0: { id: null }, 1: { id: null } };
+    let gameId = null;
+    let currentState = null;
+
+    function setStatus(msg, isError) {
+      statusEl.textContent = msg;
+      statusEl.classList.toggle("error", !!isError);
+    }
+
+    // Turns a fetch Response error body into a human-readable string.
+    // Handles two shapes: {error, provider?} (AuthErrorResponse) and
+    // {title, errors: {Field: [msg, ...]}} (FluentValidation ProblemDetails).
+    async function formatAuthError(resp) {
+      const body = await resp.json().catch(() => null);
+      if (!body) return `${resp.status} ${resp.statusText}`;
+      if (body.errors && typeof body.errors === "object") {
+        const parts = [];
+        for (const [field, msgs] of Object.entries(body.errors)) {
+          for (const m of msgs) parts.push(`${field}: ${m}`);
+        }
+        return `${resp.status} — ${parts.join("; ") || body.title || "validation failed"}`;
+      }
+      return `${resp.status} — ${body.error ?? body.title ?? resp.statusText}`;
+    }
+
+    function setAuthError(msg) {
+      authError.textContent = msg || "";
+    }
+
+    function renderAuthUi() {
+      const access = getAccess();
+      if (access) {
+        const payload = decodeJwtPayload(access) || {};
+        document.getElementById("me-sub").textContent      = payload.sub ?? "(unknown)";
+        document.getElementById("me-provider").textContent = payload.provider ?? "(unknown)";
+        const isGuest = String(payload.is_guest ?? "false") === "true";
+        document.getElementById("me-isguest").textContent = isGuest ? "true" : "false";
+        document.getElementById("upgrade-box").classList.toggle("hidden", !isGuest);
+        authPanel.classList.add("hidden");
+        sessionPanel.classList.remove("hidden");
+        gamePanel.classList.remove("hidden");
+      } else {
+        authPanel.classList.remove("hidden");
+        sessionPanel.classList.add("hidden");
+        gamePanel.classList.add("hidden");
+      }
+    }
+
+    // ----- auth actions -----
+
+    async function doGuestLogin() {
+      setAuthError("");
+      const resp = await fetch("/auth/login/guest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-GameKit-Device": getOrCreateDeviceId() },
+        body: JSON.stringify({}),
+      });
+      if (!resp.ok) {
+        setAuthError(`guest login failed (${resp.status})`);
+        return;
+      }
+      const body = await resp.json();
+      setTokens(body.accessToken, body.refreshToken);
+      renderAuthUi();
+    }
+
+    async function doRegister() {
+      setAuthError("");
+      const username = document.getElementById("auth-username").value.trim();
+      const password = document.getElementById("auth-password").value;
+      if (!username || !password) {
+        setAuthError("username + password required");
+        return;
+      }
+      // If already authenticated as guest, /auth/register upgrades in place (D-12).
+      // Carry the Bearer header so the endpoint sees the caller's guest claim.
+      const headers = { "Content-Type": "application/json", "X-GameKit-Device": getOrCreateDeviceId() };
+      const access = getAccess();
+      if (access) headers["Authorization"] = "Bearer " + access;
+      const resp = await fetch("/auth/register", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ username, password }),
+      });
+      if (!resp.ok) {
+        setAuthError(`register failed: ${await formatAuthError(resp)}`);
+        return;
+      }
+      const body = await resp.json();
+      setTokens(body.accessToken, body.refreshToken);
+      renderAuthUi();
+    }
+
+    async function doUpgrade() {
+      // D-12 guest-upgrade-in-place. Reads its own inline inputs in the session panel
+      // (the auth-panel inputs are hidden while signed in, so they'd read empty).
+      const errEl = document.getElementById("upgrade-error");
+      errEl.textContent = "";
+      const username = document.getElementById("upgrade-username").value.trim();
+      const password = document.getElementById("upgrade-password").value;
+      if (!username || !password) {
+        errEl.textContent = "username + password required";
+        return;
+      }
+      const headers = { "Content-Type": "application/json", "X-GameKit-Device": getOrCreateDeviceId() };
+      const access = getAccess();
+      if (access) headers["Authorization"] = "Bearer " + access;
+      const resp = await fetch("/auth/register", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ username, password }),
+      });
+      if (!resp.ok) {
+        errEl.textContent = `upgrade failed: ${await formatAuthError(resp)}`;
+        return;
+      }
+      const body = await resp.json();
+      setTokens(body.accessToken, body.refreshToken);
+      document.getElementById("upgrade-username").value = "";
+      document.getElementById("upgrade-password").value = "";
+      renderAuthUi();
+    }
+
+    async function doLogin() {
+      setAuthError("");
+      const username = document.getElementById("auth-username").value.trim();
+      const password = document.getElementById("auth-password").value;
+      if (!username || !password) {
+        setAuthError("username + password required");
+        return;
+      }
+      const resp = await fetch("/auth/login/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-GameKit-Device": getOrCreateDeviceId() },
+        body: JSON.stringify({ provider: "password", username, password }),
+      });
+      if (!resp.ok) {
+        setAuthError(`login failed (${resp.status})`);
+        return;
+      }
+      const body = await resp.json();
+      setTokens(body.accessToken, body.refreshToken);
+      renderAuthUi();
+    }
+
+    async function doLogout() {
+      const refresh = getRefresh();
+      if (refresh) {
+        const headers = { "Content-Type": "application/json", "X-GameKit-Device": getOrCreateDeviceId() };
+        const access = getAccess();
+        if (access) headers["Authorization"] = "Bearer " + access;
+        // Fire-and-forget: even if logout 401s (expired access), we still clear local state.
+        await fetch("/auth/logout", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ refreshToken: refresh }),
+        }).catch(() => {});
+      }
+      clearTokens();
+      // Also clear the in-memory game state so stale ids don't leak into the next session.
+      players[0].id = null;
+      players[1].id = null;
+      gameId = null;
+      currentState = null;
+      document.querySelectorAll(".player .id").forEach((el) => { el.textContent = ""; });
+      document.querySelectorAll(".player button[data-action='claim']").forEach((b) => {
+        b.disabled = false;
+        b.textContent = "Claim as current user";
+      });
+      startBtn.disabled = true;
+      newBtn.style.display = "none";
+      gridEl.innerHTML = "";
+      setStatus("Claim both player slots to begin.");
+      renderAuthUi();
+    }
+
+    async function doCallMe() {
+      const resp = await gkFetch("/auth/me");
+      const text = await resp.text();
+      document.getElementById("me-result").textContent = `[${resp.status}] ${text}`;
+    }
+
+    function doSteamChallenge() {
+      // Steam OpenID is a browser redirect — no AJAX.
+      window.location.href = "/auth/challenge/steam";
+    }
+
+    function doDiscordChallenge() {
+      // Discord OAuth2 is a browser redirect — the aspnet-contrib handler 302s to Discord's OAuth page.
+      window.location.href = "/auth/challenge/discord";
+    }
+
+    // ----- game logic (adapted from Phase 1 demo, now uses gkFetch) -----
+
+    function claimAsCurrentUser(team) {
+      const payload = decodeJwtPayload(getAccess());
+      const playerId = payload?.sub;
+      if (!playerId) {
+        setStatus("Sign in before claiming a slot.", true);
+        return;
+      }
+      const other = team === 0 ? 1 : 0;
+      if (players[other].id === playerId) {
+        setStatus("Both slots cannot be the same player — sign out + sign in as a different user for the opposite slot.", true);
+        return;
+      }
+      players[team].id = playerId;
+      const row = document.querySelector(`.player[data-team="${team}"]`);
+      row.querySelector(".id").textContent = `id: ${playerId}`;
+      const btn = row.querySelector("button[data-action='claim']");
+      btn.disabled = true;
+      btn.textContent = "Claimed";
+      if (players[0].id && players[1].id) {
+        startBtn.disabled = false;
+        setStatus('Both slots claimed. Click "Start game".');
+      } else {
+        setStatus("Sign out + sign in as the opposite player, then claim the other slot.");
+      }
+    }
+
+    async function startGame() {
+      if (!players[0].id || !players[1].id) return;
+      try {
+        const resp = await gkFetch("/demo/games", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerXId: players[0].id, playerOId: players[1].id }),
+        });
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          setStatus(`Start failed: ${body?.error ?? resp.statusText}`, true);
+          return;
+        }
+        const state = await resp.json();
+        gameId = state.id;
+        currentState = state;
+        startBtn.disabled = true;
+        newBtn.style.display = "none";
+        render(state);
+      } catch (e) {
+        setStatus(`Start failed: ${e.message}`, true);
+      }
+    }
+
+    async function makeMove(row, col) {
+      if (!currentState || currentState.outcome !== "InProgress") return;
+      const turn = currentState.whoseTurn; // "X" or "O"
+      const team = turn === "X" ? 0 : 1;
+      const playerId = players[team].id;
+      try {
+        const resp = await gkFetch(`/demo/games/${gameId}/moves`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerId, row, col }),
+        });
+        if (!resp.ok) {
+          const body = await resp.json().catch(() => ({}));
+          setStatus(`Move rejected: ${body?.error ?? resp.statusText}`, true);
+          return;
+        }
+        const state = await resp.json();
+        currentState = state;
+        render(state);
+      } catch (e) {
+        setStatus(`Move rejected: ${e.message}`, true);
+      }
+    }
+
+    function render(state) {
+      gridEl.innerHTML = "";
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "cell";
+          btn.dataset.row = r;
+          btn.dataset.col = c;
+          const val = state.cells[r][c];
+          btn.textContent = val === 1 ? "X" : val === 2 ? "O" : "";
+          btn.disabled = val !== 0 || state.outcome !== "InProgress";
+          btn.addEventListener("click", () => makeMove(r, c));
+          gridEl.appendChild(btn);
+        }
+      }
+
+      const x = state.participants.find((p) => p.team === 0);
+      const o = state.participants.find((p) => p.team === 1);
+
+      if (state.outcome === "InProgress") {
+        const who = state.whoseTurn === "X" ? x : o;
+        setStatus(`${who.displayName}'s turn (${state.whoseTurn})`);
+      } else if (state.outcome === "Draw") {
+        setStatus(`Draw. (session ${state.state})`);
+        newBtn.style.display = "";
+      } else if (state.outcome === "XWins") {
+        setStatus(`${x.displayName} wins! (session ${state.state})`);
+        newBtn.style.display = "";
+      } else if (state.outcome === "OWins") {
+        setStatus(`${o.displayName} wins! (session ${state.state})`);
+        newBtn.style.display = "";
+      }
+    }
+
+    // ----- wire up DOM event handlers -----
+
+    document.getElementById("btn-guest").addEventListener("click", doGuestLogin);
+    document.getElementById("btn-register").addEventListener("click", doRegister);
+    document.getElementById("btn-login").addEventListener("click", doLogin);
+    document.getElementById("btn-upgrade").addEventListener("click", doUpgrade);
+    document.getElementById("btn-logout").addEventListener("click", doLogout);
+    document.getElementById("btn-me").addEventListener("click", doCallMe);
+    document.getElementById("btn-steam").addEventListener("click", doSteamChallenge);
+    document.getElementById("btn-discord").addEventListener("click", doDiscordChallenge);
+
+    document.querySelectorAll(".player button[data-action='claim']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const team = parseInt(btn.closest(".player").dataset.team, 10);
+        claimAsCurrentUser(team);
+      });
+    });
+    startBtn.addEventListener("click", startGame);
+    newBtn.addEventListener("click", startGame);
+
+    // Initialize.
+    getOrCreateDeviceId();
+    renderAuthUi();
+  </script>
+</body>
+</html>

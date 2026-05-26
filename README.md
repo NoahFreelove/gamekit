@@ -56,6 +56,10 @@ GameKit's Postgres schema is `gamekit`. FK direction discipline: **only `public`
 dotnet restore && dotnet build
 ```
 
+## Production Deployment
+
+Operators standing up GameKit in production should consult [`docs/ops/`](docs/ops/README.md) for the full production-readiness guide. It covers bare-metal, container (Docker / Kubernetes), and air-gapped deployment recipes, plus per-recipe runbooks for the Postgres 3-role rotation, Redis AOF tuning, JWT key generation + `kid` rotation, disaster recovery, and per-package migration troubleshooting. Every page cites the canonical config file it derives from (`docker-compose.yml`, `docker/postgres/init/01-roles.sql`, `scripts/gen-test-rsa-pem.sh`) so you can trace every recommendation back to source.
+
 ## Status
 
 Pre-release. Phase 1 (Foundation) in progress.

@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json.schemastore.org/dotnetcli.host",
+  "symbolInfo": {
+    "skipAuth": {
+      "longName": "skip-auth",
+      "shortName": ""
+    },
+    "skipRankings": {
+      "longName": "skip-rankings",
+      "shortName": ""
+    },
+    "skipMatchmaking": {
+      "longName": "skip-matchmaking",
+      "shortName": ""
+    },
+    "skipPresence": {
+      "longName": "skip-presence",
+      "shortName": ""
+    }
+  },
+  "usageExamples": [
+    " -n MyGame",
+    " -n MyMinimalGame --skip-rankings --skip-matchmaking --skip-presence",
+    " -n MyCoreOnly --skip-auth --skip-rankings --skip-matchmaking --skip-presence"
+  ]
+}

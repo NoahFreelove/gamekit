@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>GameKit.SampleGame</RootNamespace>
+    <AssemblyName>GameKit.SampleGame</AssemblyName>
+    <!-- Generated sample app — never packaged. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      GameKit packages — these are the four player-facing packages a real
+      consumer of GameKit installs from nuget.org. The template engine
+      conditionally omits any of the four that the user opts out of via
+      `--skip-auth`, `--skip-rankings`, `--skip-matchmaking`, or
+      `--skip-presence`. GameKit.Core / GameKit.OpenApi / GameKit.Admin.UI
+      are always included — Core is required, OpenApi + Admin.UI are
+      always-on convenience surfaces for the SampleGame topology.
+
+      Version="*" lets `dotnet new gamekit` produce a project that floats
+      onto whatever the latest GameKit release is when the consumer next
+      runs `dotnet restore`. Operators who want a fixed pin should edit
+      this csproj after generation (per docs/ops Plan 06-10).
+    -->
+    <PackageReference Include="GameKit.Core" Version="*" />
+    <!--#if (!skipAuth) -->
+    <PackageReference Include="GameKit.Auth" Version="*" />
+    <!--#endif -->
+    <!--#if (!skipRankings) -->
+    <PackageReference Include="GameKit.Rankings" Version="*" />
+    <!--#endif -->
+    <!--#if (!skipMatchmaking) -->
+    <PackageReference Include="GameKit.Matchmaking" Version="*" />
+    <!--#endif -->
+    <!--#if (!skipPresence) -->
+    <PackageReference Include="GameKit.Presence" Version="*" />
+    <!--#endif -->
+    <PackageReference Include="GameKit.OpenApi" Version="*" />
+    <PackageReference Include="GameKit.Admin.UI" Version="*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- StackExchange.Redis multiplexer is registered manually in Program.cs
+         because (a) it's a singleton with operator-owned lifecycle and (b)
+         production deployments often want to wire ConfigurationOptions (TLS,
+         AllowAdmin, AbortOnConnectFail) manually. -->
+    <PackageReference Include="StackExchange.Redis" Version="*" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,404 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (c) 2026 GameKit contributors -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Matchmaking — Tic-Tac-Toe Duel (GameKit Phase 5)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+    h1 { margin-bottom: 0.25rem; }
+    .banner-demo { background: #fff3cd; padding: 0.5rem 0.75rem; margin-bottom: 1rem; border-left: 4px solid #ffc107; font-size: 0.9rem; }
+    .panel { border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .panel h2 { margin-top: 0; font-size: 1.1rem; }
+    .hidden { display: none; }
+    button { padding: 0.5rem 1rem; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.primary { background: #2c7be5; color: white; border: 1px solid #1a5cb8; }
+    button.secondary { background: #eee; border: 1px solid #bbb; }
+    .status { padding: 0.75rem; border-radius: 6px; margin: 1rem 0; font-family: monospace; font-size: 0.9rem; background: #f4f4f4; }
+    .status.queued { background: #e3f2fd; color: #0d47a1; }
+    .status.proposed { background: #fff8e1; color: #6d4c00; }
+    .status.matched { background: #e8f5e9; color: #1b5e20; }
+    .status.cancelled { background: #ffebee; color: #b71c1c; }
+    .status.error { background: #ffebee; color: #b71c1c; }
+    .muted { color: #666; font-size: 0.85rem; }
+    code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+    .countdown { font-size: 2rem; font-weight: bold; color: #1a5cb8; }
+  </style>
+</head>
+<body>
+  <h1>Matchmaking — Tic-Tac-Toe Duel</h1>
+  <div style="color:#666">GameKit Phase 5 — 1v1 enqueue → proposal → match flow</div>
+
+  <div class="banner-demo">
+    <strong>1v1 demo only.</strong> Open this page in <em>two browser tabs</em> (or one regular + one private/incognito).
+    Each tab signs in as a different guest, clicks &quot;Find Match&quot;, and both tabs receive a match proposal
+    once the matchmaker pairs them. Party creation/join flows are exposed only via <code>curl</code> &mdash; see the
+    sample <code>README.md</code> §Matchmaking. The page does NOT add a party UI per CONTEXT.md.
+  </div>
+
+  <!-- Auth panel — shown when no JWT is in localStorage. -->
+  <section id="auth-panel" class="panel">
+    <h2>Sign in</h2>
+    <div class="muted" style="margin-bottom:0.5rem;">
+      The matchmaking endpoints require a player JWT. Click below to sign in as a guest; the token persists in
+      <code>localStorage</code>. Alternatively, sign in via password on <a href="/">/</a> and return here.
+    </div>
+    <button id="btn-guest" class="primary" type="button">Play as Guest</button>
+    <div id="auth-error" style="color:#b00; margin-top:0.5rem; min-height:1.2em;"></div>
+  </section>
+
+  <!-- Matchmaking panel — shown when signed in. -->
+  <section id="mm-panel" class="panel hidden">
+    <h2>Find a 1v1 match</h2>
+    <div class="muted" style="margin-bottom:0.5rem;">
+      Signed in as <code id="me-sub"></code>. Ladder: <code>tictactoe</code>.
+    </div>
+    <button id="btn-find" class="primary" type="button">Find Match</button>
+    <button id="btn-cancel" class="secondary hidden" type="button">Cancel</button>
+    <button id="btn-accept" class="primary hidden" type="button">Accept (<span id="accept-countdown">10</span>s)</button>
+    <button id="btn-decline" class="secondary hidden" type="button">Decline</button>
+    <button id="btn-retry" class="primary hidden" type="button">Try Again</button>
+    <button id="btn-signout" class="secondary" type="button" style="float:right;">Sign out</button>
+
+    <div id="status" class="status hidden"></div>
+    <div id="match-info" class="muted" style="margin-top:0.5rem;"></div>
+  </section>
+
+  <script>
+    // -------------------------------------------------------------------------
+    // Matchmaking client — Phase 5 sample
+    // -------------------------------------------------------------------------
+    // - Persists JWT in localStorage (same XSS trade-off as index.html — DEMO ONLY).
+    // - Resolves the "tictactoe" ladder id via GET /demo/ladder-id/{name}
+    //   (the matchmaking ladder is upserted on startup by Rankings.StartupLadderUpserter
+    //   plus our own AddLadder("tictactoe", ...) — the row exists by the time the page
+    //   loads).
+    // - Drives the full enqueue → status long-poll → accept → matched flow.
+    // -------------------------------------------------------------------------
+
+    const KEY_ACCESS  = "gk.access_token";
+    const KEY_REFRESH = "gk.refresh_token";
+    const KEY_DEVICE  = "gk.device_id";
+
+    function getOrCreateDeviceId() {
+      let id = localStorage.getItem(KEY_DEVICE);
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(KEY_DEVICE, id);
+      }
+      return id;
+    }
+
+    function setTokens(access, refresh) {
+      if (access) localStorage.setItem(KEY_ACCESS, access);
+      if (refresh) localStorage.setItem(KEY_REFRESH, refresh);
+    }
+    function clearTokens() {
+      localStorage.removeItem(KEY_ACCESS);
+      localStorage.removeItem(KEY_REFRESH);
+    }
+    function getAccess()  { return localStorage.getItem(KEY_ACCESS); }
+
+    function decodeJwtPayload(jwt) {
+      try {
+        const parts = jwt.split(".");
+        if (parts.length !== 3) return null;
+        const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        return JSON.parse(atob(b64));
+      } catch { return null; }
+    }
+
+    async function gkFetch(path, init) {
+      init = init || {};
+      init.headers = Object.assign({}, init.headers || {});
+      init.headers["X-GameKit-Device"] = getOrCreateDeviceId();
+      const access = getAccess();
+      if (access && !("Authorization" in init.headers)) {
+        init.headers["Authorization"] = "Bearer " + access;
+      }
+      return fetch(path, init);
+    }
+
+    // ----- UI state -----
+
+    const authPanel  = document.getElementById("auth-panel");
+    const mmPanel    = document.getElementById("mm-panel");
+    const meSubEl    = document.getElementById("me-sub");
+    const statusEl   = document.getElementById("status");
+    const matchInfo  = document.getElementById("match-info");
+    const btnFind    = document.getElementById("btn-find");
+    const btnCancel  = document.getElementById("btn-cancel");
+    const btnAccept  = document.getElementById("btn-accept");
+    const btnDecline = document.getElementById("btn-decline");
+    const btnRetry   = document.getElementById("btn-retry");
+    const acceptCountdownEl = document.getElementById("accept-countdown");
+
+    let ladderId = null;     // resolved on first load
+    let ticketId = null;     // current ticket
+    let proposalId = null;   // current proposal (set when status transitions to "proposed")
+    let iAccepted = false;   // true after a successful POST /accept for the current proposal
+    let pollAbortController = null;
+    let acceptTimer = null;
+
+    function renderAuthUi() {
+      const access = getAccess();
+      if (access) {
+        const payload = decodeJwtPayload(access) || {};
+        meSubEl.textContent = payload.sub ?? "(unknown)";
+        authPanel.classList.add("hidden");
+        mmPanel.classList.remove("hidden");
+      } else {
+        authPanel.classList.remove("hidden");
+        mmPanel.classList.add("hidden");
+      }
+    }
+
+    function setStatus(msg, kind) {
+      statusEl.textContent = msg;
+      statusEl.classList.remove("hidden", "queued", "proposed", "matched", "cancelled", "error");
+      if (kind) statusEl.classList.add(kind);
+    }
+
+    function showButtons({find=false, cancel=false, accept=false, decline=false, retry=false}) {
+      btnFind.classList.toggle("hidden", !find);
+      btnCancel.classList.toggle("hidden", !cancel);
+      btnAccept.classList.toggle("hidden", !accept);
+      btnDecline.classList.toggle("hidden", !decline);
+      btnRetry.classList.toggle("hidden", !retry);
+    }
+
+    function resetUi() {
+      ticketId = null;
+      proposalId = null;
+      iAccepted = false;
+      if (pollAbortController) { pollAbortController.abort(); pollAbortController = null; }
+      if (acceptTimer) { clearInterval(acceptTimer); acceptTimer = null; }
+      matchInfo.textContent = "";
+      statusEl.classList.add("hidden");
+      showButtons({find: true});
+    }
+
+    // ----- auth -----
+
+    async function doGuestLogin() {
+      const errEl = document.getElementById("auth-error");
+      errEl.textContent = "";
+      const resp = await fetch("/auth/login/guest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-GameKit-Device": getOrCreateDeviceId() },
+        body: JSON.stringify({}),
+      });
+      if (!resp.ok) {
+        errEl.textContent = `guest login failed (${resp.status})`;
+        return;
+      }
+      const body = await resp.json();
+      setTokens(body.accessToken, body.refreshToken);
+      renderAuthUi();
+      await initLadderId();
+    }
+
+    async function doSignOut() {
+      clearTokens();
+      resetUi();
+      renderAuthUi();
+    }
+
+    // ----- ladder resolution -----
+
+    async function initLadderId() {
+      try {
+        const resp = await fetch("/demo/ladder-id/tictactoe");
+        if (!resp.ok) {
+          setStatus(`Could not resolve ladder id (${resp.status}). Restart the server to run the StartupLadderUpserter.`, "error");
+          return;
+        }
+        const body = await resp.json();
+        ladderId = body.id;
+        console.log("Resolved tictactoe ladder id:", ladderId);
+      } catch (e) {
+        setStatus(`Ladder lookup failed: ${e}`, "error");
+      }
+    }
+
+    // ----- matchmaking flow -----
+
+    async function doFindMatch() {
+      if (!ladderId) {
+        setStatus("Ladder id not resolved — refresh the page.", "error");
+        return;
+      }
+      showButtons({});
+      setStatus("Enqueueing...", "queued");
+
+      const resp = await gkFetch("/api/mm/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ladderId, poolName: "tictactoe", partyId: null }),
+      });
+      if (resp.status === 429) {
+        setStatus("Rate limited (5/min/player). Wait a minute and try again.", "error");
+        showButtons({retry: true});
+        return;
+      }
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => null);
+        setStatus(`enqueue failed (${resp.status}): ${body?.error ?? resp.statusText}`, "error");
+        showButtons({retry: true});
+        return;
+      }
+      const body = await resp.json();
+      ticketId = body.ticketId;
+      setStatus(`Queued — ticket ${ticketId}. Waiting for a partner...`, "queued");
+      showButtons({cancel: true});
+      startLongPoll();
+    }
+
+    async function doCancel() {
+      if (!ticketId) return;
+      try {
+        await gkFetch(`/api/mm/queue/${ticketId}`, { method: "DELETE" });
+      } catch { /* fire and forget */ }
+      resetUi();
+    }
+
+    async function startLongPoll() {
+      while (ticketId) {
+        pollAbortController = new AbortController();
+        let resp;
+        try {
+          resp = await gkFetch(`/api/mm/queue/${ticketId}/status`, { signal: pollAbortController.signal });
+        } catch (e) {
+          if (e.name === "AbortError") return;
+          setStatus(`long-poll error: ${e}`, "error");
+          showButtons({retry: true});
+          return;
+        }
+        if (!resp.ok) {
+          if (resp.status === 404) {
+            setStatus(`Ticket no longer exists (${resp.status}).`, "cancelled");
+            showButtons({retry: true});
+            return;
+          }
+          setStatus(`status poll failed (${resp.status}).`, "error");
+          showButtons({retry: true});
+          return;
+        }
+        const body = await resp.json();
+        const status = body.status ?? "queued";
+        if (status === "queued") {
+          setStatus(`Still queued — ticket ${ticketId}. Polling for a match...`, "queued");
+          // Re-poll immediately (server holds for up to LongPollTimeoutSeconds).
+          continue;
+        }
+        if (status === "proposed") {
+          proposalId = body.proposalId;
+          if (iAccepted) {
+            // I already accepted; just keep polling for partner-accept or proposal-timeout
+            // (which the server converts to "cancelled"). Do NOT re-show the Accept button.
+            setStatus("Accept recorded. Waiting for partner...", "proposed");
+            continue;
+          }
+          enterProposalUi(body.deadline);
+          return;
+        }
+        if (status === "matched") {
+          enterMatchedUi(body.sessionId);
+          return;
+        }
+        if (status === "cancelled") {
+          setStatus("Ticket cancelled.", "cancelled");
+          showButtons({retry: true});
+          return;
+        }
+        setStatus(`unknown status: ${status}`, "error");
+        showButtons({retry: true});
+        return;
+      }
+    }
+
+    function enterProposalUi(deadlineIso) {
+      setStatus("Match proposed! Accept within 10 seconds.", "proposed");
+      matchInfo.innerHTML = `Proposal: <code>${proposalId}</code>`;
+      showButtons({accept: true, decline: true});
+
+      // 10-second countdown (server enforces; client just renders).
+      let secs = 10;
+      acceptCountdownEl.textContent = secs;
+      if (acceptTimer) clearInterval(acceptTimer);
+      acceptTimer = setInterval(() => {
+        secs -= 1;
+        acceptCountdownEl.textContent = Math.max(secs, 0);
+        if (secs <= 0) {
+          clearInterval(acceptTimer);
+          acceptTimer = null;
+          // Resume long-polling — server will report "cancelled" once the proposal expires.
+          showButtons({});
+          startLongPoll();
+        }
+      }, 1000);
+    }
+
+    async function doAccept() {
+      if (!proposalId || !ticketId) return;
+      if (acceptTimer) { clearInterval(acceptTimer); acceptTimer = null; }
+      showButtons({});
+      setStatus("Sending accept...", "proposed");
+      const resp = await gkFetch(`/api/mm/proposal/${proposalId}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId }),
+      });
+      if (!resp.ok) {
+        setStatus(`accept failed (${resp.status})`, "error");
+        showButtons({retry: true});
+        return;
+      }
+      // Resume long-polling — once the partner also accepts the server PUBLISHes "matched"
+      // and the next long-poll returns the sessionId. The iAccepted flag suppresses re-display
+      // of the Accept button when an intermediate long-poll snapshot still reports the
+      // ticket-hash status as "proposed" (the proposal stays in that state until ALL members
+      // accept, so without this flag the next poll would put us back at enterProposalUi).
+      iAccepted = true;
+      setStatus("Accept recorded. Waiting for partner...", "proposed");
+      startLongPoll();
+    }
+
+    async function doDecline() {
+      if (!proposalId || !ticketId) return;
+      if (acceptTimer) { clearInterval(acceptTimer); acceptTimer = null; }
+      showButtons({});
+      await gkFetch(`/api/mm/proposal/${proposalId}/decline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId }),
+      });
+      setStatus("Proposal declined. Cooldown may apply (D-08 escalating ladder).", "cancelled");
+      showButtons({retry: true});
+    }
+
+    function enterMatchedUi(sessionId) {
+      setStatus("Matched! Both players accepted.", "matched");
+      matchInfo.innerHTML = `Session: <code>${sessionId}</code> &mdash; the existing /demo/games game endpoints can drive the actual tic-tac-toe board.`;
+      showButtons({retry: true});
+    }
+
+    // ----- wiring -----
+
+    document.getElementById("btn-guest").addEventListener("click", doGuestLogin);
+    btnFind.addEventListener("click", doFindMatch);
+    btnCancel.addEventListener("click", doCancel);
+    btnAccept.addEventListener("click", doAccept);
+    btnDecline.addEventListener("click", doDecline);
+    btnRetry.addEventListener("click", () => { resetUi(); });
+    document.getElementById("btn-signout").addEventListener("click", doSignOut);
+
+    // Bootstrap.
+    renderAuthUi();
+    if (getAccess()) initLadderId();
+  </script>
+</body>
+</html>

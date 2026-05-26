@@ -1,0 +1,79 @@
+<!--
+  SPDX-License-Identifier: GPL-3.0-or-later
+  Copyright (c) 2026 GameKit contributors
+
+  GameKit.Templates — NuGet template package for `dotnet new gamekit`.
+
+  Plan 06-09 Task 1 (D-11, D-12, D-13, D-18 Pitfall 5):
+    * <PackageType>Template</PackageType> — NuGet recognizes this as a template
+      package; `dotnet new install GameKit.Templates` registers the inner
+      content/GameKit.SampleGame/ template.
+    * <NoDefaultExcludes>true</NoDefaultExcludes> — KEEPS the
+      content/GameKit.SampleGame/.template.config directory in the produced
+      .nupkg (the default NuGet excludes drop dot-directories, which would
+      silently break the template).
+    * <IncludeContentInPack>true</IncludeContentInPack> — ships the content/
+      tree as the body of the package.
+    * <ContentTargetFolders>content</ContentTargetFolders> — places content
+      under `content/` inside the nupkg (the path dotnet-templating scans).
+    * <IncludeBuildOutput>false</IncludeBuildOutput> — this csproj has no
+      build output; <Compile Remove="**\*" /> further suppresses any C# build.
+    * <NoWarn>NU5128;NU5119</NoWarn> — template packages legitimately ship
+      with no compile output and no top-level lib/ folder.
+    * Suppresses repo-wide GenerateDocumentationFile / CS1591 enforcement
+      because this is a packaging-only csproj with no public API surface.
+
+  References: RESEARCH §Pattern 8 lines 792-866 + 06-PATTERNS §Block 11.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- NuGet packaging metadata. PackageVersion is driven by repo-wide MinVer
+         (Directory.Build.props) so the template package joins the same
+         coordinated release train as the rest of the GameKit assemblies (OPS-04). -->
+    <PackageType>Template</PackageType>
+    <PackageId>GameKit.Templates</PackageId>
+    <Title>GameKit Project Templates</Title>
+    <Description>dotnet new template for GameKit — creates a sample game backend (web tier + game-server tier) using GameKit packages (Core, Auth, Rankings, Matchmaking, Presence, Admin.UI, OpenApi). Use `dotnet new gamekit -n MyGame` after `dotnet new install GameKit.Templates`.</Description>
+    <PackageTags>dotnet-new;templates;gamekit;game;backend</PackageTags>
+
+    <!-- Template package contract -->
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <!-- ContentTargetFolders=content prepends `content/` to each item's path.
+         To get the canonical layout `content/<TemplateName>/...` we need each
+         <Content> item's Link metadata to start at `<TemplateName>/...` (NOT
+         at `content/<TemplateName>/...`). The Link metadata determines the
+         path inside the produced package; without it Pack uses the original
+         on-disk path which would double up to `content/content/...`. -->
+
+    <!-- Suppress repo-wide doc-comment enforcement (no public API) + the two
+         template-shape NU warnings: NU5128 (no dep groups for any TFM) +
+         NU5119 (package has no lib/ folder). Both are expected for templates.
+         NU5017 (no dependencies nor content) is suppressed too — the Pack
+         target evaluates dependencies before content collection, so the
+         warning fires spuriously despite the populated <Content> item group. -->
+    <NoWarn>$(NoWarn);NU5128;NU5119;NU5017;CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- This csproj produces no assembly output. -->
+    <NoBuild>true</NoBuild>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Use PackagePath to force the in-package path explicitly. This bypasses
+         ContentTargetFolders's `content/` prefix logic that otherwise produces
+         `content/content/...` (the Include glob starts with `content\` so the
+         CTF prefix doubles it). The PackagePath="content" rewrites every
+         matched file's package-relative path to start at `content/`. -->
+    <Content Include="content\**\*"
+             Exclude="content\**\bin\**;content\**\obj\**"
+             Pack="true"
+             PackagePath="content\" />
+
+    <!-- The csproj has NO compile sources — this is a packaging-only project. -->
+    <Compile Remove="**\*" />
+  </ItemGroup>
+</Project>

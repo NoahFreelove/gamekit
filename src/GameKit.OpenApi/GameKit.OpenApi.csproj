@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>GameKit.OpenApi</PackageId>
+    <Description>OpenAPI document generation for GameKit. Single combined /openapi/v1.json doc covering every player-facing GameKit HTTP endpoint (auth, sessions, matchmaking, parties, presence). Phase 6 deliverable.</Description>
+    <PackageTags>gamekit;openapi;swagger;gpl</PackageTags>
+    <RootNamespace>GameKit.OpenApi</RootNamespace>
+    <AssemblyName>GameKit.OpenApi</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core ProjectRef — every shipped GameKit package depends on Core. -->
+    <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ASP.NET Core types — DocumentTransformerContext, OpenApiOptions
+         and OpenAPI middleware all live in Microsoft.AspNetCore.OpenApi
+         + Microsoft.AspNetCore.App. The runtime PackageReference for
+         Microsoft.AspNetCore.OpenApi is added in Plan 06-06; landing
+         the FrameworkReference now keeps the skeleton compilable. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <!-- D-15 + 06-PATTERNS Critical Misuse Warning #5: every shipped
+       GameKit src package consumes the GameKit.Build Roslyn source
+       generator via OutputItemType=Analyzer + ReferenceOutputAssembly=false.
+       The generator emits internal GameKitMarker.GameKitVersion +
+       GameKitMarker.AssemblyName consts at compile time; the build-tooling
+       DLL is NOT a runtime dependency of this package. -->
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Build\GameKit.Build.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

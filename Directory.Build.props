@@ -32,6 +32,19 @@
     <!-- Deterministic builds for reproducibility + SourceLink -->
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- D-15 + 06-PATTERNS Critical Misuse Warning #5: emit GameKit.Build
+         source-generator output to disk so (a) the Plan 06-01 Task 4 smoke
+         verify can grep the live GameKitMarker.GameKitVersion value, and
+         (b) Plan 06-08 OPS-04 / OPS-05 integration tests can assert on the
+         emitted .g.cs files alongside the compiled IL. Files land at the
+         Roslyn default location
+         (obj/$(Configuration)/$(TargetFramework)/generated/{GeneratorAssembly}/
+         {GeneratorFQN}/) which is excluded from the SDK's default Compile
+         glob — overriding CompilerGeneratedFilesOutputPath risks landing
+         the file inside the compile glob and producing CS0102 duplicate
+         definition errors. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>

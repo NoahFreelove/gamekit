@@ -60,4 +60,14 @@
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
   </ItemGroup>
+  <!-- D-15 + 06-PATTERNS Critical Misuse Warning #5: GameKit.Build emits
+       internal GameKitMarker.GameKitVersion + GameKitMarker.AssemblyName
+       consts at compile time. OutputItemType=Analyzer routes the
+       generator through Roslyn; ReferenceOutputAssembly=false stops the
+       build-tooling DLL from becoming a runtime dependency. -->
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Build\GameKit.Build.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

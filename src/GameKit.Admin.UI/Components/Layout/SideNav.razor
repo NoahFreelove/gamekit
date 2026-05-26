@@ -31,6 +31,11 @@
     <NavLink href="/admin/health" class="nav-item" ActiveClass="nav-item active">
         <span class="label">Health</span>
     </NavLink>
+    @* Plan 06-07 / UI-SPEC §7: Presence panel nav row, between Health and Queue depth.
+       AdminPolicies.Admin (same as Health) — no AuthorizeView wrapper. *@
+    <NavLink href="/admin/presence" class="nav-item" ActiveClass="nav-item active">
+        <span class="label">Presence</span>
+    </NavLink>
     <NavLink href="/admin/matchmaking" class="nav-item" ActiveClass="nav-item active">
         <span class="label">Queue depth</span>
     </NavLink>

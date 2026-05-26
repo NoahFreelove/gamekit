@@ -1,0 +1,95 @@
+@* SPDX-License-Identifier: GPL-3.0-or-later *@
+@* Copyright (c) 2026 GameKit contributors *@
+@*
+    UI-SPEC §8 layout — Top 25 online players, sortable <table class="t"> with 4 columns:
+      Player ID | Display name | Status | Last seen.
+    Sourced from IPresenceProvider.GetOnlinePlayerIdsAsync(25, ct). Auto-refreshes every
+    GameKitAdminOptions.Panel.RefreshInterval (default 10s) via System.Threading.Timer.
+    Manual Refresh button cancels any in-flight request and re-fires immediately.
+
+    Graceful degrade (UI-SPEC §9): when GameKit.Presence is not registered, the panel
+    short-circuits and renders <MissingPackageAlert PackageName="Presence" Feature="presence
+    telemetry" />. This produces the literal substrings "Install GameKit.Presence" AND
+    "AddPresence(…)" required by the SC#2 contract test (Plan 06-07 Task 2).
+
+    PATTERNS Critical Misuse Warning #8: uses the post-Phase-03.1 sketch <table class="t">
+    primitive — NOT MudDataGrid — to match the visual language on Admins / Audit / Dashboard.
+    PATTERNS Critical Misuse Warning #9: MissingPackageAlert.razor template is UNCHANGED;
+    only a new callsite is added.
+*@
+@page "/admin/presence"
+@attribute [Authorize(Policy = AdminPolicies.Admin)]
+@using System.Threading
+@using GameKit.Core.Services
+@using Microsoft.Extensions.Options
+@inject IServiceProvider Sp
+@inject IOptions<GameKitAdminOptions> AdminOpts
+@implements IDisposable
+
+<div class="page-head">
+    <h1>Presence</h1>
+    <div class="actions">
+        <span class="muted">Top 25 · refreshes every 10s</span>
+        <button type="button" class="btn btn-sm" @onclick="RefreshAsync" disabled="@_refreshing">Refresh</button>
+    </div>
+</div>
+
+@if (_presence is null)
+{
+    @* UI-SPEC §9 — substring contract carrier. Both required literals ("Install GameKit.Presence"
+       and "AddPresence(…)") emerge naturally from the MissingPackageAlert template. *@
+    <MissingPackageAlert PackageName="Presence" Feature="presence telemetry" />
+}
+else if (_lastError is not null)
+{
+    @* UI-SPEC §6 error state. *@
+    <div class="alert" role="status">
+        <div class="alert-heading">Presence unavailable.</div>
+        <div class="alert-body">
+            Could not read live presence from Redis. Check the Health panel and the consumer
+            app's Redis connection.
+        </div>
+    </div>
+}
+else if (_rows is null)
+{
+    @* UI-SPEC §6 loading state — matches Dashboard pattern. *@
+    <div class="muted">Loading presence…</div>
+}
+else if (_rows.Count == 0)
+{
+    @* UI-SPEC §6 empty state. *@
+    <div class="alert" role="status">
+        <div class="alert-heading">No players online.</div>
+        <div class="alert-body">
+            Players appear here within seconds of their first heartbeat. The Top 25 list
+            refreshes every 10s.
+        </div>
+    </div>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="t">
+            <thead>
+                <tr>
+                    <th class="sortable">Player ID</th>
+                    <th class="sortable">Display name</th>
+                    <th class="sortable">Status</th>
+                    <th class="sortable">Last seen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _rows)
+                {
+                    <tr>
+                        <td class="mono">@TruncatePlayerId(row.PlayerId)</td>
+                        <td>@row.DisplayName</td>
+                        <td><StatusChip Status="@row.Status.ToString()" /></td>
+                        <td title="@row.LastSeen.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC">@RelativeTime(row.LastSeen)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

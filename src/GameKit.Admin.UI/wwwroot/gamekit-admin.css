@@ -359,6 +359,14 @@ button { font: inherit; color: inherit; }
 .chip.accent { background: var(--accent-50); color: var(--accent-700); border-color: var(--accent-100); }
 .chip.ghost { background: transparent; }
 .chip.role { text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; padding: 2px 6px; height: 18px; }
+/* Plan 06-07 / UI-SPEC §5: presence-panel chip variants.
+   .chip.in-match  → amber (player is currently in a game session).
+   .chip.offline   → neutral (player TTL expired between Top-25 refresh cycles).
+   Reuses existing --amber*, --surface-2, --fg-3, --border tokens; ZERO new color tokens. */
+.chip.in-match { background: var(--amber-bg); color: #92400E; border-color: var(--amber-border); }
+.chip.in-match .dot { background: var(--amber); }
+.chip.offline { background: var(--surface-2); color: var(--fg-3); border-color: var(--border); }
+.chip.offline .dot { background: var(--fg-3); }
 
 .live-dot {
   width: 8px; height: 8px; border-radius: 50%;

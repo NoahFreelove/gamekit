@@ -2,10 +2,12 @@
 @* Copyright (c) 2026 GameKit contributors *@
 @*
     UI-SPEC §Color semantic status table — status chip colors:
-      OK / Active / Healthy / Online  → .chip.healthy (green-bg, green dot)
-      Degraded                        → .chip.degraded (amber-bg, amber dot)
-      Down / Offline / Error / Banned → .chip.down  (red-bg, red dot)
-      (anything else)                 → .chip.info  (blue-bg, blue dot)
+      OK / Active / Healthy / Online  → .chip.healthy   (green-bg, green dot)
+      Degraded                        → .chip.degraded  (amber-bg, amber dot)
+      Down / Error / Banned           → .chip.down      (red-bg, red dot)
+      InMatch / In match / In-match   → .chip.in-match  (amber-bg, amber dot)        [Phase 6 / Plan 06-07]
+      Offline                         → .chip.offline   (neutral surface-2, fg-3 dot) [Phase 6 / Plan 06-07]
+      (anything else)                 → .chip.info      (blue-bg, blue dot)
 
     role="status" + aria-label mirrors UI-SPEC §Interaction Contract accessibility rule
     ("Status chips: role=\"status\" + aria-label=\"{status text}\"").
@@ -13,6 +15,18 @@
     Plan 03.1-08 — re-skinned: replaced <MudChip> with sketch's <span class="chip"> + dot
     indicator from gamekit-admin.css (.chip / .chip.healthy / .chip.degraded / .chip.down /
     .chip.info rules already ported from sketch styles.css in Plan 02).
+
+    Plan 06-07 — Phase 6 Presence panel precedence change (06-PATTERNS Critical Misuse
+    Warning #10 + UI-SPEC §5): the literal status "offline" used to resolve to the red
+    .chip.down class alongside "down"/"error"/"banned". UI-SPEC §5 wants "offline" rendered
+    in neutral gray (the player is not currently online but is not a problem state). The
+    "down"/"offline"/"error"/"banned" arm has been SPLIT into two arms so "offline" now
+    maps to the new neutral .chip.offline class while "down"/"error"/"banned" continue to
+    resolve to the red .chip.down class (banned-user chips on Admins.razor / Players.razor
+    do NOT regress). Two new arms were added: "inmatch"/"in match"/"in-match" → .chip.in-match
+    (amber) and "offline" → .chip.offline (neutral). The new "offline" arm is placed BEFORE
+    the existing "down"/"error"/"banned" arm because C# switch arms are evaluated top-to-bottom
+    and we want the new precedence to win.
 *@
 <span class="chip @ChipModifierClass(Status)" role="status" aria-label="@Status">
     <span class="dot"></span>
@@ -33,7 +47,9 @@
     {
         "ok" or "active" or "healthy" or "online" or "up" => "healthy",
         "degraded" or "warning" => "degraded",
-        "down" or "offline" or "error" or "banned" => "down",
+        "inmatch" or "in match" or "in-match" => "in-match",
+        "offline" => "offline",
+        "down" or "error" or "banned" => "down",
         _ => "info",
     };
 }

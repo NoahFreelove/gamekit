@@ -84,15 +84,25 @@ public sealed class AdminTestHost : IAsyncDisposable
     /// <param name="env">Hosting environment name (<c>Production</c> / <c>Development</c> / <c>Staging</c>).</param>
     /// <param name="seed">Optional async seed callback executed AFTER migrations but BEFORE host start.</param>
     /// <param name="configureAdmin">Optional <see cref="GameKitAdminOptions"/> override (e.g. custom <c>MountPath</c>).</param>
+    /// <param name="configureExtraServices">
+    /// Optional hook to register additional services into the web host's
+    /// <see cref="IServiceCollection"/> AFTER the standard
+    /// <c>AddGameKit</c> / <c>AddAuth</c> / <c>AddGameKitAdmin</c> chain runs but BEFORE the host
+    /// starts. Plan 06-07 Task 2 uses this to register a mock
+    /// <see cref="GameKit.Core.Services.IPresenceProvider"/> so the PresencePanel renders the
+    /// happy path (table-with-rows) — the production registration would normally come from
+    /// <c>GameKit.Presence.AddPresence()</c>, which is intentionally NOT called in these tests.
+    /// </param>
     public static async Task<AdminTestHost> StartAsync(
         PostgresFixture pg,
         RedisFixture redis,
         string env = "Production",
         Func<AdminTestHost, Task>? seed = null,
-        Action<GameKitAdminOptions>? configureAdmin = null)
+        Action<GameKitAdminOptions>? configureAdmin = null,
+        Action<IServiceCollection>? configureExtraServices = null)
     {
         var host = new AdminTestHost();
-        await host.InitializeAsync(pg, redis, env, seed, configureAdmin).ConfigureAwait(false);
+        await host.InitializeAsync(pg, redis, env, seed, configureAdmin, configureExtraServices).ConfigureAwait(false);
         return host;
     }
 
@@ -101,7 +111,8 @@ public sealed class AdminTestHost : IAsyncDisposable
         RedisFixture redis,
         string env,
         Func<AdminTestHost, Task>? seed,
-        Action<GameKitAdminOptions>? configureAdmin = null)
+        Action<GameKitAdminOptions>? configureAdmin = null,
+        Action<IServiceCollection>? configureExtraServices = null)
     {
         ArgumentNullException.ThrowIfNull(pg);
         ArgumentNullException.ThrowIfNull(redis);
@@ -168,6 +179,12 @@ public sealed class AdminTestHost : IAsyncDisposable
                         log.SetMinimumLevel(LogLevel.Debug);
                         log.AddProvider(new TestLoggerProvider(_logMessages));
                     });
+
+                    // Plan 06-07: allow the test to inject additional services (e.g. a mocked
+                    // IPresenceProvider) AFTER the standard GameKit registration chain so the
+                    // PresencePanel happy-path test can render the populated table without booting
+                    // GameKit.Presence + Redis-with-seeded-keys.
+                    configureExtraServices?.Invoke(services);
                 });
                 web.Configure(app =>
                 {

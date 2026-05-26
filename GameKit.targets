@@ -1,38 +1,87 @@
 <!--
   GameKit.targets — coordinated release-train exact-pin metadata
-  (Phase 6 D-17 + D-26, Plan 06-01 Task 2)
+  (Phase 6 D-17 + D-26, Plan 06-01 Task 2; Plan 06-08 Task 4 hardening)
 
   Purpose: when an in-repo ProjectReference (sibling src/GameKit.* package)
-  is converted to a NuGet PackageReference during Pack, the GenerateNuspec
-  task reads the <PackageVersion> metadata declared here and emits the
-  exact-pin square-bracket syntax `[X.Y.Z]` into the produced .nuspec.
-  Exact pins block NuGet's restore graph from accepting any version other
-  than the literal MinVer-resolved stamp (NU1605 fires on mismatch),
+  is converted to a NuGet PackageReference during Pack, the generated
+  .nuspec MUST carry the exact-pin square-bracket syntax `[X.Y.Z]` so
+  consumers cannot float onto a sibling-package version different from
+  the coordinated release-train stamp. Exact pins block NuGet's restore
+  graph from accepting any other version (NU1605 fires on mismatch),
   giving the coordinated release train teeth at the consumer's restore
   step instead of waiting until runtime.
 
   Layered defense (D-17 + D-26):
-    1. PRIMARY (this file): MSBuild ItemDefinitionGroup stamps the metadata
-       at Pack time. Authored once; applied to every csproj that imports
-       Directory.Build.props.
-    2. SECONDARY (Plan 06-08 CI workflow): grep over produced .nupkg
-       .nuspec files asserts the literal `version="[X.Y.Z]"` syntax is
-       present and no wildcard / caret pins leaked in.
+    1. PRIMARY (this file): the _ApplyExactPinToSiblingGameKitReferences
+       target rewrites the @(_ProjectReferencesWithVersions) item group
+       AFTER NuGet's `_GetProjectReferenceVersions` populates it, wrapping
+       every sibling GameKit.* ProjectVersion metadata value with literal
+       square brackets. NuGet's `PackTask` then emits `version="[X.Y.Z]"`
+       into the .nuspec dependency element.
+    2. EMPIRICAL (Plan 06-08 D26_NuspecExactPinGuardTests): cracks the
+       produced .nupkg and asserts every sibling `<dependency id="GameKit.*">`
+       matches the literal `version="[X.Y.Z]"` exact-pin regex. Source-side
+       grep also asserts no `Version="*"` / `Version="^…"` wildcard.
     3. RUNTIME (Plan 06-02 GameKitVersionAssertionHostedService):
        reflects on loaded GameKit.* assemblies and throws
        GameKitVersionMismatchException if any GameKitVersion const
        diverges across the loaded set.
 
+  Why the hook-target approach (NOT the ItemDefinitionGroup metadata that
+  earlier drafts proposed): NuGet 10's pack pipeline (NuGet.Build.Tasks.Pack.targets
+  /usr/lib/dotnet/sdk/10.0.107/) computes sibling dependency versions in
+  `_GetProjectReferenceVersions` -> `_GetProjectVersion`, which reads
+  `$(PackageVersion)` of the referenced project verbatim. The PackTask then
+  passes that string through to the .nuspec without consulting any
+  `<PackageVersion>` metadata declared on the ProjectReference item itself.
+  An ItemDefinitionGroup `<PackageVersion>` metadata is therefore SILENTLY
+  IGNORED at pack-time — confirmed empirically by D26_NuspecExactPinGuardTests
+  during Plan 06-08 execution. The working mechanism is to rewrite
+  `_ProjectReferencesWithVersions` AFTER `_GetProjectReferenceVersions`
+  populates it but BEFORE the `Pack` target invokes `PackTask`.
+
   Imported by Directory.Build.props at repo root via
   <Import Project="$(MSBuildThisFileDirectory)GameKit.targets" />.
 -->
 <Project>
-  <ItemDefinitionGroup>
-    <ProjectReference>
-      <!-- Read by GenerateNuspec when a ProjectReference is converted to a
-           PackageReference. Exact-pin syntax `[X.Y.Z]` blocks any other
-           version from satisfying the dependency at restore time. -->
-      <PackageVersion>[$(Version)]</PackageVersion>
-    </ProjectReference>
-  </ItemDefinitionGroup>
+
+  <!-- D-17 + D-26: rewrite every sibling GameKit.* entry in
+       @(_ProjectReferencesWithVersions) to carry the literal
+       [X.Y.Z] exact-pin bracket syntax in its ProjectVersion metadata.
+       NuGet's PackTask reads this metadata when emitting the
+       <dependency version="..."> attribute. -->
+  <Target Name="_ApplyExactPinToSiblingGameKitReferences"
+          AfterTargets="_GetProjectReferenceVersions"
+          BeforeTargets="GenerateNuspec"
+          Condition="'@(_ProjectReferencesWithVersions)' != ''">
+
+    <ItemGroup>
+      <!-- Capture every sibling GameKit.* ProjectReference entry into a
+           filtered temporary item group whose Identity is the project
+           path. We then update its ProjectVersion metadata in-place to
+           wrap the version with [ ]. The IsGameKitSibling metadata is
+           computed by stem-matching the file name without extension
+           against the GameKit.* glob. -->
+      <_ProjectReferencesWithVersions>
+        <_IsGameKitSibling Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('%(Filename)', '^GameKit\.[A-Za-z0-9.]+$'))">true</_IsGameKitSibling>
+      </_ProjectReferencesWithVersions>
+    </ItemGroup>
+
+    <ItemGroup>
+      <!-- For GameKit.* siblings whose ProjectVersion has NOT already been
+           bracketed, wrap with literal square brackets. The Contains check
+           is defensive — if a future target also rewrites this, we don't
+           double-bracket. -->
+      <_ProjectReferencesWithVersions
+          Condition="'%(_IsGameKitSibling)' == 'true' AND !$([System.String]::Copy('%(ProjectVersion)').StartsWith('['))">
+        <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+      </_ProjectReferencesWithVersions>
+    </ItemGroup>
+
+    <!-- Diagnostic: surface the rewrite at MSBuild verbosity >= normal. -->
+    <Message Importance="Normal"
+             Text="GameKit.targets: applied exact-pin [X.Y.Z] to sibling GameKit.* dep '%(_ProjectReferencesWithVersions.Filename)' -> version '%(_ProjectReferencesWithVersions.ProjectVersion)'."
+             Condition="'%(_ProjectReferencesWithVersions._IsGameKitSibling)' == 'true'" />
+  </Target>
+
 </Project>

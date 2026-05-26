@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      Plan 06-08 Task 1 (D-13): standalone game-server console process that
+      demonstrates the production topology — web tier WRITES via gamekit_owner,
+      this game-server READS via gamekit_reader (Postgres role bootstrap from
+      docker/postgres/init/01-roles.sql). Cross-tier orchestration uses HTTP
+      against the web app's /api/sessions/{id}/start + /complete endpoints
+      (Plan 06-05) with a service-account JWT.
+    -->
+    <OutputType>Exe</OutputType>
+    <RootNamespace>TicTacToeDuel.GameServer</RootNamespace>
+    <AssemblyName>TicTacToeDuel.GameServer</AssemblyName>
+
+    <!-- Sample app — never packaged. -->
+    <IsPackable>false</IsPackable>
+
+    <!-- Sample apps are exempted from the repo-wide CS1591 enforcement
+         (no public API surface to document; top-level statements only). -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Direct Npgsql — NO DbContext. The game-server tier intentionally does
+      NOT reference GameKit.* runtime packages: it is an OUTSIDE consumer of
+      the web API (HTTP-only) and an OUTSIDE consumer of Postgres
+      (Npgsql-only). This mirrors real production topology where game servers
+      are independent processes from the web tier's assembly graph.
+    -->
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- appsettings copied to output so the binary can be launched in-place
+         (e.g. via scripts/run-game-server.sh) without requiring a publish step. -->
+    <Content Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

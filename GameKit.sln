@@ -63,6 +63,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameKit.OpenApi.Integration
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameKit.Distribution.Integration.Tests", "tests\GameKit.Distribution.Integration.Tests\GameKit.Distribution.Integration.Tests.csproj", "{CAAD8020-A852-41D5-8F53-FF46C352125D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TicTacToeDuel.GameServer", "samples\TicTacToeDuel.GameServer\TicTacToeDuel.GameServer.csproj", "{0C66424E-3C8E-4DB3-AB30-84706C6A4913}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -397,6 +399,18 @@ Global
 		{CAAD8020-A852-41D5-8F53-FF46C352125D}.Release|x64.Build.0 = Release|Any CPU
 		{CAAD8020-A852-41D5-8F53-FF46C352125D}.Release|x86.ActiveCfg = Release|Any CPU
 		{CAAD8020-A852-41D5-8F53-FF46C352125D}.Release|x86.Build.0 = Release|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Debug|x64.Build.0 = Debug|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Debug|x86.Build.0 = Debug|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Release|x64.ActiveCfg = Release|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Release|x64.Build.0 = Release|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Release|x86.ActiveCfg = Release|Any CPU
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -429,5 +443,6 @@ Global
 		{506A2533-75C9-4517-BD6A-E83E8F847001} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{CAC4311F-1A68-4AFF-A10B-DF7FA36E5712} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{CAAD8020-A852-41D5-8F53-FF46C352125D} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{0C66424E-3C8E-4DB3-AB30-84706C6A4913} = {5D20AA90-6969-D8BD-9DCD-8634F4692FDA}
 	EndGlobalSection
 EndGlobal

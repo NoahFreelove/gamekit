@@ -6,6 +6,7 @@ using GameKit.Auth.Builder;
 using GameKit.Core.Builder;
 using GameKit.Matchmaking.Builder;
 using GameKit.Matchmaking.Strategy;
+using GameKit.OpenApi.Builder;
 using GameKit.Presence.Builder;
 using GameKit.Rankings.Builder;
 using GameKit.Rankings.Entities;
@@ -121,6 +122,15 @@ gameKitBuilder.AddMatchmaking(opts =>
 // HeartbeatIntervalSeconds=10) match the 3× safety factor.
 gameKitBuilder.AddPresence();
 
+// Plan 06-06 — OpenApi (Phase 6). Single combined /openapi/v1.json document covering every
+// player-facing GameKit HTTP endpoint (auth, sessions, matchmaking, parties, presence). The
+// builder wires the inline OpenApiOptions.ShouldInclude lambda that filters out admin
+// endpoints (D-19; PATTERNS Critical Misuse Warning #1) + the GameKitInfoTransformer
+// (info.Version from the MinVer-derived GameKitMarker const) + the GameKitBearerSchemeTransformer
+// (bearerAuth security scheme applied globally when the JwtBearer scheme is registered, D-08).
+// AddGameKitOpenApi is an IServiceCollection extension (orthogonal to the IGameKitBuilder chain).
+builder.Services.AddGameKitOpenApi();
+
 gameKitBuilder.AddGameKitAdmin(admin =>
 {
     admin.MountPath = "/admin";
@@ -158,6 +168,7 @@ app.MapDemo();                      // /demo/games (the /demo/players/register e
 app.MapRankings();                  // /api/players/{id}/export + /admin/api/players/{id}/export + /admin/api/players/{id}/rank-adjust — Phase 4
 app.MapMatchmaking();               // /api/parties/* + /api/mm/* — Phase 5 (Plan 05-08 surface, Plan 05-09 wiring)
 app.MapPresence();                  // POST /api/presence/heartbeat — Phase 6 (Plan 06-04 — JWT-bearer required, no rate limit per D-05)
+app.MapGameKitOpenApi();            // GET /openapi/v1.json — Phase 6 (Plan 06-06 — anonymous; admin paths excluded per D-19)
 app.MapGameKitAdmin("/admin");      // Plan 03-12 — /admin/api/* HTTP surface + /admin/* Blazor console.
 
 // Sample-only helper: resolves a ladder name to its Guid so the matchmaking.html client can

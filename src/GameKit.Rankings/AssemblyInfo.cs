@@ -26,3 +26,8 @@ using System.Runtime.CompilerServices;
 // sets Redis presence:{playerId}=in_match via PresenceSessionObserver). Test-only coupling —
 // Presence runtime still does NOT depend on Rankings.
 [assembly: InternalsVisibleTo("GameKit.Presence.Integration.Tests")]
+// Phase 6 Plan 06-06: OpenApi contract tests apply RankingsMigrationModelCustomizer to the
+// runtime DbContext so MapRankings's endpoints register cleanly (the test host composes the
+// full sample's package set so the D-09 EndpointDataSource enumeration covers every player-
+// facing endpoint). Same precedent as the Presence.Integration.Tests grant above.
+[assembly: InternalsVisibleTo("GameKit.OpenApi.Integration.Tests")]

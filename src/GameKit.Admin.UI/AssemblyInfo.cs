@@ -19,6 +19,10 @@ using System.Runtime.CompilerServices;
 //     literals and for any future restructuring that aligns AssemblyName with csproj name.
 [assembly: InternalsVisibleTo("gamekit")]
 [assembly: InternalsVisibleTo("GameKit.Cli")]
+// Plan 06-06: OpenApi contract tests need AdminMigrationModelCustomizer to compose Admin
+// entity configurations into the runtime DbContext (FOLLOW-UP-02-03-01 ApplicationServiceProvider
+// workaround). Same precedent as the Admin.Integration.Tests grant above.
+[assembly: InternalsVisibleTo("GameKit.OpenApi.Integration.Tests")]
 
 namespace GameKit.Admin.UI;
 

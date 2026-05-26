@@ -12,6 +12,9 @@
     <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
     <!-- Plan 06-04 — Presence package: Redis TTL-keyed heartbeat + in-match precedence Lua. -->
     <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
+    <!-- Plan 06-06 — OpenApi package: combined /openapi/v1.json document with bearerAuth
+         scheme + inline admin-route exclusion (D-19). -->
+    <ProjectReference Include="..\..\src\GameKit.OpenApi\GameKit.OpenApi.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
   </ItemGroup>
 </Project>

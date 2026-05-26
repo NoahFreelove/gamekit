@@ -12,3 +12,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("GameKit.Matchmaking.Tests")]
 [assembly: InternalsVisibleTo("GameKit.Matchmaking.Integration.Tests")]
 [assembly: InternalsVisibleTo("GameKit.Matchmaking.LoadTests")]
+// Phase 6 Plan 06-06: OpenApi contract tests apply MatchmakingMigrationModelCustomizer to
+// the runtime DbContext so MapMatchmaking's endpoints register cleanly inside the hybrid
+// host that asserts the D-09 EndpointDataSource enumeration vs document.paths contract.
+[assembly: InternalsVisibleTo("GameKit.OpenApi.Integration.Tests")]

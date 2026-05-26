@@ -16,6 +16,13 @@ using System.Runtime.CompilerServices;
 // AuthModelBuilderExtension to compose all three packages' entities into a single test
 // DbContext (mirrors the Admin.Integration.Tests IVT precedent above).
 [assembly: InternalsVisibleTo("GameKit.Presence.Integration.Tests")]
+// Plan 06-06: OpenApi contract tests (D-09 EndpointDataSource enumeration) boot a hybrid
+// host composing Core + Auth + Rankings + Matchmaking + Presence + Admin + OpenApi so the
+// contract test enumerates the full sample's endpoint surface. The OpenApiTestApp's
+// runtime IModelCustomizer applies AuthMigrationModelCustomizer / Auth entity configurations
+// to bypass the FOLLOW-UP-02-03-01 ApplicationServiceProvider capture issue. Mirrors the
+// Admin.Integration.Tests + Presence.Integration.Tests grants above.
+[assembly: InternalsVisibleTo("GameKit.OpenApi.Integration.Tests")]
 
 namespace GameKit.Auth;
 

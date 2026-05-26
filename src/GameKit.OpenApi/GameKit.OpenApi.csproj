@@ -13,12 +13,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- ASP.NET Core types — DocumentTransformerContext, OpenApiOptions
-         and OpenAPI middleware all live in Microsoft.AspNetCore.OpenApi
-         + Microsoft.AspNetCore.App. The runtime PackageReference for
-         Microsoft.AspNetCore.OpenApi is added in Plan 06-06; landing
-         the FrameworkReference now keeps the skeleton compilable. -->
+    <!-- ASP.NET Core types — IAuthenticationSchemeProvider + JwtBearerDefaults
+         + the broader runtime live in Microsoft.AspNetCore.App. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+    <!-- Plan 06-06: Microsoft.AspNetCore.OpenApi 10.0.8 ships separately
+         from Microsoft.AspNetCore.App shared framework (D-22; CPM-pinned
+         in Directory.Packages.props by Plan 06-01). Provides
+         OpenApiOptions / IOpenApiDocumentTransformer /
+         OpenApiDocumentTransformerContext + AddOpenApi / MapOpenApi. -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
 
   <!-- D-15 + 06-PATTERNS Critical Misuse Warning #5: every shipped

@@ -165,10 +165,12 @@ public sealed class LeaderboardServiceTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// AroundAsync for a player with no rank row throws KeyNotFoundException.
+    /// AroundAsync for a player with no rank row returns an empty list. Per WR-05, a freshly
+    /// registered player who has not completed a ranked match is a normal condition (not a
+    /// 500); callers that need a 404 can detect the empty result.
     /// </summary>
     [Fact]
-    public async Task Around_NonExistentPlayer_Throws_KeyNotFoundException()
+    public async Task Around_NonExistentPlayer_Returns_Empty()
     {
         var ladderId = Guid.NewGuid();
         var nonExistentPlayerId = Guid.NewGuid();
@@ -183,8 +185,9 @@ public sealed class LeaderboardServiceTests : IAsyncLifetime
         await using var scope = sp.CreateAsyncScope();
         var svc = scope.ServiceProvider.GetRequiredService<ILeaderboardService>();
 
-        await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => svc.AroundAsync(ladderId, nonExistentPlayerId, window: 2));
+        var result = await svc.AroundAsync(ladderId, nonExistentPlayerId, window: 2);
+
+        Assert.Empty(result);
     }
 
     // ---- Helpers ----

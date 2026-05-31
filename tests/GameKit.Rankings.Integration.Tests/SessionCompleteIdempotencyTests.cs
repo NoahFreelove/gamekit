@@ -31,6 +31,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using StackExchange.Redis;
 using Xunit;
 
 namespace GameKit.Rankings.Integration.Tests;
@@ -47,15 +48,20 @@ namespace GameKit.Rankings.Integration.Tests;
 ///   <item><see cref="Cancelled_Session_Returns_409_Invalid_State"/> — D-07: non-active state → 409.</item>
 /// </list>
 /// </summary>
-[Collection("Postgres")]
+[Collection("Rankings")]
 [Trait("Category", "Integration")]
 public sealed class SessionCompleteIdempotencyTests : IAsyncLifetime
 {
     private readonly PostgresFixture _pg;
+    private readonly RedisFixture _redis;
     private string _cs = string.Empty;
 
-    /// <summary>Constructs with the shared Postgres fixture.</summary>
-    public SessionCompleteIdempotencyTests(PostgresFixture pg) => _pg = pg;
+    /// <summary>Constructs with the shared Postgres + Redis fixtures.</summary>
+    public SessionCompleteIdempotencyTests(PostgresFixture pg, RedisFixture redis)
+    {
+        _pg = pg;
+        _redis = redis;
+    }
 
     /// <inheritdoc />
     public async Task InitializeAsync()
@@ -79,7 +85,7 @@ public sealed class SessionCompleteIdempotencyTests : IAsyncLifetime
     [Fact]
     public async Task Retry_Five_Times_Applies_Delta_Once()
     {
-        await using var server = await BuildSessionCompleteServer(_cs, "test-ladder");
+        await using var server = await BuildSessionCompleteServer(_cs, _redis.ConnectionString, "test-ladder");
         using var client = server.CreateClient();
 
         // Seed: ladder row + 2 players + 1 active session + 2 participants
@@ -136,7 +142,7 @@ public sealed class SessionCompleteIdempotencyTests : IAsyncLifetime
     [Fact]
     public async Task Same_Key_Different_Body_Returns_409()
     {
-        await using var server = await BuildSessionCompleteServer(_cs, "test-ladder-2");
+        await using var server = await BuildSessionCompleteServer(_cs, _redis.ConnectionString, "test-ladder-2");
         using var client = server.CreateClient();
 
         var (sessionId, p1Id, p2Id) = await SeedActivatedSessionAsync(_cs, "test-ladder-2", playerCount: 2);
@@ -183,7 +189,7 @@ public sealed class SessionCompleteIdempotencyTests : IAsyncLifetime
     [Fact]
     public async Task Missing_Idempotency_Key_Returns_400()
     {
-        await using var server = await BuildSessionCompleteServer(_cs, "test-ladder-3");
+        await using var server = await BuildSessionCompleteServer(_cs, _redis.ConnectionString, "test-ladder-3");
         using var client = server.CreateClient();
 
         var (sessionId, p1Id, p2Id) = await SeedActivatedSessionAsync(_cs, "test-ladder-3", playerCount: 2);
@@ -212,7 +218,7 @@ public sealed class SessionCompleteIdempotencyTests : IAsyncLifetime
     [Fact]
     public async Task PlayerJWT_Returns_403()
     {
-        await using var server = await BuildSessionCompleteServer(_cs, "test-ladder-4");
+        await using var server = await BuildSessionCompleteServer(_cs, _redis.ConnectionString, "test-ladder-4");
         using var client = server.CreateClient();
 
         var (sessionId, p1Id, p2Id) = await SeedActivatedSessionAsync(_cs, "test-ladder-4", playerCount: 2);
@@ -252,7 +258,7 @@ public sealed class SessionCompleteIdempotencyTests : IAsyncLifetime
     [Fact]
     public async Task Already_Completed_Session_Returns_Cached_Response()
     {
-        await using var server = await BuildSessionCompleteServer(_cs, "test-ladder-5");
+        await using var server = await BuildSessionCompleteServer(_cs, _redis.ConnectionString, "test-ladder-5");
         using var client = server.CreateClient();
 
         var (sessionId, p1Id, p2Id) = await SeedActivatedSessionAsync(_cs, "test-ladder-5", playerCount: 2);
@@ -299,7 +305,7 @@ public sealed class SessionCompleteIdempotencyTests : IAsyncLifetime
     [Fact]
     public async Task Cancelled_Session_Returns_409_Invalid_State()
     {
-        await using var server = await BuildSessionCompleteServer(_cs, "test-ladder-6");
+        await using var server = await BuildSessionCompleteServer(_cs, _redis.ConnectionString, "test-ladder-6");
         using var client = server.CreateClient();
 
         var (sessionId, p1Id, p2Id) = await SeedActivatedSessionAsync(_cs, "test-ladder-6", playerCount: 2);
@@ -448,8 +454,8 @@ public sealed class SessionCompleteIdempotencyTests : IAsyncLifetime
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static Task<SessionCompleteTestServer> BuildSessionCompleteServer(string cs, string ladderName)
-        => SessionCompleteTestServer.CreateAsync(cs, ladderName);
+    private static Task<SessionCompleteTestServer> BuildSessionCompleteServer(string cs, string redisCs, string ladderName)
+        => SessionCompleteTestServer.CreateAsync(cs, redisCs, ladderName);
 
     private static async Task<string> CreateFreshDatabaseAsync(PostgresFixture pg)
     {
@@ -521,7 +527,7 @@ internal sealed class SessionCompleteTestServer : IAsyncDisposable
 
     public HttpClient CreateClient() => _host.GetTestServer().CreateClient();
 
-    public static async Task<SessionCompleteTestServer> CreateAsync(string cs, string ladderName)
+    public static async Task<SessionCompleteTestServer> CreateAsync(string cs, string redisCs, string ladderName)
     {
         var builder = new HostBuilder()
             .UseContentRoot(AppContext.BaseDirectory)
@@ -539,6 +545,13 @@ internal sealed class SessionCompleteTestServer : IAsyncDisposable
                         .AddLadder(ladderName);
 
                     services.AddLogging();
+
+                    // RankingsTickerLeaseHelper (registered as a hosted service via AddRankings)
+                    // requires IConnectionMultiplexer. Tests don't exercise the ticker but the
+                    // host activates all hosted services on StartAsync, so the dependency must
+                    // be resolvable.
+                    services.AddSingleton<IConnectionMultiplexer>(_ =>
+                        ConnectionMultiplexer.Connect(redisCs));
 
                     // Override DbContext to include Rankings entities (bypass global EF model cache — Pitfall 3).
                     services.AddDbContext<GameKitDbContext>((_, dbOpts) =>

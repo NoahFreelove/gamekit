@@ -34,4 +34,10 @@ public sealed class BCryptPasswordHasher : IPasswordHasher
             return false;
         }
     }
+
+    /// <inheritdoc />
+    // BCrypt is the default hasher; it never needs re-hash by a newer BCrypt hasher.
+    // Returns false unconditionally — Argon2idPasswordHasher overrides this to return
+    // true for $2a$/$2b$ prefixes.
+    public bool NeedsRehash(string hash) => false;
 }

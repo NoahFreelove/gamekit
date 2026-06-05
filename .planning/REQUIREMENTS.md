@@ -10,19 +10,19 @@
 
 ### Core — Rating Seam
 
-- [ ] **CORE-18**: `IPlayerRatingProvider` optional-port interface defined in `GameKit.Core` (null-object default returns rating=0 / default RD) — consumed by Matchmaking **without** a hard compile-time dependency on Rankings (mirrors `IPresenceProvider` pattern)
+- [x] **CORE-18**: `IPlayerRatingProvider` optional-port interface defined in `GameKit.Core` (null-object default returns rating=0 / default RD) — consumed by Matchmaking **without** a hard compile-time dependency on Rankings (mirrors `IPresenceProvider` pattern)
 
 ### Auth — Argon2 Hasher
 
-- [ ] **AUTH-17**: `GameKit.Auth.Argon2` opt-in sibling package provides `Argon2idPasswordHasher : IPasswordHasher` using Isopoh.Cryptography.Argon2 (tuned m=64 MiB, t=3, p=1)
-- [ ] **AUTH-18**: Transparent BCrypt→Argon2 migration — rehash-on-verify via hash-format detection (`$2a$` vs `$argon2id$`); no forced password reset
+- [x] **AUTH-17**: `GameKit.Auth.Argon2` opt-in sibling package provides `Argon2idPasswordHasher : IPasswordHasher` using Isopoh.Cryptography.Argon2 (tuned m=64 MiB, t=3, p=1)
+- [x] **AUTH-18**: Transparent BCrypt→Argon2 migration — rehash-on-verify via hash-format detection (`$2a$` vs `$argon2id$`); no forced password reset
 
 ### Auth — OAuth Providers
 
-- [ ] **AUTH-19**: Google OAuth provider as opt-in sibling package `GameKit.Auth.Google` (Microsoft.AspNetCore.Authentication.Google) implementing `IOAuthProvider`
-- [ ] **AUTH-20**: Apple Sign-In provider `GameKit.Auth.Apple` — ES256 client-secret generated per token exchange; `sub` is the canonical identity key; name/email persisted on **first** login only; private-relay email stored as-is
-- [ ] **AUTH-21**: Epic OAuth provider `GameKit.Auth.Epic` — custom `OAuthHandler` against Epic OAuth 2.0 endpoints (no maintained NuGet package; zero new dep)
-- [ ] **AUTH-22**: All new providers integrate with existing `IOAuthProvider` + identity-linking under the `(provider, external_id)` uniqueness contract (no scope creep; `identify`-equivalent minimal scopes)
+- [x] **AUTH-19**: Google OAuth provider as opt-in sibling package `GameKit.Auth.Google` (Microsoft.AspNetCore.Authentication.Google) implementing `IOAuthProvider`
+- [x] **AUTH-20**: Apple Sign-In provider `GameKit.Auth.Apple` — ES256 client-secret generated per token exchange; `sub` is the canonical identity key; name/email persisted on **first** login only; private-relay email stored as-is
+- [x] **AUTH-21**: Epic OAuth provider `GameKit.Auth.Epic` — custom `OAuthHandler` against Epic OAuth 2.0 endpoints (no maintained NuGet package; zero new dep)
+- [x] **AUTH-22**: All new providers integrate with existing `IOAuthProvider` + identity-linking under the `(provider, external_id)` uniqueness contract (no scope creep; `identify`-equivalent minimal scopes)
 
 ### Auth — Account Merge
 
@@ -79,13 +79,13 @@ Carried from v1.0 (unchanged) — see `.planning/PROJECT.md` § Out of Scope. Hi
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CORE-18 | Phase 7 | Pending |
-| AUTH-17 | Phase 7 | Pending |
-| AUTH-18 | Phase 7 | Pending |
-| AUTH-19 | Phase 7 | Pending |
-| AUTH-20 | Phase 7 | Pending |
-| AUTH-21 | Phase 7 | Pending |
-| AUTH-22 | Phase 7 | Pending |
+| CORE-18 | Phase 7 | Complete |
+| AUTH-17 | Phase 7 | Complete |
+| AUTH-18 | Phase 7 | Complete |
+| AUTH-19 | Phase 7 | Complete |
+| AUTH-20 | Phase 7 | Complete |
+| AUTH-21 | Phase 7 | Complete |
+| AUTH-22 | Phase 7 | Complete |
 | RANK-15 | Phase 8 | Pending |
 | RANK-16 | Phase 8 | Pending |
 | RANK-17 | Phase 8 | Pending |

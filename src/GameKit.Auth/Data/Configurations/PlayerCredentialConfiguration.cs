@@ -21,7 +21,10 @@ internal sealed class PlayerCredentialConfiguration : IEntityTypeConfiguration<P
         // Case-insensitive uniqueness achieved via citext column type; the citext extension is
         // installed by the AuthInitial migration prologue so self-hosting operators don't have to.
         b.Property(c => c.Username).IsRequired().HasMaxLength(32).HasColumnType("citext");
-        b.Property(c => c.PasswordHash).IsRequired().HasMaxLength(72);   // BCrypt hashes are <=72 chars
+        // AUTH-18: column extended from 72 to 512 to accommodate Argon2id encoded strings.
+        // BCrypt hashes are 60 chars; Argon2id encoded strings are ~80–120 chars depending on
+        // m/t/p/hashLength params. 512 provides headroom for future hashers (BLAKE3, Bcrypt v3, etc).
+        b.Property(c => c.PasswordHash).IsRequired().HasMaxLength(512);
         b.Property(c => c.UpdatedAt).IsRequired();
 
         b.HasIndex(c => c.Username).IsUnique();   // relies on citext for case-insensitivity

@@ -10,6 +10,7 @@ using GameKit.Auth.Data;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -93,6 +94,21 @@ internal static class TestHelpers
         coreServices.AddGameKit(o => { o.ConnectionString = connectionString; o.AutoMigrate = false; });
         coreServices.TryAddEnumerable(
             ServiceDescriptor.Singleton<IModelBuilderExtension, AuthModelBuilderExtension>());
+        // Rule-1 fix: EF Core 10 introduced PendingModelChangesWarning, which fires here because
+        // AuthModelBuilderExtension adds Auth entities to the runtime model while the Core snapshot
+        // only knows Core entities (per-package migration boundary, PITFALLS.md #3). The warning
+        // is intentional and expected — suppress it so the Core migration step can proceed normally.
+        // The Auth entities are applied in the separate authCtx migration step below.
+        coreServices.AddDbContext<GameKitDbContext>((sp, dbOpts) =>
+            dbOpts.UseNpgsql(connectionString, npg =>
+            {
+                npg.MigrationsAssembly(typeof(GameKitDbContext).Assembly.FullName);
+                npg.MigrationsHistoryTable(
+                    GameKitMigrationConstants.MigrationsHistoryTable,
+                    GameKitMigrationConstants.SchemaName);
+            })
+            .UseApplicationServiceProvider(sp)
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning)));
         await using var coreSp = coreServices.BuildServiceProvider();
         await using (var scope = coreSp.CreateAsyncScope())
         {

@@ -8,6 +8,7 @@ using GameKit.Core.RateLimiting;
 using GameKit.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace GameKit.Core.Builder;
@@ -100,6 +101,16 @@ public static class GameKitServiceCollectionExtensions
             sp.GetRequiredService<IClock>(),
             sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<SessionAbandonService>>(),
             sp.GetServices<ISessionLifecycleObserver>()));
+
+        // Phase 7 (CORE-18): IPlayerRatingProvider optional port — null-object default so
+        // Matchmaking operates in zero-rated mode when GameKit.Rankings is not installed.
+        // TryAddSingleton is a NO-OP if IPlayerRatingProvider is already registered, so
+        // GameKit.Rankings (Phase 8) MUST override this by calling:
+        //   services.RemoveAll<IPlayerRatingProvider>();
+        //   services.AddSingleton<IPlayerRatingProvider, RankingsRatingSource>();
+        // (or plain services.AddSingleton which replaces). Using TryAddSingleton in Phase 8
+        // would silently leave NullPlayerRatingProvider active — rankings would not function.
+        services.TryAddSingleton<IPlayerRatingProvider, NullPlayerRatingProvider>();
 
         services.AddSingleton<IGameKitRateLimitPolicies, GameKitRateLimitPolicies>();
 

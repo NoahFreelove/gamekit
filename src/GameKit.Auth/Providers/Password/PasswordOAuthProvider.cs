@@ -33,11 +33,15 @@ namespace GameKit.Auth.Providers.Password;
 /// </remarks>
 internal sealed class PasswordOAuthProvider : IOAuthProvider
 {
-    // Stable hash over "<never-matches-any-real-password>" used to equalize timing when username
-    // lookup misses. The exact bytes are irrelevant; what matters is that BCrypt.Verify runs its
-    // full work-factor-12 comparison loop so the wall-clock parity holds against the hit path.
-    // Generated once via BCryptPasswordHasher.Hash("never-matches-never-matches") at work factor 12.
-    private const string DummyHash = "$2a$12$abcdefghijklmnopqrstuu1234567890123456789012345678ab";
+    // Stable hash used to equalize timing when username lookup misses (T-02-16 mitigation).
+    // BCrypt.Verify runs its full work-factor-12 Blowfish key-setup only when the hash is
+    // a syntactically-valid 60-character BCrypt string. A malformed hash causes BCrypt.Net-Next
+    // to throw SaltParseException immediately — before any crypto work — creating a timing oracle
+    // (pre-existing defect since 02-03, surfaced by Phase 7 review, CR-01).
+    // Generated via: BCrypt.Net.BCrypt.HashPassword("gamekit-dummy-password-never-matches-7f3k9m", 12)
+    // Verified: DummyHash.Length == 60 and BCrypt.Net.BCrypt.Verify("x", DummyHash) == false (no exception).
+    // Keep DISTINCT from AdminAuthService.DummyHash (different password input).
+    private const string DummyHash = "$2a$12$m90Ov/cRI/Zgu5myAT5uWu1ZEfnp9lsBmeA6FUoH.LtS7GfjQcLmK";
 
     private readonly GameKitDbContext _ctx;
     private readonly IClock _clock;
@@ -130,6 +134,27 @@ internal sealed class PasswordOAuthProvider : IOAuthProvider
             return OAuthResult.Fail("invalid_credentials");
         }
 
+        // AUTH-18 rehash-on-verify: when Argon2idPasswordHasher is the active IPasswordHasher,
+        // NeedsRehash returns true for $2a$/$2b$ prefixes so BCrypt hashes are transparently
+        // upgraded to Argon2id in the same request scope (RESEARCH §Pitfall 3 — the UPDATE must
+        // commit here or the column never migrates). BCryptPasswordHasher.NeedsRehash always
+        // returns false so this block is a no-op under the default hasher.
+        // The block is placed AFTER the successful Verify and BEFORE BannedCheckHelper to ensure
+        // it never executes on the user-not-found dummy-hash path (T-07-06-02).
+        if (_hasher.NeedsRehash(credential.PasswordHash))
+        {
+            // Re-load as a tracked entity for the UPDATE — the original `credential` was
+            // fetched with AsNoTracking() and cannot be used for change-tracking writes.
+            // The filter uses PlayerId (PK) to prevent accidentally updating another player's
+            // credential row (T-07-06-03).
+            var tracked = await _ctx.Set<PlayerCredential>()
+                .FirstAsync(c => c.PlayerId == credential.PlayerId, cancellationToken)
+                .ConfigureAwait(false);
+            tracked.PasswordHash = _hasher.Hash(password);
+            tracked.UpdatedAt = _clock.UtcNow;
+            await _ctx.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         var banned = await BannedCheckHelper.CheckAsync(_ctx, credential.PlayerId, cancellationToken).ConfigureAwait(false);
         if (banned is not null) return banned;
         var tokens = await _refresh
@@ -197,7 +222,7 @@ internal sealed class PasswordOAuthProvider : IOAuthProvider
             }
 
             await _audit.WriteAsync(
-                action: "auth.login.failure",
+                action: "auth.register.failure",
                 targetType: "player",
                 targetId: null,
                 actorId: null,

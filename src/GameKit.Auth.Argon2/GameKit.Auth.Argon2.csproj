@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>GameKit.Auth.Argon2</PackageId>
+    <Description>Argon2id password hasher for GameKit — optional sibling to the BCrypt default (Phase 7). Install to transparently migrate BCrypt hashes to Argon2id on next login via UseArgon2().</Description>
+    <PackageTags>gamekit;auth;argon2;password;gpl</PackageTags>
+    <RootNamespace>GameKit.Auth.Argon2</RootNamespace>
+    <AssemblyName>GameKit.Auth.Argon2</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      ASP.NET Core types from the shared framework (IServiceCollection, IApplicationBuilder, etc.).
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Needs IPasswordHasher + IGameKitBuilder — do NOT reference GameKit.Core directly. -->
+    <ProjectReference Include="..\GameKit.Auth\GameKit.Auth.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Argon2id hashing — CC0, fully managed, 8yr/7M+ downloads (07-RESEARCH §Package Legitimacy) -->
+    <PackageReference Include="Isopoh.Cryptography.Argon2" />
+
+    <!-- BCrypt.Net-Next — required for BCrypt.Verify during live BCrypt→Argon2 migration window.
+         This is a deliberate coupling: the only way to verify stored BCrypt hashes without a
+         schema migration is to call BCrypt.Verify here. The coupling is temporary (it disappears
+         once all active users have been migrated to Argon2id). -->
+    <PackageReference Include="BCrypt.Net-Next" />
+  </ItemGroup>
+  <!-- D-15: GameKit.Build source-generator emits GameKitMarker.GameKitVersion + GameKitMarker.AssemblyName
+       constants at compile time. Required by GameKitVersionAssertionHostedService (DIST-07/OPS-05). -->
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Build\GameKit.Build.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

@@ -13,7 +13,7 @@
 
 ### Summary Checklist
 
-- [ ] **Phase 7: Core Rating Seam + Stateless Auth Packages** — `IPlayerRatingProvider` seam in Core + all four new auth packages (Argon2, Google, Apple, Epic); zero migrations, parallelizable; unblocks all rating-aware work downstream.
+- [x] **Phase 7: Core Rating Seam + Stateless Auth Packages** — `IPlayerRatingProvider` seam in Core + all four new auth packages (Argon2, Google, Apple, Epic); zero migrations, parallelizable; unblocks all rating-aware work downstream. (completed 2026-06-05)
 - [ ] **Phase 8: Rankings Depth + Rating-Aware Matchmaking** — Rank decay (RD inflation), placement matches, `RankingsRatingSource`; freeze `player_ranks` schema before account merge reads it; simultaneously ships MATCH-16 (real ratings) + MATCH-17 (guardrails).
 - [ ] **Phase 9: Regional Matchmaking Pools + Backfill** — First-class `RegionName` on enqueue (no migration), cross-region fallback, backfill ticket type with `ParticipationFraction` guard; stabilises the Matchmaking enqueue API before Lobby depends on it.
 - [ ] **Phase 10: Account Merge (Isolated High-Risk)** — SERIALIZABLE transaction over 8+ FK tables; `account_merges` idempotency table first; crash-resume state machine; superadmin-only; depends on frozen `player_ranks` from Phase 8.
@@ -34,7 +34,16 @@
   3. A developer who installs `GameKit.Auth.Argon2` and calls `AddAuth().UseArgon2()` can log in: existing BCrypt-hashed passwords are transparently rehashed to Argon2id on successful login; no password reset is required.
   4. A developer can install any of `GameKit.Auth.Google`, `GameKit.Auth.Apple`, `GameKit.Auth.Epic` as standalone packages; each provider registers its `IOAuthProvider` via Scrutor and creates a `player_identities` row on first login using the `(provider, external_id)` uniqueness contract.
   5. The Apple provider generates a fresh ES256 client secret per token exchange (`GenerateClientSecret = true`); an integration test asserts the Apple `sub` (not email) is stored as `external_id`.
-**Plans**: TBD
+
+> Note: SC#2 (real Glicko-2 ratings flowing into `EloRangeMatchmakingStrategy`) requires the Phase 8 consumption wiring in `MatchmakingService.EnqueueAsync`. Phase 7 ships only the `IPlayerRatingProvider` seam + null-object default that makes SC#2 reachable (per 07-CONTEXT.md deferred scope). The seam, all four auth packages, and the BCrypt→Argon2 rehash (SC#1/#3/#4/#5) land in Phase 7.
+
+**Plans**: 6 plans (2 waves)
+- [x] 07-01-PLAN.md — Core `IPlayerRatingProvider` seam + null-object default (CORE-18)
+- [x] 07-02-PLAN.md — `IPasswordHasher.NeedsRehash` + `GameKit.Auth.Argon2` package + shared CPM/sln infra (AUTH-17, AUTH-18)
+- [x] 07-03-PLAN.md — `GameKit.Auth.Google` provider package (AUTH-19, AUTH-22)
+- [x] 07-04-PLAN.md — `GameKit.Auth.Apple` provider package, ES256/sub (AUTH-20, AUTH-22)
+- [x] 07-05-PLAN.md — `GameKit.Auth.Epic` custom-handler provider package (AUTH-21, AUTH-22)
+- [x] 07-06-PLAN.md — BCrypt→Argon2 rehash-on-verify wiring + Testcontainers proof (AUTH-18)
 
 ### Phase 8: Rankings Depth + Rating-Aware Matchmaking
 **Goal**: The `player_ranks` schema reaches its final v2.0 shape (decay + placement columns added), real ratings flow into the matchmaking bracket, and guardrails ship alongside the rating wire — no feedback-loop risk.
@@ -102,7 +111,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 7. Core Rating Seam + Stateless Auth Packages | 0/? | Not started | - |
+| 7. Core Rating Seam + Stateless Auth Packages | 6/6 | Complete   | 2026-06-05 |
 | 8. Rankings Depth + Rating-Aware Matchmaking | 0/? | Not started | - |
 | 9. Regional Matchmaking Pools + Backfill | 0/? | Not started | - |
 | 10. Account Merge | 0/? | Not started | - |

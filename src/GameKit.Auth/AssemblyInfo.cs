@@ -23,6 +23,17 @@ using System.Runtime.CompilerServices;
 // to bypass the FOLLOW-UP-02-03-01 ApplicationServiceProvider capture issue. Mirrors the
 // Admin.Integration.Tests + Presence.Integration.Tests grants above.
 [assembly: InternalsVisibleTo("GameKit.OpenApi.Integration.Tests")]
+// Plan 07-03: GoogleOAuthProvider uses BannedCheckHelper (internal to GameKit.Auth) to
+// perform the same ban check as the in-assembly providers after the PlayerIdentity upsert.
+// Mirrors the precedent set by the Apple + Epic sibling packages (Plans 07-04/07-05).
+[assembly: InternalsVisibleTo("GameKit.Auth.Google")]
+// Plan 07-04: AppleOAuthProvider uses BannedCheckHelper (internal to GameKit.Auth) to
+// perform the same ban check as the in-assembly providers after the PlayerIdentity upsert.
+[assembly: InternalsVisibleTo("GameKit.Auth.Apple")]
+// Plan 07-05: EpicOAuthProvider uses BannedCheckHelper (internal to GameKit.Auth) to
+// perform the same ban check as the in-assembly providers after the PlayerIdentity upsert.
+// Mirrors the precedent set by the Google + Apple sibling packages (Plans 07-03/07-04).
+[assembly: InternalsVisibleTo("GameKit.Auth.Epic")]
 
 namespace GameKit.Auth;
 

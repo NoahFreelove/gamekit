@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>GameKit.Auth.Epic</PackageId>
+    <Description>Epic Games OAuth provider for GameKit (custom OAuthHandler, zero NuGet deps) — opt-in sibling package (Phase 7).</Description>
+    <PackageTags>gamekit;auth;oauth;epic;gpl</PackageTags>
+    <RootNamespace>GameKit.Auth.Epic</RootNamespace>
+    <AssemblyName>GameKit.Auth.Epic</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      ASP.NET Core types (Authentication primitives, OAuthHandler<T>, OAuthOptions) from the
+      shared framework. No NuGet package needed — OAuthHandler<T> ships in Microsoft.AspNetCore.App.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Needs IOAuthProvider + IGameKitBuilder + GameKitDbContext — depends on GameKit.Auth which
+         transitively brings in GameKit.Core. No direct GameKit.Core reference needed. -->
+    <ProjectReference Include="..\GameKit.Auth\GameKit.Auth.csproj" />
+  </ItemGroup>
+  <!-- D-15: GameKit.Build source-generator emits GameKitMarker.GameKitVersion + GameKitMarker.AssemblyName
+       constants at compile time. Required by GameKitVersionAssertionHostedService (DIST-07/OPS-05). -->
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Build\GameKit.Build.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <!-- NO Microsoft.EntityFrameworkCore.Design — zero migrations in this package. -->
+  <!-- NO new PackageReference — OAuthHandler<T>/OAuthOptions are in the ASP.NET Core shared framework. -->
+</Project>

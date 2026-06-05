@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Auth.Argon2.Tests</RootNamespace>
+    <AssemblyName>GameKit.Auth.Argon2.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Suppress CS1591 (missing XML docs) for test code; WarningsAsErrors clears the
+         inherited CS1591 error from Directory.Build.props for this test project only. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GameKit.Auth.Argon2\GameKit.Auth.Argon2.csproj" />
+    <!-- IPasswordHasher interface + BCrypt.Verify for legacy-hash compat test -->
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+  </ItemGroup>
+</Project>

@@ -23,6 +23,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <!-- AUTH-18 integration test (ArgonRehashOnVerifyTests) needs UseArgon2() + Argon2idPasswordHasher. -->
+    <ProjectReference Include="..\..\src\GameKit.Auth.Argon2\GameKit.Auth.Argon2.csproj" />
     <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
   </ItemGroup>
 </Project>

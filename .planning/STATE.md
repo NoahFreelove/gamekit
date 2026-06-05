@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
-status: planning
-last_updated: "2026-06-05T00:00:00.000Z"
+status: verifying
+last_updated: "2026-06-05T22:45:47.567Z"
 last_activity: 2026-06-05
 progress:
   total_phases: 6
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 6
+  completed_plans: 6
+  percent: 17
 ---
 
 # STATE: GameKit
@@ -22,14 +22,14 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** v2.0 — Expansion: Providers, Lobby & Rating-Aware Play (roadmap created 2026-06-05)
+**Current Focus:** Phase 07 — Core Rating Seam + Stateless Auth Packages
 
 ## Current Position
 
-Phase: 7 (not started — planning)
-Plan: —
-Status: Roadmap created — ready to plan Phase 7
-Last activity: 2026-06-05 — v2.0 roadmap created (6 phases, 29/29 requirements mapped)
+Phase: 07 (Core Rating Seam + Stateless Auth Packages) — EXECUTING
+Plan: 6 of 6
+Status: Phase complete — ready for verification
+Last activity: 2026-06-05
 
 ## Performance Metrics
 
@@ -78,6 +78,11 @@ Last activity: 2026-06-05 — v2.0 roadmap created (6 phases, 29/29 requirements
 | Phase 05 P08 | 29min | 4 tasks | 36 files |
 | Phase 05 P09 | 16 | 3 tasks | 11 files |
 | Phase 05 P10 | 25 | 2 tasks | 8 files |
+| Phase 07 P01 | 2min | 3 tasks | 4 files |
+| Phase 07 P03 | 5min | 3 tasks | 8 files |
+| Phase 07 P06 | 7min | 2 tasks | 8 files |
+| Phase 07 P04 | 15 | 3 tasks | 8 files |
+| Phase 07 P05 | 8min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -90,6 +95,10 @@ Last activity: 2026-06-05 — v2.0 roadmap created (6 phases, 29/29 requirements
 
 | Decision | Source |
 |----------|--------|
+| `IPlayerRatingProvider` optional-port with `NullPlayerRatingProvider` registered via `TryAddSingleton` in Core; Rankings overrides by registering after AddGameKit() | 07-01 execution (CORE-18) |
+| GoogleOAuthProvider uses `ClaimTypes.NameIdentifier` (Google `sub`) as `external_id` — NOT email; email can change and is not unique across Google accounts (T-07-03-01 mitigation) | 07-03 execution |
+| `InternalsVisibleTo("GameKit.Auth.Google")` added to `GameKit.Auth/AssemblyInfo.cs` so sibling package can access `BannedCheckHelper` — mirrors Admin.Integration.Tests + Presence.Integration.Tests precedent; Apple + Epic sibling packages will need the same grants | 07-03 execution |
+| Sibling OAuth packages (`GameKit.Auth.Google`, etc.) MUST call `AddScoped<IOAuthProvider, MyProvider>()` explicitly — Scrutor's `FromAssemblyOf<IOAuthProvider>()` only scans the `GameKit.Auth` assembly (RESEARCH §Pitfall 4) | 07-03 execution |
 | Single fully-owned `GameKitDbContext` in DI (not a base class) | PROJECT.md Key Decisions |
 | Per-package migrations assembly + per-package `__ef_migrations_<pkg>` history table + per-package `IDesignTimeDbContextFactory` | ARCHITECTURE.md + PITFALLS.md #3 |
 | `BackgroundService` + `PeriodicTimer` + Polly (NOT Hangfire/Quartz) | STACK.md + PROJECT.md |
@@ -230,6 +239,9 @@ Last activity: 2026-06-05 — v2.0 roadmap created (6 phases, 29/29 requirements
 | AddMatchmaking publishes the ladder list to DI twice — once as IGameKitMatchmakingBuilder (for builder-aware code paths) and once as IReadOnlyList<MatchmakingLadderConfig> (for downstream services that should not depend on the builder interface). Both backed by the same underlying List<MatchmakingLadderConfig> — no double-allocation | 05-03 execution |
 | Scrutor scan for IMatchmakingStrategy implementations DEFERRED to Plan 05-04 — interface symbol does not yet exist in Plan 05-03's compile graph; emitting the scan here would force a forward dep on a not-yet-existing type. Documented via `// TODO(05-04): add Scrutor scan` comment in AddMatchmaking | 05-03 execution |
 | MapMatchmaking() is a forward-compatible no-op stub today — Plan 05-08 wires the endpoint registration. Consumer call sites (TicTacToeDuel Program.cs) can compile `app.MapMatchmaking()` from Plan 05-03 onward without breaking changes; XML doc explicitly cites Plan 05-08 | 05-03 execution |
+| PasswordHash column extended from varchar(72) to varchar(512) via AuthPasswordHashLength migration — BCrypt is 60 chars, Argon2id is ~80-120 chars; 512 provides headroom for future hashers; original varchar(72) was sized for BCrypt-only and was insufficient for AUTH-18 | 07-06 execution |
+| TestHelpers.ApplyMigrations suppresses RelationalEventId.PendingModelChangesWarning for the Core migration step — EF Core 10 upgraded this from informational to error; the mismatch (Auth entities in runtime model vs Core-only snapshot) is the intentional per-package migration boundary (PITFALLS.md #3) | 07-06 execution |
+| AUTH-18 rehash-on-verify insertion point: after successful Verify, BEFORE BannedCheckHelper; reload tracked PlayerCredential by PlayerId before UPDATE so the AsNoTracking original cannot be change-tracked; SaveChangesAsync commits in same request scope | 07-06 execution |
 
 ### v2.0 Pending Decisions (open research flags to resolve in planning)
 
@@ -273,9 +285,9 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-06-05 — v2.0 roadmap created. 6 phases (7–12), 29/29 requirements mapped. Phase numbering continues from v1.0 (Phases 1–6 archived). ROADMAP.md and REQUIREMENTS.md traceability written. Ready to begin Phase 7 planning.
+**Last action:** 2026-06-05 — Phase 7 Plan 06 (07-06) complete. AUTH-18 rehash-on-verify wired in PasswordOAuthProvider + Testcontainers proof. Password_hash column extended to varchar(512).
 
-**Next action:** Plan Phase 7 — `/gsd:plan-phase 7`
+**Next action:** Continue Phase 7 remaining plans (07-04, 07-05 if not done, or proceed to wave 3+)
 
 **Blockers:** None.
 

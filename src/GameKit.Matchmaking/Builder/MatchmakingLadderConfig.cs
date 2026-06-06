@@ -60,4 +60,23 @@ public sealed class MatchmakingLadderConfig
     /// Default <c>null</c> (no cap) per CONTEXT D-14. When set, must be &gt; 0.
     /// </summary>
     public int? MaxPartyRatingSpread { get; set; }
+
+    /// <summary>
+    /// Hard cap on bracket half-width in rating points (MATCH-17). Bracket-widening NEVER exceeds
+    /// this value regardless of wait time, preventing high-RD new players from being matched against
+    /// top-rated players on sparse pools. Default <c>null</c> (no cap — maintains v1 behaviour).
+    /// When set, must be &gt; 0 and &gt;= <see cref="BracketStart"/>. A value below
+    /// <see cref="BracketStart"/> would silently undercut the initial bracket guarantee — the
+    /// builder rejects this configuration with an <see cref="ArgumentException"/> at
+    /// <c>AddLadder</c> time.
+    /// </summary>
+    public int? MaxBracketWidth { get; set; }
+
+    /// <summary>
+    /// Minimum number of tickets in the pool before bracket expansion begins (MATCH-17).
+    /// When the pool has fewer than this many candidates, the bracket stays at
+    /// <see cref="BracketStart"/> regardless of wait time. Default <c>null</c> (no guard).
+    /// Set to <c>2 * expected_party_size</c> as a starting recommendation. When set, must be &gt; 0.
+    /// </summary>
+    public int? MinPoolDepthBeforeBracketExpansion { get; set; }
 }

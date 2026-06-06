@@ -36,10 +36,11 @@ namespace GameKit.Rankings.Services;
 /// applied after the first row is drained).
 /// </para>
 /// <para>
-/// GDPR safety (Pitfall §12): participants with a null <see cref="SessionParticipantSnapshot.PlayerId"/>
-/// are skipped. In practice, player ids in the snapshot are always non-null at completion time
-/// (GDPR cascade happens post-enqueue), but the skip guard is retained as a defence-in-depth
-/// measure consistent with the ticker's own skip logic.
+/// GDPR safety (Pitfall §12): <see cref="SessionParticipantSnapshot.PlayerId"/> is <see cref="Guid"/>
+/// (non-nullable value type) — no null-guard is needed here. The GDPR cascade that sets
+/// <c>session_participants.PlayerId = NULL</c> in the DB happens post-enqueue (D-22 ordering), so
+/// the snapshot is always built from a valid, non-zero player id. This differs from the ticker's
+/// <c>PendingRatingUpdate.PlayerId</c> which is <see cref="Nullable{Guid}"/> and does need a skip guard.
 /// </para>
 /// </remarks>
 public sealed class PendingRatingUpdatesAdapter : IPostSessionCompleteHandler
@@ -76,10 +77,9 @@ public sealed class PendingRatingUpdatesAdapter : IPostSessionCompleteHandler
 
         foreach (var participant in participants)
         {
-            // GDPR skip: PlayerId should never be null at enqueue time, but guard defensively
-            // (Pitfall §12 — GDPR cascade post-enqueue).
-            if (participant.PlayerId == Guid.Empty)
-                continue;
+            // PlayerId is Guid (non-nullable); GDPR cascade sets session_participants.PlayerId = NULL
+            // in the DB post-completion, but this snapshot is built before that happens (D-22 ordering).
+            // No null-guard needed here.
 
             // Snapshot RatingBefore onto session_participants from the player's current rank
             // for this ladder (Core cannot do this — D-22 invariant).
@@ -98,6 +98,25 @@ public sealed class PendingRatingUpdatesAdapter : IPostSessionCompleteHandler
                         .ExecuteUpdateAsync(
                             setters => setters.SetProperty(sp => sp.RatingBefore, playerRank.Rating),
                             ct);
+
+                    // RANK-16: atomic placement decrement inside the caller's ambient ReadCommitted tx.
+                    // Uses ExecuteUpdateAsync (stateless WHERE predicate) — playerRank is loaded AsNoTracking
+                    // so mutating it and calling SaveChanges would be a silent no-op (Pitfall §6).
+                    // The WHERE guard PlacementMatchesRemaining > 0 prevents underflow under concurrent
+                    // session-complete calls (race guard for T-08-03-01).
+                    if (playerRank.IsInPlacement && playerRank.PlacementMatchesRemaining > 0)
+                    {
+                        await _ctx.Set<PlayerRank>()
+                            .Where(r => r.PlayerId == participant.PlayerId
+                                     && r.LadderId == participant.LadderId!.Value
+                                     && r.IsInPlacement
+                                     && r.PlacementMatchesRemaining > 0)
+                            .ExecuteUpdateAsync(setters => setters
+                                .SetProperty(r => r.PlacementMatchesRemaining, r => r.PlacementMatchesRemaining - 1)
+                                .SetProperty(r => r.IsInPlacement,
+                                    r => r.PlacementMatchesRemaining - 1 == 0 ? false : r.IsInPlacement),
+                                ct);
+                    }
                 }
             }
 

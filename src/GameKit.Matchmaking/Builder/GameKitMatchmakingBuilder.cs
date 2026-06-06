@@ -80,5 +80,20 @@ internal sealed class GameKitMatchmakingBuilder : IGameKitMatchmakingBuilder
             throw new ArgumentException(
                 $"{nameof(config.MaxPartyRatingSpread)} must be > 0 when set (got {config.MaxPartyRatingSpread.Value}); use null to disable the cap.",
                 nameof(config));
+
+        if (config.MaxBracketWidth.HasValue && config.MaxBracketWidth.Value <= 0)
+            throw new ArgumentException(
+                $"{nameof(config.MaxBracketWidth)} must be > 0 when set (got {config.MaxBracketWidth.Value}); use null to disable the cap.",
+                nameof(config));
+
+        if (config.MaxBracketWidth.HasValue && config.MaxBracketWidth.Value < config.BracketStart)
+            throw new ArgumentException(
+                $"{nameof(config.MaxBracketWidth)} ({config.MaxBracketWidth.Value}) must be >= {nameof(config.BracketStart)} ({config.BracketStart}) when set, or omit {nameof(config.MaxBracketWidth)} to leave {nameof(config.BracketStart)} effective.",
+                nameof(config));
+
+        if (config.MinPoolDepthBeforeBracketExpansion.HasValue && config.MinPoolDepthBeforeBracketExpansion.Value <= 0)
+            throw new ArgumentException(
+                $"{nameof(config.MinPoolDepthBeforeBracketExpansion)} must be > 0 when set (got {config.MinPoolDepthBeforeBracketExpansion.Value}); use null to disable the guard.",
+                nameof(config));
     }
 }

@@ -96,7 +96,8 @@ public sealed class SeasonArchiveLeaderboardTests : IAsyncLifetime
         for (var i = 0; i < 5; i++)
         {
             Assert.Equal(topBefore[i].PlayerId, archived[i].PlayerId);
-            Assert.Equal(topBefore[i].Rating, archived[i].Rating, precision: 5);
+            // Season archive rows always have non-null Rating (completed placement ranks).
+            Assert.Equal(topBefore[i].Rating, archived[i].Rating ?? 0.0, precision: 5);
         }
     }
 
@@ -287,12 +288,13 @@ public sealed class SeasonArchiveLeaderboardTests : IAsyncLifetime
 
         // Expect: ranks 4 (1700), 5 (1600), 6 (1500 target), 7 (1400), 8 (1300)
         Assert.Equal(5, around.Count);
-        Assert.Equal(1700.0, around[0].Rating, precision: 5);
-        Assert.Equal(1600.0, around[1].Rating, precision: 5);
-        Assert.Equal(1500.0, around[2].Rating, precision: 5);
+        // Season archive rows always have non-null Rating (completed placement ranks).
+        Assert.Equal(1700.0, around[0].Rating ?? 0.0, precision: 5);
+        Assert.Equal(1600.0, around[1].Rating ?? 0.0, precision: 5);
+        Assert.Equal(1500.0, around[2].Rating ?? 0.0, precision: 5);
         Assert.Equal(targetPlayerId, around[2].PlayerId);
-        Assert.Equal(1400.0, around[3].Rating, precision: 5);
-        Assert.Equal(1300.0, around[4].Rating, precision: 5);
+        Assert.Equal(1400.0, around[3].Rating ?? 0.0, precision: 5);
+        Assert.Equal(1300.0, around[4].Rating ?? 0.0, precision: 5);
     }
 
     // ---- Helpers ----

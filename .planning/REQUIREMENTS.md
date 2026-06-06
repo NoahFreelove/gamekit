@@ -33,14 +33,14 @@
 
 ### Rankings — Decay, Placement, Rating Source
 
-- [ ] **RANK-15**: Configurable rank decay for inactive players above a rating threshold — implemented as Glicko-2 **RD inflation** (the "no games played" period update), not arbitrary point loss; applied by a leader-elected `BackgroundService`
-- [ ] **RANK-16**: Placement matches — initial high-RD calibration games; visible rank hidden until N placements complete (configurable)
-- [ ] **RANK-17**: `RankingsRatingSource : IPlayerRatingProvider` in `GameKit.Rankings`, opt-in via `.WithRatingsFrom<RankingsRatingSource>()`; default remains the Core null-object (preserves no-hard-dep rule)
+- [x] **RANK-15**: Configurable rank decay for inactive players above a rating threshold — implemented as Glicko-2 **RD inflation** (the "no games played" period update), not arbitrary point loss; applied by a leader-elected `BackgroundService`
+- [x] **RANK-16**: Placement matches — initial high-RD calibration games; visible rank hidden until N placements complete (configurable)
+- [x] **RANK-17**: `RankingsRatingSource : IPlayerRatingProvider` in `GameKit.Rankings`, opt-in via `.WithRatingsFrom<RankingsRatingSource>()`; default remains the Core null-object (preserves no-hard-dep rule)
 
 ### Matchmaking — Rating-Aware, Regional, Backfill
 
-- [ ] **MATCH-16**: Rating-aware EloRange — strategy reads real ratings via `IPlayerRatingProvider`, cached into the Redis ticket hash at enqueue (`MatchmakingService.EnqueueAsync`), replacing the v1 hardcoded rating=0
-- [ ] **MATCH-17**: Anti-feedback-loop guardrails `MaxBracketWidth` + `MinPoolDepthBeforeBracketExpansion` ship **simultaneously** with MATCH-16 (not a follow-up) — prevents new high-RD players funnelling into top-rated matches on sparse pools
+- [x] **MATCH-16**: Rating-aware EloRange — strategy reads real ratings via `IPlayerRatingProvider`, cached into the Redis ticket hash at enqueue (`MatchmakingService.EnqueueAsync`), replacing the v1 hardcoded rating=0
+- [x] **MATCH-17**: Anti-feedback-loop guardrails `MaxBracketWidth` + `MinPoolDepthBeforeBracketExpansion` ship **simultaneously** with MATCH-16 (not a follow-up) — prevents new high-RD players funnelling into top-rated matches on sparse pools
 - [ ] **MATCH-18**: Regional matchmaking pools as a first-class concept — `AllowedRegions` config + region-validated enqueue partitioning the existing `mm:queue:{ladderId}:{poolName}` Redis keys (no schema migration; `PoolName` already exists)
 - [ ] **MATCH-19**: Backfill — fill vacated slots in in-progress sessions; participation-fraction / abandonment accounting guard ships in the same unit
 
@@ -86,11 +86,11 @@ Carried from v1.0 (unchanged) — see `.planning/PROJECT.md` § Out of Scope. Hi
 | AUTH-20 | Phase 7 | Complete |
 | AUTH-21 | Phase 7 | Complete |
 | AUTH-22 | Phase 7 | Complete |
-| RANK-15 | Phase 8 | Pending |
-| RANK-16 | Phase 8 | Pending |
-| RANK-17 | Phase 8 | Pending |
-| MATCH-16 | Phase 8 | Pending |
-| MATCH-17 | Phase 8 | Pending |
+| RANK-15 | Phase 8 | Complete |
+| RANK-16 | Phase 8 | Complete |
+| RANK-17 | Phase 8 | Complete |
+| MATCH-16 | Phase 8 | Complete |
+| MATCH-17 | Phase 8 | Complete |
 | MATCH-18 | Phase 9 | Pending |
 | MATCH-19 | Phase 9 | Pending |
 | AUTH-23 | Phase 10 | Pending |

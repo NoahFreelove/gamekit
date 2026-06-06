@@ -16,6 +16,7 @@ using GameKit.Core.Data;
 using GameKit.Core.Services;
 using GameKit.Matchmaking.Builder;
 using GameKit.Rankings.Builder;
+using GameKit.Rankings.Services;
 using GameKit.TestFixtures;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -55,6 +56,7 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
     private readonly string _privPath;
     private readonly string _pubPath;
     private readonly RSA _signingRsa;
+    private readonly bool _withRankingsRatingSource;
     private IHost? _host;
     private string _databaseSuffix = string.Empty;
 
@@ -82,9 +84,17 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
     /// <summary>The ladder name registered by <see cref="StartAsync"/> — exposed for tests.</summary>
     public string TestLadderName { get; } = "default";
 
-    /// <summary>Constructs the host — generates an ephemeral RSA PEM keypair under the temp directory.</summary>
-    public MatchmakingTestApp()
+    /// <summary>
+    /// Constructs the host — generates an ephemeral RSA PEM keypair under the temp directory.
+    /// </summary>
+    /// <param name="withRankingsRatingSource">
+    /// When <see langword="true"/>, registers <see cref="RankingsRatingSource"/> as
+    /// <c>IPlayerRatingProvider</c> via <c>WithRatingsFrom&lt;RankingsRatingSource&gt;()</c>
+    /// (MATCH-16 cross-package SC#3 proof). Default <see langword="false"/> — v1 zero-rating fallback.
+    /// </param>
+    public MatchmakingTestApp(bool withRankingsRatingSource = false)
     {
+        _withRankingsRatingSource = withRankingsRatingSource;
         _keyDir = Path.Combine(Path.GetTempPath(), $"gk-mm-host-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_keyDir);
         _privPath = Path.Combine(_keyDir, "priv.pem");
@@ -127,7 +137,11 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
                         o.Jwt.PublicKeyPemPath = _pubPath;
                         o.Jwt.Kid = "test-kid";
                     });
-                    b.AddRankings();
+                    var rankings = b.AddRankings();
+                    // MATCH-16 SC#3 cross-package proof: wire RankingsRatingSource so real
+                    // Glicko-2 ratings flow into the Redis ticket hash at enqueue time.
+                    if (_withRankingsRatingSource)
+                        rankings.WithRatingsFrom<RankingsRatingSource>();
                     var mm = b.AddMatchmaking(o =>
                     {
                         o.LongPollTimeoutSeconds = LongPollTimeoutSeconds;

@@ -276,6 +276,9 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
                         Losses = 0,
                         Draws = 0,
                         LastMatchAt = null,
+                        // RANK-16: new ranks start in placement; visible rating hidden until N matches complete.
+                        IsInPlacement = true,
+                        PlacementMatchesRemaining = _opts.Decay.PlacementMatchCount,
                     });
                 }
             }

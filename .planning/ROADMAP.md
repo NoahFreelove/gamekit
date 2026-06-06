@@ -14,7 +14,7 @@
 ### Summary Checklist
 
 - [x] **Phase 7: Core Rating Seam + Stateless Auth Packages** — `IPlayerRatingProvider` seam in Core + all four new auth packages (Argon2, Google, Apple, Epic); zero migrations, parallelizable; unblocks all rating-aware work downstream. (completed 2026-06-05)
-- [ ] **Phase 8: Rankings Depth + Rating-Aware Matchmaking** — Rank decay (RD inflation), placement matches, `RankingsRatingSource`; freeze `player_ranks` schema before account merge reads it; simultaneously ships MATCH-16 (real ratings) + MATCH-17 (guardrails).
+- [x] **Phase 8: Rankings Depth + Rating-Aware Matchmaking** — Rank decay (RD inflation), placement matches, `RankingsRatingSource`; freeze `player_ranks` schema before account merge reads it; simultaneously ships MATCH-16 (real ratings) + MATCH-17 (guardrails). (completed 2026-06-06)
 - [ ] **Phase 9: Regional Matchmaking Pools + Backfill** — First-class `RegionName` on enqueue (no migration), cross-region fallback, backfill ticket type with `ParticipationFraction` guard; stabilises the Matchmaking enqueue API before Lobby depends on it.
 - [ ] **Phase 10: Account Merge (Isolated High-Risk)** — SERIALIZABLE transaction over 8+ FK tables; `account_merges` idempotency table first; crash-resume state machine; superadmin-only; depends on frozen `player_ranks` from Phase 8.
 - [ ] **Phase 11: GameKit.Lobby (New Package)** — `lobbies` + `lobby_members` tables (chat is ephemeral — NOT persisted, per LOBBY-04); advisory-lock live-verify gate (Wave 0); SignalR + Redis backplane from day one; Lobby→Matchmaking party integration; establishes the SignalR pattern reused in Phase 12.
@@ -55,7 +55,11 @@
   3. A developer calling `.WithRatingsFrom<RankingsRatingSource>()` gets real Glicko-2 ratings injected into the matchmaking queue at enqueue time; a developer who omits the call gets the v1 zero-rating fallback.
   4. The `MaxBracketWidth` cap and `MinPoolDepthBeforeBracketExpansion` guardrails are enforced simultaneously with real-rating injection — an integration test confirms bracket expansion stops at `MaxBracketWidth` regardless of pool depth.
   5. `player_ranks` schema is finalized: Rankings migrations add `last_decay_at`, `placement_matches_remaining`, and `is_in_placement` columns; no further structural changes to `player_ranks` will be made in later phases.
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
+- [x] 08-01-PLAN.md — Schema freeze migration + decay/placement options surface + visible-rank hiding + Glickman inactivity unit test (RANK-15, RANK-16) [wave 1]
+- [x] 08-02-PLAN.md — Leader-elected RankDecayBackgroundService (RD inflation, dedicated decay lock key) + integration test (RANK-15) [wave 2]
+- [x] 08-03-PLAN.md — Atomic placement decrement + RankingsRatingSource + `.WithRatingsFrom<>()` override + tests (RANK-16, RANK-17) [wave 2]
+- [x] 08-04-PLAN.md — MATCH-16 rating-aware enqueue + MATCH-17 guardrails (same unit) + cross-package SC#3/SC#4 test (MATCH-16, MATCH-17) [wave 3]
 **UI hint**: yes
 
 ### Phase 9: Regional Matchmaking Pools + Backfill
@@ -112,7 +116,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 7. Core Rating Seam + Stateless Auth Packages | 6/6 | Complete   | 2026-06-05 |
-| 8. Rankings Depth + Rating-Aware Matchmaking | 0/? | Not started | - |
+| 8. Rankings Depth + Rating-Aware Matchmaking | 4/4 | Complete   | 2026-06-06 |
 | 9. Regional Matchmaking Pools + Backfill | 0/? | Not started | - |
 | 10. Account Merge | 0/? | Not started | - |
 | 11. GameKit.Lobby | 0/? | Not started | - |

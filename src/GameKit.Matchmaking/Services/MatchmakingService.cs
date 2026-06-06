@@ -10,7 +10,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using GameKit.Core.Data;
-using GameKit.Core.Services;
+using GameKit.Core.Services;  // IPlayerRatingProvider, PlayerRatingValue
 using GameKit.Matchmaking.Builder;
 using GameKit.Matchmaking.Entities;
 using GameKit.Matchmaking.Redis;
@@ -70,6 +70,7 @@ public sealed class MatchmakingService : IMatchmakingService
     private readonly IIdGenerator _ids;
     private readonly IReadOnlyList<MatchmakingLadderConfig> _ladders;
     private readonly ILogger<MatchmakingService>? _logger;
+    private readonly IPlayerRatingProvider? _ratingProvider;
 
     /// <summary>Constructs the service.</summary>
     /// <param name="db">Scoped <see cref="GameKitDbContext"/>.</param>
@@ -81,6 +82,12 @@ public sealed class MatchmakingService : IMatchmakingService
     /// <param name="ids">Id generator (UUIDv7).</param>
     /// <param name="ladders">All registered matchmaking ladder configs.</param>
     /// <param name="logger">Optional logger.</param>
+    /// <param name="ratingProvider">
+    /// Optional rating provider (MATCH-16). When <see langword="null"/>, each member's rating
+    /// defaults to zero (v1 fallback). Production DI always injects a non-null instance because
+    /// <see cref="GameKit.Core"/> registers <c>NullPlayerRatingProvider</c> via
+    /// <c>TryAddSingleton</c>; the <c>?</c> is retained for test convenience.
+    /// </param>
     public MatchmakingService(
         GameKitDbContext db,
         IConnectionMultiplexer redis,
@@ -90,7 +97,8 @@ public sealed class MatchmakingService : IMatchmakingService
         IClock clock,
         IIdGenerator ids,
         IReadOnlyList<MatchmakingLadderConfig> ladders,
-        ILogger<MatchmakingService>? logger = null)
+        ILogger<MatchmakingService>? logger = null,
+        IPlayerRatingProvider? ratingProvider = null)  // MATCH-16 — optional; null-object covers no-Rankings case
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(redis);
@@ -109,6 +117,7 @@ public sealed class MatchmakingService : IMatchmakingService
         _ids = ids;
         _ladders = ladders;
         _logger = logger;
+        _ratingProvider = ratingProvider;
     }
 
     /// <inheritdoc />
@@ -195,13 +204,24 @@ public sealed class MatchmakingService : IMatchmakingService
             return new EnqueueResult(EnqueueOutcome.RejectedDueToQueueDraining, Detail: "queue_draining");
         }
 
-        // Step 4: defence-in-depth MaxPartyRatingSpread gate. v1 cannot query player ratings
-        // here without a Rankings runtime dep; member ratings default to zero so the spread
-        // is zero — the cap will not trip in v1 enqueue. The strategy enforces the cap at
-        // tick time using the cached rating, so this layer is preventative only.
-        var queuedMembers = memberPlayerIds
-            .Select(pid => new QueuedPartyMember(pid, Rating: 0, RatingDeviation: 0, Volatility: 0))
-            .ToList();
+        // Step 4: resolve player ratings via the Core IPlayerRatingProvider seam (MATCH-16).
+        // When _ratingProvider is null (test convenience) or returns an empty map (NullPlayerRatingProvider
+        // default when Rankings is not installed), members fall back to zero-rating (v1 behaviour).
+        // Ratings are resolved server-side — the client request carries no rating field (T-08-04-01).
+        IReadOnlyDictionary<Guid, PlayerRatingValue> ratingMap =
+            _ratingProvider is not null
+                ? await _ratingProvider.GetRatingsAsync(memberPlayerIds, ladderId, ct).ConfigureAwait(false)
+                : new Dictionary<Guid, PlayerRatingValue>();
+
+        var queuedMembers = memberPlayerIds.Select(pid =>
+        {
+            ratingMap.TryGetValue(pid, out var rv);
+            return new QueuedPartyMember(
+                pid,
+                Rating: rv?.Rating ?? 0,
+                RatingDeviation: rv?.RatingDeviation ?? 0,
+                Volatility: rv?.Volatility ?? 0);
+        }).ToList();
 
         if (cfg.MaxPartyRatingSpread is int cap && cap > 0)
         {

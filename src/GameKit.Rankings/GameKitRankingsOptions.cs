@@ -31,6 +31,9 @@ public sealed class GameKitRankingsOptions
     /// (CR-05). Includes the <c>pending_rating_updates</c> retention TTL.
     /// </summary>
     public GameKitRankingsCleanupOptions Cleanup { get; set; } = new();
+
+    /// <summary>Options controlling the rank-decay background service (RANK-15).</summary>
+    public GameKitRankingsDecayOptions Decay { get; set; } = new();
 }
 
 /// <summary>Options for the ranking ticker background service (D-01 / D-03 / D-04).</summary>
@@ -116,6 +119,44 @@ public sealed class GameKitRankingsRateLimitOptions
 
     /// <summary>Sliding-window duration. Default <c>1 minute</c> per D-10.</summary>
     public TimeSpan Window { get; set; } = TimeSpan.FromMinutes(1);
+}
+
+/// <summary>Options controlling the rank-decay background service (RANK-15).</summary>
+public sealed class GameKitRankingsDecayOptions
+{
+    /// <summary>How often the decay runner wakes up. Default <c>24 hours</c>.</summary>
+    public TimeSpan Interval { get; set; } = TimeSpan.FromHours(24);
+
+    /// <summary>Redis distributed-lock TTL in seconds. Default <c>120</c>.</summary>
+    public int LockTtlSeconds { get; set; } = 120;
+
+    /// <summary>
+    /// Redis key for the decay leader-election lock.
+    /// Default <c>"gamekit:rankings:decay:lease"</c>.
+    /// MUST differ from <see cref="GameKitRankingsTickerOptions.LockKey"/> —
+    /// reusing the ticker lease key causes decay and ticker to mutually exclude each other
+    /// (RANK-15 / Pitfall 4 from RESEARCH.md).
+    /// </summary>
+    public string LockKey { get; set; } = "gamekit:rankings:decay:lease";
+
+    /// <summary>
+    /// Minimum rating above which decay applies. Players at or below this value are
+    /// decay-immune. Default <c>1500</c> (Glicko-2 mean rating).
+    /// </summary>
+    public double DecayThresholdRating { get; set; } = 1500;
+
+    /// <summary>Days of inactivity (since <c>LastMatchAt</c>) before decay is applied. Default <c>30</c>.</summary>
+    public int InactivityDays { get; set; } = 30;
+
+    /// <summary>Maximum rows processed per decay run (batch size). Default <c>500</c>.</summary>
+    public int BatchSize { get; set; } = 500;
+
+    /// <summary>
+    /// Number of placement matches required before a player's visible rank is revealed.
+    /// Default <c>10</c>. Used when lazily creating new <c>PlayerRank</c> rows in
+    /// <c>RankingsTickerService</c> (RANK-16).
+    /// </summary>
+    public int PlacementMatchCount { get; set; } = 10;
 }
 
 /// <summary>

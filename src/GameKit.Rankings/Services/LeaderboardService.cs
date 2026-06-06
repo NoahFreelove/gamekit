@@ -64,11 +64,14 @@ public sealed class LeaderboardService : ILeaderboardService
                     Rank: idx + 1,
                     PlayerId: row.rank.PlayerId,
                     DisplayName: row.playerName,
-                    Rating: row.rank.Rating,
-                    RatingDeviation: row.rank.RatingDeviation,
+                    // RANK-16 / T-08-01-01: hide raw rating while player is in placement.
+                    Rating: row.rank.IsInPlacement ? (double?)null : row.rank.Rating,
+                    RatingDeviation: row.rank.IsInPlacement ? (double?)null : row.rank.RatingDeviation,
                     Wins: row.rank.Wins,
                     Losses: row.rank.Losses,
-                    Draws: row.rank.Draws))
+                    Draws: row.rank.Draws,
+                    IsInPlacement: row.rank.IsInPlacement,
+                    PlacementMatchesRemaining: row.rank.PlacementMatchesRemaining))
                 .ToList();
         }
         else
@@ -105,6 +108,7 @@ public sealed class LeaderboardService : ILeaderboardService
                         ? n
                         : "(deleted)";
                     var playerId = row.PlayerId ?? Guid.Empty;
+                    // Season archive rows represent completed-placement ranks — IsInPlacement is always false.
                     return new LeaderboardRowDto(
                         Rank: idx + 1,
                         PlayerId: playerId,
@@ -113,7 +117,9 @@ public sealed class LeaderboardService : ILeaderboardService
                         RatingDeviation: row.RatingDeviation,
                         Wins: row.Wins,
                         Losses: row.Losses,
-                        Draws: row.Draws);
+                        Draws: row.Draws,
+                        IsInPlacement: false,
+                        PlacementMatchesRemaining: 0);
                 })
                 .ToList();
         }
@@ -210,15 +216,18 @@ public sealed class LeaderboardService : ILeaderboardService
             .Select((rank, idx) =>
             {
                 var name = nameMap.TryGetValue(rank.PlayerId, out var n) ? n : "(deleted)";
+                // RANK-16 / T-08-01-01: hide raw rating while player is in placement.
                 return new LeaderboardRowDto(
                     Rank: startRank + idx,
                     PlayerId: rank.PlayerId,
                     DisplayName: name,
-                    Rating: rank.Rating,
-                    RatingDeviation: rank.RatingDeviation,
+                    Rating: rank.IsInPlacement ? (double?)null : rank.Rating,
+                    RatingDeviation: rank.IsInPlacement ? (double?)null : rank.RatingDeviation,
                     Wins: rank.Wins,
                     Losses: rank.Losses,
-                    Draws: rank.Draws);
+                    Draws: rank.Draws,
+                    IsInPlacement: rank.IsInPlacement,
+                    PlacementMatchesRemaining: rank.PlacementMatchesRemaining);
             })
             .ToList();
     }
@@ -291,6 +300,7 @@ public sealed class LeaderboardService : ILeaderboardService
                     ? n
                     : "(deleted)";
                 var pid = t.PlayerId ?? Guid.Empty;
+                // Season archive rows represent completed-placement ranks — IsInPlacement is always false.
                 return new LeaderboardRowDto(
                     Rank: startRank + idx,
                     PlayerId: pid,
@@ -299,7 +309,9 @@ public sealed class LeaderboardService : ILeaderboardService
                     RatingDeviation: t.RatingDeviation,
                     Wins: t.Wins,
                     Losses: t.Losses,
-                    Draws: t.Draws);
+                    Draws: t.Draws,
+                    IsInPlacement: false,
+                    PlacementMatchesRemaining: 0);
             })
             .ToList();
     }

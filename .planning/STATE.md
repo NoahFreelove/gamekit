@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
 status: verifying
-last_updated: "2026-06-05T22:45:47.567Z"
-last_activity: 2026-06-05
+last_updated: "2026-06-06T00:53:15.449Z"
+last_activity: 2026-06-06
 progress:
   total_phases: 6
-  completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
-  percent: 17
+  completed_phases: 2
+  total_plans: 10
+  completed_plans: 10
+  percent: 33
 ---
 
 # STATE: GameKit
@@ -22,14 +22,14 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 07 — Core Rating Seam + Stateless Auth Packages
+**Current Focus:** Phase 08 — Rankings Depth + Rating-Aware Matchmaking
 
 ## Current Position
 
-Phase: 07 (Core Rating Seam + Stateless Auth Packages) — EXECUTING
-Plan: 6 of 6
+Phase: 08 (Rankings Depth + Rating-Aware Matchmaking) — EXECUTING
+Plan: 4 of 4
 Status: Phase complete — ready for verification
-Last activity: 2026-06-05
+Last activity: 2026-06-06
 
 ## Performance Metrics
 
@@ -83,6 +83,10 @@ Last activity: 2026-06-05
 | Phase 07 P06 | 7min | 2 tasks | 8 files |
 | Phase 07 P04 | 15 | 3 tasks | 8 files |
 | Phase 07 P05 | 8min | 3 tasks | 10 files |
+| Phase 08 P01 | 7min | 3 tasks | 12 files |
+| Phase 08-rankings-depth-rating-aware-matchmaking P02 | 20 | 3 tasks | 5 files |
+| Phase 08 P03 | 8 | 3 tasks | 6 files |
+| Phase 08 P04 | 8min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -240,8 +244,18 @@ Last activity: 2026-06-05
 | Scrutor scan for IMatchmakingStrategy implementations DEFERRED to Plan 05-04 — interface symbol does not yet exist in Plan 05-03's compile graph; emitting the scan here would force a forward dep on a not-yet-existing type. Documented via `// TODO(05-04): add Scrutor scan` comment in AddMatchmaking | 05-03 execution |
 | MapMatchmaking() is a forward-compatible no-op stub today — Plan 05-08 wires the endpoint registration. Consumer call sites (TicTacToeDuel Program.cs) can compile `app.MapMatchmaking()` from Plan 05-03 onward without breaking changes; XML doc explicitly cites Plan 05-08 | 05-03 execution |
 | PasswordHash column extended from varchar(72) to varchar(512) via AuthPasswordHashLength migration — BCrypt is 60 chars, Argon2id is ~80-120 chars; 512 provides headroom for future hashers; original varchar(72) was sized for BCrypt-only and was insufficient for AUTH-18 | 07-06 execution |
+| Migration 20260517000000_RankingsDecayPlacement uses raw SQL Up() (ADD COLUMN + data-fixup + partial index) rather than EF Core AddColumn — consistent with RankingsInitial partial-index pattern; EF CLI timestamp renamed from 20260605xxx to 20260517000000 per deterministic cross-package convention | 08-01 execution |
+| Glicko-2 inactivity test range corrected to 290.1..290.3; PATTERNS.md stated 290.5..291.0 which is arithmetically wrong (phi=290/M=1.6694; sqrt(1.6694²+0.06²)×M=290.19) | 08-01 execution |
+| Existing player_ranks rows with Wins>0 OR Losses>0 OR Draws>0 set to IsInPlacement=false/PlacementMatchesRemaining=0 by migration data-fixup — prevents v1 players from appearing "unranked" after Phase 8 upgrade (Pitfall 2) | 08-01 execution |
+| LeaderboardRowDto.Rating and RatingDeviation are double? (null while IsInPlacement=true); season archive rows always pass IsInPlacement=false since archived ranks are post-placement | 08-01 execution |
 | TestHelpers.ApplyMigrations suppresses RelationalEventId.PendingModelChangesWarning for the Core migration step — EF Core 10 upgraded this from informational to error; the mismatch (Auth entities in runtime model vs Core-only snapshot) is the intentional per-package migration boundary (PITFALLS.md #3) | 07-06 execution |
 | AUTH-18 rehash-on-verify insertion point: after successful Verify, BEFORE BannedCheckHelper; reload tracked PlayerCredential by PlayerId before UPDATE so the AsNoTracking original cannot be change-tracked; SaveChangesAsync commits in same request scope | 07-06 execution |
+| Placement decrement (RANK-16) uses ExecuteUpdateAsync (not entity mutation) because playerRank is loaded AsNoTracking — mutation + SaveChanges is a silent no-op (Pitfall 6); WHERE guard PlacementMatchesRemaining > 0 prevents concurrent underflow | 08-03 execution |
+| RankingsRatingSource registered as Scoped (not Singleton per CONTEXT.md) — reads scoped GameKitDbContext; Scoped matches MatchmakingService scope to share DbContext connection and avoid second Postgres connection per call | 08-03 execution |
+| WithRatingsFrom<T>() uses RemoveAll + AddScoped (NOT TryAdd) to override Core's TryAddSingleton NullPlayerRatingProvider null-object; a second TryAdd would be a silent no-op | 08-03 execution |
+| MatchmakingService takes IPlayerRatingProvider? as optional 10th ctor param — MS.DI resolves registered IPlayerRatingProvider from the container (NullPlayerRatingProvider or RankingsRatingSource); null default is test convenience only | 08-04 execution |
+| MaxBracketWidth + MinPoolDepthBeforeBracketExpansion validated at AddLadder time (reject <= 0 with "use null to disable" message); null is accepted and preserves v1 behaviour | 08-04 execution |
+| Pool-depth guard applied symmetrically to both candidate bracket and pool-entry bracket — setting candidateElapsed=0 AND poolElapsed=0 when pool.Count - 1 < MinPoolDepthBeforeBracketExpansion prevents asymmetric expansion where one side widens before the other | 08-04 execution |
 
 ### v2.0 Pending Decisions (open research flags to resolve in planning)
 
@@ -285,9 +299,9 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-06-05 — Phase 7 Plan 06 (07-06) complete. AUTH-18 rehash-on-verify wired in PasswordOAuthProvider + Testcontainers proof. Password_hash column extended to varchar(512).
+**Last action:** 2026-06-06 — Phase 08 Plan 04 (08-04) complete. MATCH-16 rating-aware EnqueueAsync (IPlayerRatingProvider seam, real ratings into Redis ticket hash) + MATCH-17 MaxBracketWidth hard cap + MinPoolDepthBeforeBracketExpansion depth guard. 16 tests pass (13 unit + 3 Testcontainers integration SC#3+SC#4). Phase 08 all 4 plans complete.
 
-**Next action:** Continue Phase 7 remaining plans (07-04, 07-05 if not done, or proceed to wave 3+)
+**Next action:** Phase 08 VERIFICATION — run the full 08-VERIFICATION.md checklist; then advance to Phase 09 (Session Completeness + Lobby MVP)
 
 **Blockers:** None.
 

@@ -55,4 +55,13 @@ public sealed class PlayerRank
 
     /// <summary>UTC timestamp of the player's most recent match on this ladder. Null until first match.</summary>
     public DateTimeOffset? LastMatchAt { get; set; }
+
+    /// <summary>UTC timestamp of the last decay run applied to this rank. Null = never decayed (RANK-15).</summary>
+    public DateTimeOffset? LastDecayAt { get; set; }
+
+    /// <summary>Placement matches remaining before visible rank is revealed. 0 = placement complete (RANK-16).</summary>
+    public int PlacementMatchesRemaining { get; set; }
+
+    /// <summary>True while the player is still completing placement matches (RANK-16). False once all placement matches are done.</summary>
+    public bool IsInPlacement { get; set; }
 }

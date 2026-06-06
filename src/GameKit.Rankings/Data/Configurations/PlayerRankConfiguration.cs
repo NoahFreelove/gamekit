@@ -42,6 +42,11 @@ internal sealed class PlayerRankConfiguration : IEntityTypeConfiguration<PlayerR
             .HasForeignKey(r => r.PlayerId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // New decay + placement columns (RANK-15 / RANK-16 / SC#5 schema freeze).
+        b.Property(r => r.LastDecayAt).IsRequired(false);
+        b.Property(r => r.PlacementMatchesRemaining).IsRequired().HasDefaultValue(10);
+        b.Property(r => r.IsInPlacement).IsRequired().HasDefaultValue(true);
+
         // FK → ladders (ON DELETE RESTRICT) — cannot delete a ladder with live ranks.
         b.HasOne<Ladder>()
             .WithMany()

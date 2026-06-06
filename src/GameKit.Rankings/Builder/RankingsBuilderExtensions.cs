@@ -71,13 +71,16 @@ public static partial class RankingsBuilderExtensions
         //    IdempotencyCleanupService (plan 04-06).
         AddTickerInfrastructure(builder.Services);
 
-        // 8. Season infrastructure: ILeaderboardService, IEndSeasonService, EndSeasonRequestValidator (plan 04-07).
+        // 8. Decay infrastructure: RankDecayLeaseHelper + RankDecayBackgroundService (RANK-15).
+        AddDecayInfrastructure(builder.Services);
+
+        // 9. Season infrastructure: ILeaderboardService, IEndSeasonService, EndSeasonRequestValidator (plan 04-07).
         AddSeasonInfrastructure(builder.Services);
 
-        // 9. Export infrastructure: IGdprExportService, IRankAdjustService, RankAdjustRequestValidator (plan 04-08).
+        // 10. Export infrastructure: IGdprExportService, IRankAdjustService, RankAdjustRequestValidator (plan 04-08).
         AddExportInfrastructure(builder.Services);
 
-        // 10. Build and register the rankings builder as a singleton so StartupLadderUpserter can
+        // 11. Build and register the rankings builder as a singleton so StartupLadderUpserter can
         //    resolve IGameKitRankingsBuilder from DI to read RegisteredLadders.
         var rankingsBuilder = new GameKitRankingsBuilder(builder.Services);
         builder.Services.AddSingleton<IGameKitRankingsBuilder>(rankingsBuilder);

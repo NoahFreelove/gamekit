@@ -88,7 +88,16 @@ public sealed class EloRangeMatchmakingStrategy : IMatchmakingStrategy
         if (cfg.MaxPartyRatingSpread is int cap && cap > 0 && PartySpread(candidate) > cap)
             return null;
 
-        var candidateBracket = Bracket(cfg, (now - candidate.QueuedAt).TotalSeconds);
+        var candidateElapsed = (now - candidate.QueuedAt).TotalSeconds;
+        // MATCH-17: suppress bracket expansion when pool is below minimum depth.
+        // pool is candidate-exclusive (ticker strips the candidate before calling Match),
+        // so pool.Count is the exact count of OTHER parties — no adjustment needed.
+        if (cfg.MinPoolDepthBeforeBracketExpansion.HasValue
+            && pool.Count < cfg.MinPoolDepthBeforeBracketExpansion.Value)
+        {
+            candidateElapsed = 0; // force bracket to BracketStart
+        }
+        var candidateBracket = Bracket(cfg, candidateElapsed);
 
         // PERF (SC#3): caller (MatchmakerTickerService) sources pool from ZRANGEBYSCORE
         // Ascending → already oldest-first. The previous defensive `.OrderBy(...)` on every
@@ -110,7 +119,15 @@ public sealed class EloRangeMatchmakingStrategy : IMatchmakingStrategy
             if (pCfg.MaxPartyRatingSpread is int pcap && pcap > 0 && PartySpread(p) > pcap)
                 continue;
 
-            var poolBracket = Bracket(pCfg, (now - p.QueuedAt).TotalSeconds);
+            var poolElapsed = (now - p.QueuedAt).TotalSeconds;
+            // MATCH-17: same depth guard for the pool entry's bracket.
+            // pool is candidate-exclusive — pool.Count is the exact count of OTHER parties.
+            if (pCfg.MinPoolDepthBeforeBracketExpansion.HasValue
+                && pool.Count < pCfg.MinPoolDepthBeforeBracketExpansion.Value)
+            {
+                poolElapsed = 0;
+            }
+            var poolBracket = Bracket(pCfg, poolElapsed);
             var diff = Math.Abs(candidate.AggregateRating - p.AggregateRating);
 
             // Symmetric (conjunctive) overlap — BOTH brackets must contain the difference
@@ -177,7 +194,11 @@ public sealed class EloRangeMatchmakingStrategy : IMatchmakingStrategy
         if (secondsInQueue < 0)
             secondsInQueue = 0;
         var raw = cfg.BracketStart + (cfg.BracketEnd - cfg.BracketStart) * secondsInQueue / cfg.BracketRampSeconds;
-        return Math.Min(raw, cfg.BracketEnd);
+        var capped = Math.Min(raw, cfg.BracketEnd);
+        // MATCH-17: hard cap — never exceed MaxBracketWidth regardless of wait time.
+        if (cfg.MaxBracketWidth.HasValue)
+            capped = Math.Min(capped, cfg.MaxBracketWidth.Value);
+        return capped;
     }
 
     private static MatchResult BuildMatchResult(QueuedParty a, QueuedParty b)

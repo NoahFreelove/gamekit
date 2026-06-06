@@ -34,6 +34,11 @@ using System.Runtime.CompilerServices;
 // perform the same ban check as the in-assembly providers after the PlayerIdentity upsert.
 // Mirrors the precedent set by the Google + Apple sibling packages (Plans 07-03/07-04).
 [assembly: InternalsVisibleTo("GameKit.Auth.Epic")]
+// Plan 10-02: AccountMerge integration tests compose Core + Auth + Rankings + Matchmaking
+// migrations and services. Auth's internal entity configurations (PlayerIdentityConfiguration,
+// etc.) and AuthMigrationModelCustomizer are needed by the test-local runtime query customizer
+// to build a hybrid host that exercises the full four-package merge service code path.
+[assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]
 
 namespace GameKit.Auth;
 

@@ -13,11 +13,14 @@ namespace GameKit.Core.Tests;
 public class DomainModelTests
 {
     [Fact]
-    public void Player_Has_No_DeletedAt_Property()
+    public void Player_DeletedAt_Is_Nullable_DateTimeOffset()
     {
-        // D-13: hard delete, no soft-delete column
-        var props = typeof(Player).GetProperties();
-        Assert.DoesNotContain(props, p => p.Name == "DeletedAt" || p.Name == "deleted_at");
+        // Phase 10 (AUTH-25): DeletedAt is a nullable account-merge tombstone timestamp.
+        // D-13 hard-delete still applies for GDPR erasure; DeletedAt is NOT a general soft-delete
+        // flag — it is set only when the player row is a merge tombstone (MergedIntoPlayerId != null).
+        var prop = typeof(Player).GetProperty("DeletedAt");
+        Assert.NotNull(prop);
+        Assert.Equal(typeof(DateTimeOffset?), prop!.PropertyType);
     }
 
     [Fact]

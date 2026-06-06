@@ -102,6 +102,8 @@ public sealed class AuthMigrationModelCustomizer : RelationalModelCustomizer
         modelBuilder.ApplyConfiguration(new PlayerIdentityConfiguration());
         modelBuilder.ApplyConfiguration(new PlayerCredentialConfiguration());
         modelBuilder.ApplyConfiguration(new RefreshTokenConfiguration());
+        // Plan 10-02: AccountMerge state-machine table for crash-resume merge tracking (AUTH-24).
+        modelBuilder.ApplyConfiguration(new AccountMergeConfiguration());
 
         // Exclude every Core entity from the Auth migration — Core's migration already owns those
         // tables. This preserves the per-package migration boundary (CLAUDE.md, PITFALLS #3).

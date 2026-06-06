@@ -206,6 +206,7 @@ public static class AdminBuilderExtensions
         builder.Services.AddScoped<IValidator<BanPlayerRequest>, BanPlayerRequestValidator>();
         builder.Services.AddScoped<IValidator<CreateAdminRequest>, CreateAdminRequestValidator>();
         builder.Services.AddScoped<IValidator<PlayerSearchRequest>, PlayerSearchRequestValidator>();
+        builder.Services.AddScoped<IValidator<MergePlayersRequest>, MergePlayersRequestValidator>();
 
         return builder;
     }

@@ -26,10 +26,10 @@
 
 ### Auth — Account Merge
 
-- [ ] **AUTH-23**: Account merge combines two distinct `player_id`s into one via a single SERIALIZABLE transaction + advisory lock, re-homing FK references across `player_identities`, `player_credentials`, `refresh_tokens`, `player_ranks`, `matchmaking_tickets`, `party_members`, `session_participants`, `admin_audit_log`
-- [ ] **AUTH-24**: `account_merges` idempotency/history table (statuses `pending` / `committed` / `redis_cleaned`) enabling crash-and-resume; merge is idempotent under retry
-- [ ] **AUTH-25**: Merge conflict policy — `player_ranks`: keep higher-rated row per ladder (sum W/L/D, max RD); revoke ALL secondary-account refresh tokens; tombstone secondary `player_id` with `merged_into_player_id`; explicit banned-player merge policy
-- [ ] **AUTH-26**: Merge recorded in `admin_audit_log` (actor, before/after JSON); audit FK behavior `ON DELETE SET NULL` so tombstoning never orphans audit history
+- [x] **AUTH-23**: Account merge combines two distinct `player_id`s into one via a single SERIALIZABLE transaction + advisory lock, re-homing FK references across `player_identities`, `player_credentials`, `refresh_tokens`, `player_ranks`, `matchmaking_tickets`, `party_members`, `session_participants`, `admin_audit_log`
+- [x] **AUTH-24**: `account_merges` idempotency/history table (statuses `pending` / `committed` / `redis_cleaned`) enabling crash-and-resume; merge is idempotent under retry
+- [x] **AUTH-25**: Merge conflict policy — `player_ranks`: keep higher-rated row per ladder (sum W/L/D, max RD); revoke ALL secondary-account refresh tokens; tombstone secondary `player_id` with `merged_into_player_id`; explicit banned-player merge policy
+- [x] **AUTH-26**: Merge recorded in `admin_audit_log` (actor, before/after JSON); audit FK behavior `ON DELETE SET NULL` so tombstoning never orphans audit history
 
 ### Rankings — Decay, Placement, Rating Source
 
@@ -93,10 +93,10 @@ Carried from v1.0 (unchanged) — see `.planning/PROJECT.md` § Out of Scope. Hi
 | MATCH-17 | Phase 8 | Complete |
 | MATCH-18 | Phase 9 | Complete |
 | MATCH-19 | Phase 9 | Complete |
-| AUTH-23 | Phase 10 | Pending |
-| AUTH-24 | Phase 10 | Pending |
-| AUTH-25 | Phase 10 | Pending |
-| AUTH-26 | Phase 10 | Pending |
+| AUTH-23 | Phase 10 | Complete |
+| AUTH-24 | Phase 10 | Complete |
+| AUTH-25 | Phase 10 | Complete |
+| AUTH-26 | Phase 10 | Complete |
 | LOBBY-01 | Phase 11 | Pending |
 | LOBBY-02 | Phase 11 | Pending |
 | LOBBY-03 | Phase 11 | Pending |

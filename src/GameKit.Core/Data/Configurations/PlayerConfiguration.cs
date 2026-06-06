@@ -26,6 +26,17 @@ internal sealed class PlayerConfiguration : IEntityTypeConfiguration<Player>
         b.Property(p => p.BanReason).HasMaxLength(500);
         b.Property(p => p.Metadata).HasColumnType("jsonb");
 
+        b.Property(p => p.MergedIntoPlayerId);
+        b.Property(p => p.DeletedAt);
+
+        // Self-referential FK: merged_into_player_id → players.id ON DELETE SET NULL.
+        // If the target player is later GDPR-deleted, the tombstone reference becomes NULL
+        // rather than blocking the hard-delete with a constraint violation.
+        b.HasOne<Player>()
+            .WithMany()
+            .HasForeignKey(p => p.MergedIntoPlayerId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Note: deliberately NO index on DisplayName (non-unique, mutable, volume-heavy).
         // Phase 3 admin search will add a functional/trigram index if needed.
     }

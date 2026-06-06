@@ -118,6 +118,9 @@ namespace GameKit.Core.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -134,7 +137,12 @@ namespace GameKit.Core.Migrations
                     b.Property<JsonDocument>("Metadata")
                         .HasColumnType("jsonb");
 
+                    b.Property<Guid?>("MergedIntoPlayerId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("MergedIntoPlayerId");
 
                     b.ToTable("players", "gamekit");
                 });
@@ -179,6 +187,14 @@ namespace GameKit.Core.Migrations
                     b.HasIndex("SessionId");
 
                     b.ToTable("session_participants", "gamekit");
+                });
+
+            modelBuilder.Entity("GameKit.Core.Entities.Player", b =>
+                {
+                    b.HasOne("GameKit.Core.Entities.Player", null)
+                        .WithMany()
+                        .HasForeignKey("MergedIntoPlayerId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("GameKit.Core.Entities.SessionParticipant", b =>

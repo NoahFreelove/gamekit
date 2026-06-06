@@ -294,9 +294,13 @@ public sealed class RefreshTokenServiceTests : IDisposable
 
     private async Task ApplyMigrations()
     {
+        // Core migration step: use a plain Core-only service provider (no Auth extension) so the
+        // runtime model matches the Core snapshot exactly. Registering AuthModelBuilderExtension
+        // here would add Auth entities to the model while the Core snapshot has none, triggering
+        // PendingModelChangesWarning (EF Core 10). The Auth extension is not needed here because
+        // AuthMigrationModelCustomizer applies Auth configs directly without DI resolution.
         var coreServices = new ServiceCollection();
         coreServices.AddGameKit(o => { o.ConnectionString = _pg.OwnerConnectionString; o.AutoMigrate = false; });
-        coreServices.TryAddEnumerable(ServiceDescriptor.Singleton<IModelBuilderExtension, AuthModelBuilderExtension>());
         await using var coreSp = coreServices.BuildServiceProvider();
         await using (var scope = coreSp.CreateAsyncScope())
         {

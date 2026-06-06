@@ -23,6 +23,9 @@ using System.Runtime.CompilerServices;
 // entity configurations into the runtime DbContext (FOLLOW-UP-02-03-01 ApplicationServiceProvider
 // workaround). Same precedent as the Admin.Integration.Tests grant above.
 [assembly: InternalsVisibleTo("GameKit.OpenApi.Integration.Tests")]
+// Plan 10-04: AccountMerge endpoint tests boot a local AdminTestHost that applies
+// AdminUserConfiguration + AdminMigrationModelCustomizer in its runtime query customizer.
+[assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]
 
 namespace GameKit.Admin.UI;
 

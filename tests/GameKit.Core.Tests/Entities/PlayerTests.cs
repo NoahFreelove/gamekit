@@ -29,11 +29,15 @@ public class PlayerTests
     }
 
     [Fact]
-    public void Player_Does_Not_Have_DeletedAt_Property()
+    public void Player_Has_Nullable_DeletedAt_For_MergeTombstone()
     {
-        // D-13: Player must NOT have a DeletedAt property
+        // Phase 10 (AUTH-25): DeletedAt was added as an account-merge tombstone timestamp.
+        // D-13 hard-delete still applies for GDPR erasure; DeletedAt is NOT a general soft-delete
+        // flag — it is set only when MergedIntoPlayerId is non-null (merge tombstone path).
         var props = typeof(Player).GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        Assert.DoesNotContain(props, p => p.Name == "DeletedAt");
+        var deletedAt = Array.Find(props, p => p.Name == "DeletedAt");
+        Assert.NotNull(deletedAt);
+        Assert.Equal(typeof(DateTimeOffset?), deletedAt!.PropertyType);
     }
 
     [Fact]

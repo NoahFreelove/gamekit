@@ -52,4 +52,26 @@ public sealed class GameKitArgon2Options
     /// Default: 32 (256-bit output — exceeds 128-bit minimum).
     /// </summary>
     public int HashLength { get; set; } = 32;
+
+    /// <summary>
+    /// When <see langword="true"/>, skips the OWASP minimum-parameter guards so unit and
+    /// integration tests can use low cost parameters (e.g. <c>MemoryCost = 1024</c>,
+    /// <c>TimeCost = 1</c>) without breaking at startup.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This flag is only honoured in a <c>Development</c> environment. A startup
+    /// <see cref="Microsoft.Extensions.Hosting.IHostedService"/> registered by
+    /// <see cref="GameKit.Auth.Argon2.Builder.Argon2BuilderExtensions.UseArgon2"/> will throw
+    /// <see cref="InvalidOperationException"/> at host startup when this flag is <see langword="true"/>
+    /// and the host environment is not <c>Development</c> — preventing production deployments from
+    /// silently bypassing OWASP password-hashing security floors. Must NOT be set in production
+    /// or staging configuration.
+    /// </para>
+    /// <para>
+    /// This flag exists solely to keep integration test latency manageable. The OWASP guards
+    /// remain the default; do not set this in application code.
+    /// </para>
+    /// </remarks>
+    public bool AllowInsecureParametersForTesting { get; set; }
 }

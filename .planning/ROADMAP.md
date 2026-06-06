@@ -16,7 +16,7 @@
 - [x] **Phase 7: Core Rating Seam + Stateless Auth Packages** — `IPlayerRatingProvider` seam in Core + all four new auth packages (Argon2, Google, Apple, Epic); zero migrations, parallelizable; unblocks all rating-aware work downstream. (completed 2026-06-05)
 - [x] **Phase 8: Rankings Depth + Rating-Aware Matchmaking** — Rank decay (RD inflation), placement matches, `RankingsRatingSource`; freeze `player_ranks` schema before account merge reads it; simultaneously ships MATCH-16 (real ratings) + MATCH-17 (guardrails). (completed 2026-06-06)
 - [x] **Phase 9: Regional Matchmaking Pools + Backfill** — First-class `RegionName` on enqueue (no migration), cross-region fallback, backfill ticket type with `ParticipationFraction` guard; stabilises the Matchmaking enqueue API before Lobby depends on it. (completed 2026-06-06)
-- [ ] **Phase 10: Account Merge (Isolated High-Risk)** — SERIALIZABLE transaction over 8+ FK tables; `account_merges` idempotency table first; crash-resume state machine; superadmin-only; depends on frozen `player_ranks` from Phase 8.
+- [x] **Phase 10: Account Merge (Isolated High-Risk)** — SERIALIZABLE transaction over 8+ FK tables; `account_merges` idempotency table first; crash-resume state machine; superadmin-only; depends on frozen `player_ranks` from Phase 8. (completed 2026-06-06)
 - [ ] **Phase 11: GameKit.Lobby (New Package)** — `lobbies` + `lobby_members` tables (chat is ephemeral — NOT persisted, per LOBBY-04); advisory-lock live-verify gate (Wave 0); SignalR + Redis backplane from day one; Lobby→Matchmaking party integration; establishes the SignalR pattern reused in Phase 12.
 - [ ] **Phase 12: Admin Multi-Replica + Distribution Close-Out** — `RedisErrorRateCounter` replaces in-memory ring buffer; `AdminEventHub` + Redis backplane; fix Rank-adjust stub; five new packages join the MinVer release train (DIST-07).
 
@@ -87,7 +87,11 @@
   3. Rank conflict resolution follows the "keep higher-rated row per ladder" policy: a player with a higher source rating ends up with source's rating after merge; wins/losses/draws are summed across both accounts.
   4. The merge is recorded in `admin_audit_log` with before/after JSON; the `actor_id` FK uses `ON DELETE SET NULL` so tombstoning the source player never orphans the audit history.
   5. The merge endpoint requires the `gamekit.admin.superadmin` policy; the API response never includes the source `player_id`.
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
+- [x] 10-01-PLAN.md — Core schema: `merged_into_player_id` + `deleted_at` on players (self-FK SET NULL) + `admin_audit_log.actor_id` FK ON DELETE SET NULL; two deterministic Core migrations (AUTH-23, AUTH-26) [wave 1]
+- [x] 10-02-PLAN.md — Auth data layer: `account_merges` state-machine table + `AccountMerge` entity/config/migration + result/conflict types + cross-package integration test scaffold + IVT grants (AUTH-24) [wave 1]
+- [x] 10-03-PLAN.md — `AccountMergeService`: SERIALIZABLE FK surgery (all tables) + rank conflict + token revoke + tombstone + crash-resume ladder + direct audit write + guards + DI (AUTH-23, AUTH-24, AUTH-25, AUTH-26) [wave 2]
+- [x] 10-04-PLAN.md — Superadmin `POST /players/merge` endpoint (antiforgery + validator + rate limit, no source-id leak) + SC#1–#5 Testcontainers suite (AUTH-23, AUTH-24, AUTH-25, AUTH-26) [wave 3]
 
 ### Phase 11: GameKit.Lobby (New Package)
 **Goal**: A new `GameKit.Lobby` NuGet package delivers ready-checks, ephemeral in-lobby chat, and persistent groups — group membership (`lobbies` + `lobby_members`) is backed by Postgres tables; chat messages are relayed live via a SignalR hub on a Redis backplane and are NEVER persisted (LOBBY-04 anti-feature).
@@ -122,7 +126,7 @@
 | 7. Core Rating Seam + Stateless Auth Packages | 6/6 | Complete   | 2026-06-05 |
 | 8. Rankings Depth + Rating-Aware Matchmaking | 4/4 | Complete   | 2026-06-06 |
 | 9. Regional Matchmaking Pools + Backfill | 4/4 | Complete   | 2026-06-06 |
-| 10. Account Merge | 0/? | Not started | - |
+| 10. Account Merge | 4/4 | Complete   | 2026-06-06 |
 | 11. GameKit.Lobby | 0/? | Not started | - |
 | 12. Admin Multi-Replica + Distribution Close-Out | 0/? | Not started | - |
 

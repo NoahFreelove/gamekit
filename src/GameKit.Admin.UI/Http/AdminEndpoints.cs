@@ -14,6 +14,7 @@ using GameKit.Admin.UI.Http.Contracts;
 using GameKit.Admin.UI.Http.EndpointFilters;
 using GameKit.Admin.UI.Http.RateLimiting;
 using GameKit.Admin.UI.Services;
+using GameKit.Auth.Services;
 using GameKit.Core.Data;
 using GameKit.Core.Entities;
 using GameKit.Core.Services;
@@ -29,7 +30,7 @@ namespace GameKit.Admin.UI.Http;
 
 /// <summary>
 /// Maps the <c>/admin/api/*</c> minimal-API surface onto a <see cref="RouteGroupBuilder"/>.
-/// Called by <see cref="Builder.AdminApplicationBuilderExtensions.MapGameKitAdmin"/>. 13 endpoints
+/// Called by <see cref="Builder.AdminApplicationBuilderExtensions.MapGameKitAdmin"/>. 14 endpoints
 /// total, each composed from the authorization policies + endpoint filters registered by
 /// <see cref="Builder.AdminBuilderExtensions.AddGameKitAdmin"/>:
 /// <list type="bullet">
@@ -39,6 +40,7 @@ namespace GameKit.Admin.UI.Http;
 ///   <item><c>POST /players/{id}/ban</c> — admin + antiforgery + validator.</item>
 ///   <item><c>POST /players/{id}/unban</c> — admin + antiforgery.</item>
 ///   <item><c>POST /players/{id}/gdpr-delete</c> — superadmin + antiforgery.</item>
+///   <item><c>POST /players/merge</c> — superadmin + antiforgery + validator + rate-limited (SC#5).</item>
 ///   <item><c>GET /admins</c> — superadmin.</item>
 ///   <item><c>POST /admins</c> — superadmin + antiforgery + validator.</item>
 ///   <item><c>DELETE /admins/{id}</c> — superadmin + antiforgery.</item>
@@ -97,6 +99,14 @@ public static class AdminEndpoints
         group.MapPost("/players/{id:guid}/gdpr-delete", GdprDeletePlayerAsync)
             .RequireAuthorization(AdminPolicies.Superadmin)
             .AddEndpointFilter<AntiforgeryValidationFilter>();
+
+        // POST /players/merge — superadmin + antiforgery + validator + rate-limited (T-10-04-01/02/03/04/05).
+        // SC#5: the response NEVER includes SourcePlayerId — see MergePlayersResponse.
+        group.MapPost("/players/merge", MergePlayersAsync)
+            .RequireAuthorization(AdminPolicies.Superadmin)
+            .AddEndpointFilter<AntiforgeryValidationFilter>()
+            .AddEndpointFilter<ValidationEndpointFilter<MergePlayersRequest>>()
+            .RequireRateLimiting(AdminRateLimitRegistrations.AdminMergePolicy);
 
         // GET /admins — superadmin list.
         group.MapGet("/admins", ListAdminsAsync)
@@ -280,6 +290,37 @@ public static class AdminEndpoints
             reason: reason,
             cancellationToken: ct).ConfigureAwait(false);
         return Results.NoContent();
+    }
+
+    // SECURITY NOTE (T-10-04-03 / SC#5): SourcePlayerId is NEVER present in the response body,
+    // error details, or conflict reason. Exposing it after tombstoning would leak a retired identity.
+    private static async Task<IResult> MergePlayersAsync(
+        MergePlayersRequest req,
+        HttpContext http,
+        IAccountMergeService mergeSvc,
+        CancellationToken ct)
+    {
+        var actorId = GetAdminId(http);
+        try
+        {
+            var result = await mergeSvc.MergeAsync(req.SourcePlayerId, req.TargetPlayerId, actorId, ct)
+                .ConfigureAwait(false);
+
+            // SC#5: never put SourcePlayerId in the response.
+            return Results.Ok(new MergePlayersResponse(
+                result.TargetPlayerId,
+                result.Kind == MergeResultKind.AlreadyMerged ? "already_merged" : "merged"));
+        }
+        catch (MergeConflictException ex)
+        {
+            // Return 409 with the lowercased reason enum only — no source id in the body (T-10-04-03).
+            return Results.Conflict(new { error = ex.Reason.ToString().ToLowerInvariant() });
+        }
+        catch (KeyNotFoundException)
+        {
+            // Return 404 without echoing back source id (T-10-04-03).
+            return Results.NotFound(new { error = "player_not_found" });
+        }
     }
 
     private static async Task<IResult> ListAdminsAsync(

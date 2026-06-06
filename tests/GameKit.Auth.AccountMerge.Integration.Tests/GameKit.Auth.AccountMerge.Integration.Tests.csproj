@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Auth.AccountMerge.Integration.Tests</RootNamespace>
+    <AssemblyName>GameKit.Auth.AccountMerge.Integration.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Microsoft.Extensions.Hosting intentionally omitted: supplied by the
+         Microsoft.AspNetCore.App framework reference above (Phase 1 NU1510
+         precedent — same pattern as GameKit.Auth.Integration.Tests). -->
+    <PackageReference Include="Moq" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Core is a transitive dependency of Auth; listed explicitly so migration helpers can
+         reference GameKitMigrationConstants without an implicit transitive resolution. -->
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <!-- Admin.UI referenced for AdminMigrationConstants/AdminMigrationModelCustomizer;
+         the merge service audit trail writes admin_audit_log rows (Core entity) so the
+         full migration stack (Core -> Auth -> Admin -> Rankings -> Matchmaking) applies. -->
+    <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
+    <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
+  </ItemGroup>
+</Project>

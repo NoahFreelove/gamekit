@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 GameKit contributors
 
-using GameKit.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using GameKit.Core.Entities;
 
 namespace GameKit.Core.Data.Configurations;
 
@@ -31,5 +31,11 @@ internal sealed class AdminAuditLogConfiguration : IEntityTypeConfiguration<Admi
         b.HasIndex(a => a.CreatedAt);
         b.HasIndex(a => new { a.TargetType, a.TargetId });
         b.HasIndex(a => a.ActorId);
+
+        // No FK on ActorId → players.Id.
+        // actor_id stores BOTH player IDs (merge service) AND admin user IDs (admin login, ban,
+        // GDPR export, etc.). Admin users are not in the players table, so a strict FK rejects
+        // every admin-initiated audit entry with 23503. actor_id remains a bare nullable UUID —
+        // see Core migration 20260606100000_AddAuditActorIdFk for the full rationale (Plan 10-04).
     }
 }

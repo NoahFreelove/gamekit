@@ -31,3 +31,7 @@ using System.Runtime.CompilerServices;
 // full sample's package set so the D-09 EndpointDataSource enumeration covers every player-
 // facing endpoint). Same precedent as the Presence.Integration.Tests grant above.
 [assembly: InternalsVisibleTo("GameKit.OpenApi.Integration.Tests")]
+// Plan 10-02: AccountMerge integration tests apply RankingsMigrationModelCustomizer directly
+// to apply the Rankings migration and build a hybrid test host covering all four packages
+// (Core + Auth + Rankings + Matchmaking) for the cross-package FK-surgery tests (AUTH-24).
+[assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]

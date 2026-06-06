@@ -93,6 +93,12 @@ public static class AuthBuilderExtensions
         builder.Services.AddScoped<IIdentityLinker, IdentityLinker>();
         builder.Services.AddScoped<IGuestUpgradeService, GuestUpgradeService>();
 
+        // Plan 10-03 — irreversible superadmin merge service. Scoped (touches DbContext).
+        // IConnectionMultiplexer is resolved as optional: Redis is only consumed by AccountMergeService
+        // for post-commit presence-key cleanup; Auth installs and runs correctly without Redis
+        // (stale keys TTL-expire naturally per Pitfall 7 / T-10-03-08).
+        builder.Services.AddScoped<IAccountMergeService, AccountMergeService>();
+
         // 5a. SteamOpenIdVerifier — consumed directly by the /auth/callback/steam endpoint (plan 02-07).
         //     Registered as scoped so it participates in the same HttpClient/options scope as its caller.
         //     Not an IOAuthProvider (it's a helper, not a strategy); Scrutor skips it.

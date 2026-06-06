@@ -16,3 +16,7 @@ using System.Runtime.CompilerServices;
 // the runtime DbContext so MapMatchmaking's endpoints register cleanly inside the hybrid
 // host that asserts the D-09 EndpointDataSource enumeration vs document.paths contract.
 [assembly: InternalsVisibleTo("GameKit.OpenApi.Integration.Tests")]
+// Plan 10-02: AccountMerge integration tests apply MatchmakingMigrationModelCustomizer
+// directly to apply the Matchmaking migration as part of the cross-package ApplyMigrations
+// scaffold (Core + Auth + Rankings + Matchmaking). Mirrors the Rankings grant above.
+[assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]

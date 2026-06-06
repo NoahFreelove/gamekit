@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
 status: verifying
-last_updated: "2026-06-06T19:53:01.585Z"
+last_updated: "2026-06-06T22:13:39.146Z"
 last_activity: 2026-06-06
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 14
-  completed_plans: 14
-  percent: 50
+  completed_phases: 4
+  total_plans: 18
+  completed_plans: 18
+  percent: 67
 ---
 
 # STATE: GameKit
@@ -22,14 +22,16 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 9 — Regional Matchmaking Pools + Backfill
+**Current Focus:** Phase 10 — Account Merge (Isolated High-Risk)
 
 ## Current Position
 
-Phase: 9 (Regional Matchmaking Pools + Backfill) — COMPLETE & VERIFIED (status: passed, 10/10)
+Phase: 10 (Account Merge) — COMPLETE & VERIFIED (5/5 SCs; 2 live-UI items deferred per autonomous posture)
 Plan: 4 of 4
-Status: Phase 9 done + code-reviewed (2 critical security fixes) + verified. Next: Phase 10 (Account Merge)
+Status: Phase 10 done + 3 critical security fixes + verified. Next: Phase 11 (GameKit.Lobby — new package, UI)
 Last activity: 2026-06-06
+
+**Deferred manual UAT (Phase 10):** live account-merge via Admin UI + idempotent re-request through the antiforgery-cookie stack — both substantially covered by the 27 AccountMerge integration tests; eyeball before production use.
 
 ## Performance Metrics
 
@@ -91,6 +93,10 @@ Last activity: 2026-06-06
 | Phase 09-regional-matchmaking-pools-backfill P02 | 45 | 3 tasks | 11 files |
 | Phase 09 P04 | 12 | 3 tasks | 4 files |
 | Phase 09-regional-matchmaking-pools-backfill P03 | 4 | 3 tasks | 7 files |
+| Phase 10-account-merge P01 | 8min | 3 tasks | 6 files |
+| Phase 10-account-merge P10-02 | 12min | 3 tasks | 14 files |
+| Phase 10-account-merge P10-03 | — | 3 tasks | 12 files |
+| Phase 10-account-merge P10-04 | 240min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -267,8 +273,8 @@ Last activity: 2026-06-06
 |---------------|-------|---------------------|
 | Epic provider: custom `OAuthHandler<EpicOAuthOptions>` vs. any emerging aspnet-contrib package | Phase 7 | Custom handler (EOS OAuth 2.0 is standard enough for OAuthHandler<T>; no NuGet exists) |
 | Argon2 discriminator: format-prefix detection sufficient or need `algorithm` column migration? | Phase 7 | Format-prefix (`$argon2id$` vs `$2a$`) expected sufficient; no migration |
-| `party_members` unique-constraint conflict path during account merge (source + target in same party) | Phase 10 | Explicit abort-merge or remove-source-member policy — decide in Phase 10 planning |
-| `admin_audit_log.actor_id` FK behavior on source-player tombstone | Phase 10 | `ON DELETE SET NULL` (confirmed in ARCHITECTURE.md Q3) |
+| `party_members` unique-constraint conflict path during account merge (source + target in same party) | Phase 10 | **RESOLVED (10-04):** PlayersInSameParty conflict exception — merge aborts; no member re-assignment |
+| `admin_audit_log.actor_id` FK behavior on source-player tombstone | Phase 10 | **RESOLVED (10-04):** No FK on actor_id — stores both player IDs and admin user IDs; FK caused 23503 on all admin-initiated audit rows. Bare nullable UUID retained. |
 | `lobby_messages` persistence decision | Phase 11 | Persist with 30-day retention cleanup + `ILobbyMessageHandler` extension point (confirmed in ARCHITECTURE.md Q5) |
 
 ### Advisory Lock Keys (all five v1 keys live-verified)
@@ -303,9 +309,9 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-06-06 — Session resumed. Confirmed Phase 08 is COMPLETE: all 4 plans executed, 08-VERIFICATION.md status=passed (5/5 truths), code review done (CR-01/WR-01/WR-02/IN-01 fixes applied), committed in 22742ab. Phases 7 + 8 both complete (2/6 v2.0 phases, 33%).
+**Last action:** 2026-06-06 — Completed Phase 10 Plan 04 (superadmin merge endpoint + SC#1–#5 Testcontainers suite). All 19 tests green. Phase 10 all 4 plans complete — ready for verification.
 
-**Next action:** Phase 09 (Regional Matchmaking Pools + Backfill) — no CONTEXT.md exists yet. Either discuss-phase 9 to gather context, plan-phase 9 directly, or run gsd-autonomous for the remaining v2.0 phases (user's stated build posture).
+**Next action:** Run Phase 10 verification, then proceed to Phase 11 (Lobby/Presence expansion) or gsd-autonomous for remaining v2.0 phases.
 
 **Blockers:** None.
 

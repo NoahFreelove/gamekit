@@ -56,4 +56,19 @@ public static class AdminAuditActions
     /// has a matching key and so operators can reference it from the command palette.
     /// </remarks>
     public const string MatchmakingSessionOrphanCancelled = "admin.matchmaking.session_orphan_cancelled";
+
+    /// <summary>
+    /// Audit action emitted when a superadmin merges a source player into a target player (AUTH-23/SC#4).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The merge service (<c>AccountMergeService</c> in <c>GameKit.Auth</c>) writes this row
+    /// directly via <c>_ctx.Set&lt;AdminAuditLog&gt;()</c> — it cannot reference this constant
+    /// because <c>GameKit.Admin.UI</c> already holds a <c>ProjectReference</c> to
+    /// <c>GameKit.Auth</c> (adding the reverse reference would create a circular dependency).
+    /// The literal <c>"auth.account_merge"</c> is duplicated in <c>AccountMergeService</c> as a
+    /// private const with a comment pointing to this constant. The two values MUST stay in sync.
+    /// </para>
+    /// </remarks>
+    public const string AccountMerge = "auth.account_merge";
 }

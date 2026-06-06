@@ -92,10 +92,13 @@ public sealed class ArgonRehashOnVerifyTests
         });
 
         // UseArgon2 with test-safe parameters so the hash completes quickly.
+        // AllowInsecureParametersForTesting bypasses the OWASP minimum-parameter guards;
+        // low values are intentional here to keep integration test latency manageable.
         gkBuilder.UseArgon2(o =>
         {
             o.TimeCost   = 1;
             o.MemoryCost = 1024;
+            o.AllowInsecureParametersForTesting = true;
         });
 
         // FOLLOW-UP-02-03-01 runtime query customizer — same workaround as TestHelpers.BuildProvider.

@@ -104,8 +104,18 @@ public sealed class AuthEndpointsE2ETests
 
         var resp = await host.Client.GetAsync($"/auth/callback/steam?{qs}");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-        var body = await resp.Content.ReadFromJsonAsync<TokenResponse>();
-        Assert.NotNull(body);
+
+        // The Steam callback is a browser-flow endpoint: on success it returns an HTML bridge page
+        // (BrowserTokenBridge) that stashes tokens in localStorage and redirects to '/'.
+        // Verify the HTML envelope, the Content-Type, and that both token slots are populated
+        // (access token starts with 'eyJ' — the base64url header of every compact JWT).
+        var contentType = resp.Content.Headers.ContentType?.MediaType;
+        Assert.Equal("text/html", contentType);
+        var html = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("gk.access_token", html, StringComparison.Ordinal);
+        Assert.Contains("gk.refresh_token", html, StringComparison.Ordinal);
+        // Access JWT has a base64url-encoded header; all compact JWTs start with 'eyJ'.
+        Assert.Contains("eyJ", html, StringComparison.Ordinal);
     }
 
     [Fact]

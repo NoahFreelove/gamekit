@@ -160,14 +160,17 @@ public sealed class AuthTestHost : IAsyncDisposable
     /// </summary>
     private static async Task MigrateAsync(string ownerConnectionString)
     {
+        // Core migration step: use a plain Core-only service provider (no Auth extension) so the
+        // runtime model matches the Core snapshot exactly. Registering AuthModelBuilderExtension
+        // here would add Auth entities to the model while the Core snapshot has none, triggering
+        // PendingModelChangesWarning (EF Core 10). AuthMigrationModelCustomizer applies Auth
+        // configs directly without DI resolution, so the Auth extension is not needed in coreSp.
         var coreServices = new ServiceCollection();
         coreServices.AddGameKit(o =>
         {
             o.ConnectionString = ownerConnectionString;
             o.AutoMigrate = false;
         });
-        coreServices.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IModelBuilderExtension, AuthModelBuilderExtension>());
         await using var coreSp = coreServices.BuildServiceProvider();
         await using (var scope = coreSp.CreateAsyncScope())
         {

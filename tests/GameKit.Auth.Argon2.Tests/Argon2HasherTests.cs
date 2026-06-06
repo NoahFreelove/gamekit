@@ -2,6 +2,8 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using GameKit.Auth.Argon2.Builder;
 using GameKit.Auth.Argon2.Configuration;
 using GameKit.Auth.Argon2.Services;
@@ -9,6 +11,8 @@ using GameKit.Auth.Builder;
 using GameKit.Auth.Services;
 using GameKit.Core.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace GameKit.Auth.Argon2.Tests;
@@ -224,5 +228,70 @@ public sealed class Argon2HasherTests
         var builder = BuildBaseBuilder();
         // Must not throw — default options meet OWASP minimums.
         builder.UseArgon2();
+    }
+
+    // ── WR-01: AllowInsecureParametersForTesting environment guard ──────────────────────
+
+    /// <summary>
+    /// WR-01: <see cref="Argon2InsecureParamGuardHostedService"/> must throw
+    /// <see cref="InvalidOperationException"/> at startup when
+    /// <see cref="GameKitArgon2Options.AllowInsecureParametersForTesting"/> is <see langword="true"/>
+    /// and the host environment is not Development.
+    /// </summary>
+    [Fact]
+    public async Task Argon2InsecureParamGuard_ThrowsInvalidOperationException_WhenFlagSetOutsideDevelopment()
+    {
+        var opts = new GameKitArgon2Options { AllowInsecureParametersForTesting = true };
+        var env = new StubHostEnvironment("Production");
+        var svc = new Argon2InsecureParamGuardHostedService(opts, env);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.StartAsync(CancellationToken.None));
+
+        Assert.Contains("AllowInsecureParametersForTesting", ex.Message);
+        Assert.Contains("Development", ex.Message);
+    }
+
+    /// <summary>
+    /// WR-01: <see cref="Argon2InsecureParamGuardHostedService"/> must NOT throw when
+    /// <see cref="GameKitArgon2Options.AllowInsecureParametersForTesting"/> is <see langword="true"/>
+    /// and the host environment IS Development (the flag's intended usage).
+    /// </summary>
+    [Fact]
+    public async Task Argon2InsecureParamGuard_DoesNotThrow_WhenFlagSetInDevelopment()
+    {
+        var opts = new GameKitArgon2Options { AllowInsecureParametersForTesting = true };
+        var env = new StubHostEnvironment("Development");
+        var svc = new Argon2InsecureParamGuardHostedService(opts, env);
+
+        // Must not throw — flag is permitted in Development.
+        await svc.StartAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// WR-01: <see cref="Argon2InsecureParamGuardHostedService"/> must NOT throw when the flag is
+    /// <see langword="false"/> regardless of environment.
+    /// </summary>
+    [Fact]
+    public async Task Argon2InsecureParamGuard_DoesNotThrow_WhenFlagNotSet_AnyEnvironment()
+    {
+        var opts = new GameKitArgon2Options { AllowInsecureParametersForTesting = false };
+        var env = new StubHostEnvironment("Production");
+        var svc = new Argon2InsecureParamGuardHostedService(opts, env);
+
+        // Must not throw — the flag is off, no guard needed.
+        await svc.StartAsync(CancellationToken.None);
+    }
+
+    /// <summary>Minimal <see cref="IHostEnvironment"/> implementation for WR-01 unit tests.</summary>
+    private sealed class StubHostEnvironment : IHostEnvironment
+    {
+        public StubHostEnvironment(string environmentName)
+            => EnvironmentName = environmentName;
+
+        public string EnvironmentName { get; set; }
+        public string ApplicationName { get; set; } = "TestApp";
+        public string ContentRootPath { get; set; } = "/";
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

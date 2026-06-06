@@ -43,6 +43,11 @@
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
 
+    <!-- Optional Redis dependency for AccountMergeService post-commit cleanup (Plan 10-03).
+         The IConnectionMultiplexer ctor parameter is nullable — Auth installs and runs without
+         Redis; stale matchmaking keys TTL-expire naturally when no Redis is configured. -->
+    <PackageReference Include="StackExchange.Redis" />
+
     <!-- Design-time EF Core tooling (dotnet ef migrations add/update) — not shipped in .nupkg -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

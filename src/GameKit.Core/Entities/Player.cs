@@ -10,10 +10,11 @@ namespace GameKit.Core.Entities;
 /// A GameKit player — the top-level identity all game sessions, ratings, and audit events refer to.
 /// </summary>
 /// <remarks>
-/// Per GDPR design decision D-13, players are hard-deleted on erasure request; there is no
-/// <c>deleted_at</c> soft-delete column. Historical references (session_participants, rating_history,
-/// matchmaking_tickets) use <c>ON DELETE SET NULL</c> so opponent data survives erasure while
-/// the deleted player's PII leaves the database entirely.
+/// Per GDPR design decision D-13, players are hard-deleted on erasure request. Historical references
+/// (session_participants, rating_history, matchmaking_tickets) use <c>ON DELETE SET NULL</c> so
+/// opponent data survives erasure while the deleted player's PII leaves the database entirely.
+/// The <c>DeletedAt</c> column is solely for account-merge tombstones (AUTH-25) — it does NOT
+/// represent a general GDPR soft-delete; GDPR erasure remains a hard-delete.
 /// </remarks>
 public sealed class Player
 {
@@ -37,6 +38,22 @@ public sealed class Player
 
     /// <summary>Free-text reason for the ban (max 500 chars). Null when not banned.</summary>
     public string? BanReason { get; set; }
+
+    /// <summary>
+    /// When non-null, this player has been merged into the referenced target player.
+    /// The row is retained as a tombstone; <see cref="DeletedAt"/> will also be set.
+    /// The FK uses <c>ON DELETE SET NULL</c> so that if the target player is later
+    /// GDPR-deleted, the tombstone reference becomes <see langword="null"/> rather than
+    /// violating a constraint.
+    /// </summary>
+    public Guid? MergedIntoPlayerId { get; set; }
+
+    /// <summary>
+    /// UTC timestamp of soft-delete (account-merge tombstone). <see langword="null"/> for active players.
+    /// Per GDPR design decision D-13, hard erasure uses <c>ExecuteDeleteAsync</c> — this column
+    /// is only for merge tombstones, not general GDPR soft-delete.
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; set; }
 
     /// <summary>
     /// Sparse, non-relational metadata (JSONB). Per CORE-17, this column is for infrequently-written,

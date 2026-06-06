@@ -57,6 +57,14 @@ public sealed class MatchmakingTicket
     /// </summary>
     public TicketStatus Status { get; set; }
 
+    /// <summary>
+    /// Ticket type. Stored as <c>integer</c> (Phase 5 mandatory) — no
+    /// <c>HasConversion&lt;string&gt;()</c> applied. Default <see cref="MatchmakingTicketType.Normal"/>.
+    /// <see cref="MatchmakingTicketType.Backfill"/> tickets are inserted into the Redis queue
+    /// with score <c>0</c> so they are processed before all Normal tickets.
+    /// </summary>
+    public MatchmakingTicketType TicketType { get; set; } = MatchmakingTicketType.Normal;
+
     /// <summary>UTC timestamp at which the ticket was enqueued. Drives bracket-flex curve (D-11).</summary>
     public DateTimeOffset QueuedAt { get; set; }
 

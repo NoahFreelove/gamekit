@@ -21,6 +21,7 @@ public static partial class MatchmakingBuilderExtensions
     /// Registers the Plan 05-08 HTTP-layer services:
     /// <list type="bullet">
     ///   <item><see cref="IMatchmakingService"/> → <see cref="MatchmakingService"/> (scoped).</item>
+    ///   <item><see cref="IBackfillService"/> → <see cref="BackfillService"/> (scoped).</item>
     ///   <item><see cref="IMatchmakingObservability"/> → <see cref="RedisMatchmakingObservability"/> (singleton).</item>
     ///   <item>FluentValidation validators from the <c>GameKit.Matchmaking</c> assembly.</item>
     ///   <item>The matchmaking rate-limit policies (<c>gamekit:mm:enqueue</c> + <c>gamekit:mm:party_join</c>).</item>
@@ -31,6 +32,7 @@ public static partial class MatchmakingBuilderExtensions
     internal static IServiceCollection AddHttpServices(this IServiceCollection services)
     {
         services.TryAddScoped<IMatchmakingService, MatchmakingService>();
+        services.TryAddScoped<IBackfillService, BackfillService>();
         services.TryAddSingleton<IMatchmakingObservability, RedisMatchmakingObservability>();
         // Admin control surface (Phase 5 UAT-2 D1) — pause/drain flag + audit row.
         // Scoped because IAdminAuditWriter is scoped (writes via the request's DbContext).

@@ -43,4 +43,14 @@ public sealed class SessionParticipant
 
     /// <summary>Rating delta (<see cref="RatingAfter"/> - <see cref="RatingBefore"/>). Denormalized for leaderboard speed.</summary>
     public double? RatingDelta { get; set; }
+
+    /// <summary>
+    /// Fraction [0.0–1.0] of the session this participant was present for. Populated by the
+    /// game server at session completion. When null, the participant is treated as fully
+    /// present (no rating penalty). Used by <c>GameKit.Rankings.PendingRatingUpdatesAdapter</c>
+    /// to apply the <c>MinParticipationFractionForRating</c> guard (MATCH-19 SC#4).
+    /// Column added by <c>GameKit.Core</c> migration <c>20260519000000_AddSessionParticipationFraction</c>
+    /// per the per-package migration boundary rule (packages never modify Core tables).
+    /// </summary>
+    public double? ParticipationFraction { get; set; }
 }

@@ -284,9 +284,13 @@ public sealed class LeaderboardServiceTests : IAsyncLifetime
         var now = DateTimeOffset.UtcNow;
         var rankId = Guid.NewGuid();
         await using var cmd = conn.CreateCommand();
+        // IsInPlacement=false / PlacementMatchesRemaining=0: these are established, post-placement
+        // ranked players so LeaderboardService surfaces their real Rating (Phase 8 returns null
+        // Rating while IsInPlacement=true). The IsInPlacement column was added in Phase 8 migration
+        // 20260517000000_RankingsDecayPlacement and defaults to true for rows with zero games.
         cmd.CommandText = $@"
-            INSERT INTO gamekit.player_ranks (""Id"", ""PlayerId"", ""LadderId"", ""Rating"", ""RatingDeviation"", ""Volatility"", ""Wins"", ""Losses"", ""Draws"")
-            VALUES ('{rankId}', '{playerId}', '{ladderId}', {rating.ToString(System.Globalization.CultureInfo.InvariantCulture)}, 50, 0.06, 0, 0, 0)";
+            INSERT INTO gamekit.player_ranks (""Id"", ""PlayerId"", ""LadderId"", ""Rating"", ""RatingDeviation"", ""Volatility"", ""Wins"", ""Losses"", ""Draws"", ""IsInPlacement"", ""PlacementMatchesRemaining"")
+            VALUES ('{rankId}', '{playerId}', '{ladderId}', {rating.ToString(System.Globalization.CultureInfo.InvariantCulture)}, 50, 0.06, 0, 0, 0, false, 0)";
         await cmd.ExecuteNonQueryAsync();
     }
 

@@ -21,13 +21,14 @@ using StackExchange.Redis;
 namespace GameKit.Matchmaking.Http;
 
 /// <summary>
-/// Maps the player-facing matchmaking HTTP surface (5 routes — MATCH-01, MATCH-11):
+/// Maps the player-facing matchmaking HTTP surface (6 routes — MATCH-01, MATCH-11, MATCH-19):
 /// <list type="bullet">
 ///   <item><c>POST   /api/mm/queue</c> — enqueue; rate-limited via <c>gamekit:mm:enqueue</c>.</item>
 ///   <item><c>GET    /api/mm/queue/{ticketId}/status</c> — long-poll (Pitfall §5 mitigation; handler in Task 2b).</item>
 ///   <item><c>DELETE /api/mm/queue/{ticketId}</c> — cancel.</item>
 ///   <item><c>POST   /api/mm/proposal/{proposalId}/accept</c> — accept-step (T-05-06-01).</item>
 ///   <item><c>POST   /api/mm/proposal/{proposalId}/decline</c> — accept-step.</item>
+///   <item><c>POST   /api/matchmaking/backfill</c> — backfill ticket at Redis score 0 (MATCH-19 SC#3); rate-limited via <c>gamekit:mm:enqueue</c>.</item>
 /// </list>
 /// All routes require JWT authorization (consumer's pipeline must run <c>UseGameKitAuth</c>).
 /// </summary>
@@ -61,6 +62,13 @@ public static class MatchmakingEndpoints
             .RequireAuthorization()
             .AddEndpointFilter<ValidationEndpointFilter<AcceptDeclineRequest>>();
 
+        // MATCH-19 SC#3: backfill endpoint (exact route literal — not /api/mm/backfill).
+        // Creates a Backfill-typed ticket at Redis score 0 for higher priority over normal tickets.
+        routes.MapPost("/api/matchmaking/backfill", BackfillAsync)
+            .RequireAuthorization()
+            .RequireRateLimiting(names.MmEnqueue)   // reuse enqueue rate-limit policy (T-09-03-03)
+            .AddEndpointFilter<ValidationEndpointFilter<BackfillRequest>>();
+
         return routes;
     }
 
@@ -75,7 +83,12 @@ public static class MatchmakingEndpoints
         if (!TryGetPlayerId(http, out var playerId))
             return Results.Forbid();
 
-        var result = await svc.EnqueueAsync(playerId, req.LadderId, req.PoolName, req.PartyId, ct).ConfigureAwait(false);
+        // MATCH-18: resolve pool from RegionName (takes precedence) or PoolName, defaulting to null.
+        // The service resolves null poolName to "default"; region validation runs server-side in
+        // MatchmakingService.EnqueueAsync against AllowedRegions (IMatchmakingService signature
+        // is unchanged — poolName carries the resolved region name).
+        var resolvedPool = req.RegionName ?? req.PoolName;
+        var result = await svc.EnqueueAsync(playerId, req.LadderId, resolvedPool, req.PartyId, ct).ConfigureAwait(false);
         return result.Outcome switch
         {
             EnqueueOutcome.Queued => Results.Ok(new { ticketId = result.TicketId!.Value, status = "queued" }),
@@ -95,6 +108,7 @@ public static class MatchmakingEndpoints
             EnqueueOutcome.AlreadyEnqueued => Results.Conflict(new { error = "ticket_active", detail = result.Detail }),
             EnqueueOutcome.UnknownLadder => Results.BadRequest(new { error = "unknown_ladder", detail = result.Detail }),
             EnqueueOutcome.InvalidParty => Results.BadRequest(new { error = "invalid_party", detail = result.Detail }),
+            EnqueueOutcome.InvalidRegion => Results.BadRequest(new { error = "region_not_allowed", detail = result.Detail }),
             EnqueueOutcome.RejectedDueToQueuePaused or EnqueueOutcome.RejectedDueToQueueDraining =>
                 ServiceUnavailable(
                     error: result.Outcome == EnqueueOutcome.RejectedDueToQueuePaused ? "queue_paused" : "queue_draining",
@@ -210,6 +224,29 @@ public static class MatchmakingEndpoints
             DeclineResult.Declined => Results.Ok(new TicketStatusResponse(Status: "cancelled", ProposalId: proposalId)),
             DeclineResult.ProposalNotFound => Results.NotFound(new { error = "proposal_not_found", proposalId }),
             DeclineResult.NotInProposal => Results.Forbid(),
+            _ => Results.StatusCode(StatusCodes.Status500InternalServerError),
+        };
+    }
+
+    private static async Task<IResult> BackfillAsync(
+        BackfillRequest req,
+        HttpContext http,
+        IBackfillService svc,
+        CancellationToken ct)
+    {
+        if (!TryGetPlayerId(http, out var playerId))
+            return Results.Forbid();
+
+        var result = await svc.BackfillAsync(playerId, req.LadderId, req.SessionId, req.RegionName, ct)
+            .ConfigureAwait(false);
+        return result.Outcome switch
+        {
+            BackfillOutcome.Queued => Results.Ok(new { ticketId = result.TicketId!.Value, status = "queued" }),
+            BackfillOutcome.UnknownLadder => Results.BadRequest(new { error = "unknown_ladder", detail = result.Detail }),
+            BackfillOutcome.SessionNotFound => Results.NotFound(new { error = "session_not_found", detail = result.Detail }),
+            BackfillOutcome.SessionNotActive => Results.BadRequest(new { error = "session_not_active", detail = result.Detail }),
+            BackfillOutcome.InvalidRegion => Results.BadRequest(new { error = "region_not_allowed", detail = result.Detail }),
+            BackfillOutcome.AlreadyEnqueued => Results.Conflict(new { error = "ticket_active", detail = result.Detail }),
             _ => Results.StatusCode(StatusCodes.Status500InternalServerError),
         };
     }

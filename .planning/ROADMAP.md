@@ -15,7 +15,7 @@
 
 - [x] **Phase 7: Core Rating Seam + Stateless Auth Packages** — `IPlayerRatingProvider` seam in Core + all four new auth packages (Argon2, Google, Apple, Epic); zero migrations, parallelizable; unblocks all rating-aware work downstream. (completed 2026-06-05)
 - [x] **Phase 8: Rankings Depth + Rating-Aware Matchmaking** — Rank decay (RD inflation), placement matches, `RankingsRatingSource`; freeze `player_ranks` schema before account merge reads it; simultaneously ships MATCH-16 (real ratings) + MATCH-17 (guardrails). (completed 2026-06-06)
-- [ ] **Phase 9: Regional Matchmaking Pools + Backfill** — First-class `RegionName` on enqueue (no migration), cross-region fallback, backfill ticket type with `ParticipationFraction` guard; stabilises the Matchmaking enqueue API before Lobby depends on it.
+- [x] **Phase 9: Regional Matchmaking Pools + Backfill** — First-class `RegionName` on enqueue (no migration), cross-region fallback, backfill ticket type with `ParticipationFraction` guard; stabilises the Matchmaking enqueue API before Lobby depends on it. (completed 2026-06-06)
 - [ ] **Phase 10: Account Merge (Isolated High-Risk)** — SERIALIZABLE transaction over 8+ FK tables; `account_merges` idempotency table first; crash-resume state machine; superadmin-only; depends on frozen `player_ranks` from Phase 8.
 - [ ] **Phase 11: GameKit.Lobby (New Package)** — `lobbies` + `lobby_members` tables (chat is ephemeral — NOT persisted, per LOBBY-04); advisory-lock live-verify gate (Wave 0); SignalR + Redis backplane from day one; Lobby→Matchmaking party integration; establishes the SignalR pattern reused in Phase 12.
 - [ ] **Phase 12: Admin Multi-Replica + Distribution Close-Out** — `RedisErrorRateCounter` replaces in-memory ring buffer; `AdminEventHub` + Redis backplane; fix Rank-adjust stub; five new packages join the MinVer release train (DIST-07).
@@ -71,7 +71,11 @@
   2. The Redis queue key for a regional pool is `mm:queue:{ladderId}:{regionName}` and is distinct from the default `mm:queue:{ladderId}:default`; the ticker's existing pool-scan glob picks up both keys without any ticker code changes.
   3. A `POST /api/matchmaking/backfill` request creates a `backfill`-typed ticket; the backfill ticket is processed at higher priority than normal tickets.
   4. A backfill player whose `ParticipationFraction` falls below the configured minimum does not receive a rating change — an integration test confirms the `IRankingAlgorithm.Apply` guard fires correctly.
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
+- [x] 09-01-PLAN.md — Data + config foundation: migration 20260520000000 (TicketType + ParticipationFraction), MatchmakingTicketType enum, AllowedRegions + MinParticipationFractionForRating config + builder validation, Wave 0 test scaffolds (MATCH-18, MATCH-19) [wave 1]
+- [x] 09-02-PLAN.md — MATCH-18 regional pool routing: RegionName validation + region→pool Redis keys + ticker pool enumeration (MATCH-18) [wave 2]
+- [x] 09-03-PLAN.md — MATCH-19 backfill endpoint: POST /api/matchmaking/backfill + BackfillService (Redis score 0 priority) (MATCH-19) [wave 3]
+- [x] 09-04-PLAN.md — MATCH-19 participation-fraction guard in Rankings PendingRatingUpdatesAdapter (JSONB-config threshold) (MATCH-19) [wave 2]
 
 ### Phase 10: Account Merge (Isolated High-Risk)
 **Goal**: Two distinct `player_id`s can be irreversibly merged via a SERIALIZABLE transaction with an idempotency table that enables crash-and-resume; the operation is superadmin-only and fully audited.
@@ -117,7 +121,7 @@
 |-------|----------------|--------|-----------|
 | 7. Core Rating Seam + Stateless Auth Packages | 6/6 | Complete   | 2026-06-05 |
 | 8. Rankings Depth + Rating-Aware Matchmaking | 4/4 | Complete   | 2026-06-06 |
-| 9. Regional Matchmaking Pools + Backfill | 0/? | Not started | - |
+| 9. Regional Matchmaking Pools + Backfill | 4/4 | Complete   | 2026-06-06 |
 | 10. Account Merge | 0/? | Not started | - |
 | 11. GameKit.Lobby | 0/? | Not started | - |
 | 12. Admin Multi-Replica + Distribution Close-Out | 0/? | Not started | - |

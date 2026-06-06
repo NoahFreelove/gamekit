@@ -136,7 +136,12 @@ public sealed class MatchmakingChaosTests : IAsyncLifetime
         // exercising every invariant.
         const int playerCount = 10;
         var db = _adminMux!.GetDatabase();
-        var queueKey = MatchmakingRedisKeys.Queue(ladderId, ladderName);
+        // Phase 9 SC#2: default pool name is the literal "default" — the ticker's
+        // GetPoolNamesForLadder yields "default" + AllowedRegions entries. Seeds must use
+        // "default" so the ticker's mm:queue:*:default glob finds them and forms matches,
+        // which exercises the BeforeLuaClaim probe site (LuaClaimCallCount > 0 assertion).
+        const string defaultPool = "default";
+        var queueKey = MatchmakingRedisKeys.Queue(ladderId, defaultPool);
         var queuedAtBase = DateTimeOffset.UtcNow - TimeSpan.FromMinutes(10);
         var ticketIds = new List<Guid>(playerCount);
         var playerIds = new List<Guid>(playerCount);
@@ -153,7 +158,7 @@ public sealed class MatchmakingChaosTests : IAsyncLifetime
             playerIds.Add(playerId);
             ticketIds.Add(ticketId);
 
-            await SeedRedisTicketAsync(db, ticketId, ladderId, ladderName, playerId, queuedAt);
+            await SeedRedisTicketAsync(db, ticketId, ladderId, defaultPool, playerId, queuedAt);
             await db.SortedSetAddAsync(queueKey, ticketId.ToString(), queuedAt.ToUnixTimeMilliseconds());
         }
 

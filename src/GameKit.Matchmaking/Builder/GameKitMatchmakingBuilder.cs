@@ -3,6 +3,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GameKit.Matchmaking.Builder;
@@ -94,6 +96,45 @@ internal sealed class GameKitMatchmakingBuilder : IGameKitMatchmakingBuilder
         if (config.MinPoolDepthBeforeBracketExpansion.HasValue && config.MinPoolDepthBeforeBracketExpansion.Value <= 0)
             throw new ArgumentException(
                 $"{nameof(config.MinPoolDepthBeforeBracketExpansion)} must be > 0 when set (got {config.MinPoolDepthBeforeBracketExpansion.Value}); use null to disable the guard.",
+                nameof(config));
+
+        if (config.AllowedRegions is { Count: > 0 })
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var region in config.AllowedRegions)
+            {
+                if (string.IsNullOrWhiteSpace(region))
+                    throw new ArgumentException(
+                        $"{nameof(config.AllowedRegions)} must not contain null, empty, or whitespace-only entries.",
+                        nameof(config));
+
+                if (region.Length > 64)
+                    throw new ArgumentException(
+                        $"{nameof(config.AllowedRegions)} entry '{region}' exceeds the 64-character maximum (PoolName column constraint).",
+                        nameof(config));
+
+                if (region.Equals("default", StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException(
+                        $"Region name 'default' is reserved. Use null or omit {nameof(config.AllowedRegions)} to allow unrouted tickets.",
+                        nameof(config));
+
+                if (!Regex.IsMatch(region, @"^[a-zA-Z0-9\-]+$"))
+                    throw new ArgumentException(
+                        $"{nameof(config.AllowedRegions)} entry '{region}' may only contain alphanumeric characters and hyphens (Redis key safety: colons break the 4-segment mm:queue:{{id}}:{{region}} key format; glob chars corrupt SCAN patterns).",
+                        nameof(config));
+
+                if (!seen.Add(region))
+                    throw new ArgumentException(
+                        $"{nameof(config.AllowedRegions)} contains duplicate region name '{region}' (case-insensitive).",
+                        nameof(config));
+            }
+        }
+
+        if (config.MinParticipationFractionForRating.HasValue
+            && (config.MinParticipationFractionForRating.Value < 0.0
+                || config.MinParticipationFractionForRating.Value > 1.0))
+            throw new ArgumentException(
+                $"{nameof(config.MinParticipationFractionForRating)} must be between 0.0 and 1.0 when set (got {config.MinParticipationFractionForRating.Value}).",
                 nameof(config));
     }
 }

@@ -85,8 +85,11 @@ public sealed class RankingsMigrationDeterminismTests
             Assert.Empty(pendingBefore);
             await MigrationRunner.MigrateWithLockAsync(ctx, RankingsMigrationConstants.AdvisoryLockKey);
             var applied = (await ctx.Database.GetAppliedMigrationsAsync()).ToList();
-            Assert.Single(applied);
+            // Two Rankings migrations: RankingsInitial (Phase 4) + RankingsDecayPlacement (Phase 8
+            // decay/placement columns). Both must remain applied with no diff on re-apply.
+            Assert.Equal(2, applied.Count);
             Assert.Equal("20260515000000_RankingsInitial", applied[0]);
+            Assert.Equal("20260517000000_RankingsDecayPlacement", applied[1]);
         }
     }
 }

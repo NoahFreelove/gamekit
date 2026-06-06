@@ -15,4 +15,15 @@ namespace GameKit.Matchmaking.Http.Contracts;
 /// Optional party id. When non-null, every member of the party shares the ticket (CONTEXT D-04).
 /// When null, the enqueue is solo.
 /// </param>
-public sealed record EnqueueRequest(Guid LadderId, string? PoolName = null, Guid? PartyId = null);
+/// <param name="RegionName">
+/// Optional region name for regional pool routing (MATCH-18). When null, routes to the
+/// <c>"default"</c> pool (backwards-compatible v1 behaviour). When non-null, must be
+/// present in the ladder's <c>AllowedRegions</c> list or the request is rejected with
+/// HTTP 400 <c>region_not_allowed</c>. Takes precedence over <see cref="PoolName"/> when
+/// both are supplied.
+/// </param>
+public sealed record EnqueueRequest(
+    Guid LadderId,
+    string? PoolName = null,
+    Guid? PartyId = null,
+    string? RegionName = null);

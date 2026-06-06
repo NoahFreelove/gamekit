@@ -124,6 +124,30 @@ public sealed class PendingRatingUpdatesAdapter : IPostSessionCompleteHandler
             if (!participant.LadderId.HasValue)
                 continue;
 
+            // MATCH-19 SC#4: participation-fraction guard.
+            // Re-read ParticipationFraction from the session_participants row (column added by
+            // Matchmaking migration 20260520000000). Null fraction = pre-Phase-9 row or full
+            // participation → guard is skipped (v1 behaviour preserved).
+            // MinParticipationFractionForRating is read from the ladder's JSONB Config via the
+            // same pattern as RatingPeriodSeconds in RankingsTickerService.ReadRatingPeriod.
+            var sp = await _ctx.SessionParticipants
+                .AsNoTracking()
+                .Where(s => s.SessionId == sessionId && s.PlayerId == participant.PlayerId)
+                .Select(s => new { s.ParticipationFraction })
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+
+            if (sp?.ParticipationFraction.HasValue == true)
+            {
+                var ladder = await _ctx.Set<Ladder>()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(l => l.Id == participant.LadderId!.Value, ct)
+                    .ConfigureAwait(false);
+                var minFraction = ReadMinParticipationFraction(ladder);
+                if (minFraction.HasValue && sp.ParticipationFraction.Value < minFraction.Value)
+                    continue; // Skip PendingRatingUpdate INSERT — no rating change for this participant.
+            }
+
             var row = new PendingRatingUpdate
             {
                 Id = _ids.NewId(),
@@ -142,5 +166,32 @@ public sealed class PendingRatingUpdatesAdapter : IPostSessionCompleteHandler
 
         // SaveChanges within the caller's ambient transaction — no explicit Commit here.
         await _ctx.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Reads <c>MinParticipationFractionForRating</c> from the ladder's JSONB Config.
+    /// Returns <see langword="null"/> when the property is absent, the config is null, or
+    /// the value cannot be parsed — <see langword="null"/> means no guard is applied (v1
+    /// behaviour: all participants receive rating updates). Mirrors the
+    /// <c>RankingsTickerService.ReadRatingPeriod</c> JSONB read pattern (try/TryGetProperty/
+    /// TryGetDouble with catch for JSON errors). T-09-04-02 mitigation: a corrupt Config
+    /// never throws inside <see cref="OnCompletedAsync"/>.
+    /// </summary>
+    /// <param name="ladder">The ladder entity whose JSONB Config is to be read. May be null.</param>
+    /// <returns>The configured minimum participation fraction, or null if not configured.</returns>
+    private static double? ReadMinParticipationFraction(Ladder? ladder)
+    {
+        if (ladder?.Config is null) return null;
+        try
+        {
+            if (ladder.Config.RootElement.TryGetProperty("MinParticipationFractionForRating", out var elem)
+                && elem.TryGetDouble(out var value))
+                return value;
+        }
+        catch
+        {
+            // Ignore JSON parse errors — treat absent/corrupt config as no guard (T-09-04-02).
+        }
+        return null;
     }
 }

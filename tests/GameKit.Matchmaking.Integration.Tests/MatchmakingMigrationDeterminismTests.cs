@@ -95,14 +95,17 @@ public sealed class MatchmakingMigrationDeterminismTests
         }
 
         // Second apply: must be a no-op (MATCH-15 determinism gate).
+        // Phase 9 adds a second Matchmaking migration (MatchmakingBackfillRegions) so the
+        // applied list now contains both migrations in deterministic order.
         await using (var ctx = BuildMatchmakingCtx(connStr))
         {
             var pendingBefore = await ctx.Database.GetPendingMigrationsAsync();
             Assert.Empty(pendingBefore);
             await MigrationRunner.MigrateWithLockAsync(ctx, MatchmakingMigrationConstants.AdvisoryLockKey);
             var applied = (await ctx.Database.GetAppliedMigrationsAsync()).ToList();
-            Assert.Single(applied);
+            Assert.Equal(2, applied.Count);
             Assert.Equal("20260516000000_MatchmakingInitial", applied[0]);
+            Assert.Equal("20260520000000_MatchmakingBackfillRegions", applied[1]);
         }
     }
 

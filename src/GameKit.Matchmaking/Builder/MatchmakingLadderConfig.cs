@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 GameKit contributors
 
+using System.Collections.Generic;
 using GameKit.Matchmaking.Strategy;
 
 namespace GameKit.Matchmaking.Builder;
@@ -79,4 +80,22 @@ public sealed class MatchmakingLadderConfig
     /// Set to <c>2 * expected_party_size</c> as a starting recommendation. When set, must be &gt; 0.
     /// </summary>
     public int? MinPoolDepthBeforeBracketExpansion { get; set; }
+
+    /// <summary>
+    /// Allowed region names for this ladder. When non-null and non-empty, enqueue requests
+    /// with a <c>RegionName</c> absent from this list are rejected with HTTP 400
+    /// <c>region_not_allowed</c>. When null or empty, all regions route to the <c>"default"</c>
+    /// pool (backwards-compatible v1 behaviour). Entries must be non-empty strings of at most
+    /// 64 characters; <c>"default"</c> (case-insensitive) is reserved and must not appear here.
+    /// </summary>
+    public IReadOnlyList<string>? AllowedRegions { get; set; }
+
+    /// <summary>
+    /// Minimum fraction [0.0–1.0] of the session a backfill player must have participated in
+    /// to receive a rating change. When null, no participation guard is applied (all participants
+    /// receive rating updates). Written to the ladder's JSONB <c>Config</c> at startup via
+    /// <c>StartupLadderUpserter</c> and read in
+    /// <c>PendingRatingUpdatesAdapter.OnCompletedAsync</c> (MATCH-19 SC#4).
+    /// </summary>
+    public double? MinParticipationFractionForRating { get; set; }
 }

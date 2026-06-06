@@ -15,6 +15,7 @@ using GameKit.Matchmaking.Builder;
 using GameKit.Matchmaking.Entities;
 using GameKit.Matchmaking.Redis;
 using GameKit.Matchmaking.Strategy;
+using GameKit.Rankings.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -175,18 +176,42 @@ public sealed class MatchmakingService : IMatchmakingService
             memberPlayerIds = new[] { playerId };
         }
 
-        // Step 3: resolve the ladder config (by id is impossible in v1 — config is keyed by
-        // name; v1 callers must supply the ladder id matching the Rankings ladder of the same
-        // configured name, and the matchmaking pool name == ladder name convention). We look
-        // up the ladder by ladder name == pool name lookup OR fall through to the first
-        // registered ladder. v1 ships single-ladder per app; multi-ladder integration tests
-        // assert by-name. For now: pick by pool name match, fallback to first.
+        // Step 3: resolve the ladder config by ladderId (not by pool/region name). Look up the
+        // canonical ladder name from the DB first so AllowedRegions is always validated against
+        // the ladder the caller actually requested — prevents multi-ladder cross-bypass where
+        // ladderId targets ladder B while a pool-name match would resolve cfg for ladder A.
+        var ladderName = await _db.Set<Ladder>()
+            .AsNoTracking()
+            .Where(l => l.Id == ladderId)
+            .Select(l => l.Name)
+            .FirstOrDefaultAsync(ct)
+            .ConfigureAwait(false);
+
+        if (ladderName is null)
+        {
+            return new EnqueueResult(EnqueueOutcome.UnknownLadder, Detail: $"unknown_ladder:{ladderId}");
+        }
+
         MatchmakingLadderConfig? cfg = _ladders.FirstOrDefault(l =>
-            l.Name.Equals(pool, StringComparison.OrdinalIgnoreCase));
-        cfg ??= _ladders.FirstOrDefault();
+            l.Name.Equals(ladderName, StringComparison.OrdinalIgnoreCase));
         if (cfg is null)
         {
-            return new EnqueueResult(EnqueueOutcome.UnknownLadder, Detail: "no_ladders_registered");
+            return new EnqueueResult(EnqueueOutcome.UnknownLadder, Detail: "ladder_not_configured_for_matchmaking");
+        }
+
+        // MATCH-18: region validation against AllowedRegions.
+        // pool is already set from poolName (resolved via req.RegionName ?? req.PoolName at the HTTP layer).
+        // Guard: AllowedRegions is non-null/non-empty AND pool != "default" AND not in list → reject.
+        // A null RegionName resolves to "default" at the HTTP layer and is always accepted
+        // (backwards-compatible v1 behaviour). This guard runs before Redis writes so a rejected
+        // region never touches a queue key (T-09-02-01 defence-in-depth: FluentValidation chars +
+        // AllowedRegions membership is the authoritative server-side gate).
+        if (cfg.AllowedRegions is { Count: > 0 } && pool != "default"
+            && !cfg.AllowedRegions.Contains(pool, StringComparer.OrdinalIgnoreCase))
+        {
+            return new EnqueueResult(
+                EnqueueOutcome.InvalidRegion,
+                Detail: $"region_not_allowed:{pool}");
         }
 
         // Step 3.5: admin pause / drain gate. The per-ladder Redis flags are written by

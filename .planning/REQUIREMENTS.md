@@ -41,8 +41,8 @@
 
 - [x] **MATCH-16**: Rating-aware EloRange — strategy reads real ratings via `IPlayerRatingProvider`, cached into the Redis ticket hash at enqueue (`MatchmakingService.EnqueueAsync`), replacing the v1 hardcoded rating=0
 - [x] **MATCH-17**: Anti-feedback-loop guardrails `MaxBracketWidth` + `MinPoolDepthBeforeBracketExpansion` ship **simultaneously** with MATCH-16 (not a follow-up) — prevents new high-RD players funnelling into top-rated matches on sparse pools
-- [ ] **MATCH-18**: Regional matchmaking pools as a first-class concept — `AllowedRegions` config + region-validated enqueue partitioning the existing `mm:queue:{ladderId}:{poolName}` Redis keys (no schema migration; `PoolName` already exists)
-- [ ] **MATCH-19**: Backfill — fill vacated slots in in-progress sessions; participation-fraction / abandonment accounting guard ships in the same unit
+- [x] **MATCH-18**: Regional matchmaking pools as a first-class concept — `AllowedRegions` config + region-validated enqueue partitioning the existing `mm:queue:{ladderId}:{poolName}` Redis keys (no schema migration; `PoolName` already exists)
+- [x] **MATCH-19**: Backfill — fill vacated slots in in-progress sessions; participation-fraction / abandonment accounting guard ships in the same unit
 
 ### Lobby — New Package
 
@@ -91,8 +91,8 @@ Carried from v1.0 (unchanged) — see `.planning/PROJECT.md` § Out of Scope. Hi
 | RANK-17 | Phase 8 | Complete |
 | MATCH-16 | Phase 8 | Complete |
 | MATCH-17 | Phase 8 | Complete |
-| MATCH-18 | Phase 9 | Pending |
-| MATCH-19 | Phase 9 | Pending |
+| MATCH-18 | Phase 9 | Complete |
+| MATCH-19 | Phase 9 | Complete |
 | AUTH-23 | Phase 10 | Pending |
 | AUTH-24 | Phase 10 | Pending |
 | AUTH-25 | Phase 10 | Pending |

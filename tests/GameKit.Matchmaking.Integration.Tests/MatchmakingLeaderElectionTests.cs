@@ -87,17 +87,19 @@ public sealed class MatchmakingLeaderElectionTests : IAsyncLifetime
         await server.FlushDatabaseAsync();
         await db.KeyDeleteAsync(MatchmakingRedisKeys.MatcherLock);
 
-        // Seed two candidate tickets in the same pool (mm:queue:{ladderId}:leader-elect-test).
-        // The ticker queries IServer.Keys(pattern: "mm:queue:*:{poolName}") — we manufacture
-        // a ladder Guid and write hashes for both tickets + the queue sorted-set.
+        // Seed two candidate tickets in the default pool (mm:queue:{ladderId}:default).
+        // Phase 9 SC#2 mandates the default pool name is the literal "default" — the ticker's
+        // GetPoolNamesForLadder yields "default" + AllowedRegions entries. Seeds must use
+        // "default" so the ticker's mm:queue:*:default glob finds them.
         var ladderId = Guid.NewGuid();
-        var queueKey = MatchmakingRedisKeys.Queue(ladderId, ladderName);
+        const string defaultPool = "default";
+        var queueKey = MatchmakingRedisKeys.Queue(ladderId, defaultPool);
         var ticket1 = Guid.NewGuid();
         var ticket2 = Guid.NewGuid();
         var queuedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        await SeedTicketAsync(db, ticket1, ladderId, ladderName, queuedAtMs, aggregateRating: 1500);
-        await SeedTicketAsync(db, ticket2, ladderId, ladderName, queuedAtMs + 1, aggregateRating: 1500);
+        await SeedTicketAsync(db, ticket1, ladderId, defaultPool, queuedAtMs, aggregateRating: 1500);
+        await SeedTicketAsync(db, ticket2, ladderId, defaultPool, queuedAtMs + 1, aggregateRating: 1500);
         await db.SortedSetAddAsync(queueKey, ticket1.ToString(), queuedAtMs);
         await db.SortedSetAddAsync(queueKey, ticket2.ToString(), queuedAtMs + 1);
 

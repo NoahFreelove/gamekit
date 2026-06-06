@@ -34,6 +34,7 @@ internal sealed class SessionParticipantConfiguration : IEntityTypeConfiguration
         b.Property(p => p.RatingBefore);
         b.Property(p => p.RatingAfter);
         b.Property(p => p.RatingDelta);
+        b.Property(p => p.ParticipationFraction); // nullable double — column added by GameKit.Core migration 20260519000000_AddSessionParticipationFraction
 
         // Session relationship: cascade-delete participants when their session is deleted.
         b.HasOne<GameSession>()

@@ -15,6 +15,7 @@ using GameKit.Core.Builder;
 using GameKit.Core.Data;
 using GameKit.Core.Services;
 using GameKit.Matchmaking.Builder;
+using GameKit.Matchmaking.Services;
 using GameKit.Rankings.Builder;
 using GameKit.Rankings.Services;
 using GameKit.TestFixtures;
@@ -57,6 +58,7 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
     private readonly string _pubPath;
     private readonly RSA _signingRsa;
     private readonly bool _withRankingsRatingSource;
+    private readonly Action<MatchmakingLadderConfig>? _configureLadder;
     private IHost? _host;
     private string _databaseSuffix = string.Empty;
 
@@ -92,9 +94,16 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
     /// <c>IPlayerRatingProvider</c> via <c>WithRatingsFrom&lt;RankingsRatingSource&gt;()</c>
     /// (MATCH-16 cross-package SC#3 proof). Default <see langword="false"/> — v1 zero-rating fallback.
     /// </param>
-    public MatchmakingTestApp(bool withRankingsRatingSource = false)
+    /// <param name="configureLadder">
+    /// Optional callback to further configure the test ladder (e.g. set
+    /// <see cref="MatchmakingLadderConfig.AllowedRegions"/> for MATCH-18 regional pool tests).
+    /// Invoked after the ladder name is set; the name is locked to <see cref="TestLadderName"/>
+    /// regardless of any <c>Name</c> assignment inside the callback.
+    /// </param>
+    public MatchmakingTestApp(bool withRankingsRatingSource = false, Action<MatchmakingLadderConfig>? configureLadder = null)
     {
         _withRankingsRatingSource = withRankingsRatingSource;
+        _configureLadder = configureLadder;
         _keyDir = Path.Combine(Path.GetTempPath(), $"gk-mm-host-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_keyDir);
         _privPath = Path.Combine(_keyDir, "priv.pem");
@@ -146,7 +155,7 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
                     {
                         o.LongPollTimeoutSeconds = LongPollTimeoutSeconds;
                     });
-                    mm.AddLadder(TestLadderName);
+                    mm.AddLadder(TestLadderName, _configureLadder);
 
                     // Replace the Redis connection so all matchmaking Redis ops hit the
                     // shared Testcontainer multiplexer.
@@ -184,6 +193,14 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
 
         Client = _host.GetTestClient();
     }
+
+    /// <summary>
+    /// Resolves <see cref="IMatchmakerTicker"/> from the test host's DI container.
+    /// Used by integration tests that drive a single deterministic ticker tick
+    /// (e.g. <c>RegionalPoolTests.SC2_TickerGlob_PicksUpBothRegionalAndDefaultKeys</c>).
+    /// </summary>
+    public IMatchmakerTicker GetTicker() =>
+        _host!.Services.GetRequiredService<IMatchmakerTicker>();
 
     /// <summary>
     /// Mints a valid player JWT signed with the host's RSA private key. The

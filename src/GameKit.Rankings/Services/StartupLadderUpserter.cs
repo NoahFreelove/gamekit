@@ -104,6 +104,7 @@ public sealed class StartupLadderUpserter : IHostedService
                         config.RegressionFactor,
                         config.RdCeiling,
                         config.RdBump,
+                        config.MinParticipationFractionForRating,
                     });
 
                     var ladder = new Ladder

@@ -45,6 +45,10 @@ internal sealed class MatchmakingTicketConfiguration : IEntityTypeConfiguration<
         // Integer enum storage — DO NOT add HasConversion<string>() (Phase 5 mandatory).
         b.Property(t => t.Status).IsRequired();
 
+        // Integer enum storage — DO NOT add HasConversion<string>() (Phase 5 mandatory).
+        // DEFAULT 0 (Normal) — existing tickets receive TicketType = 0 via migration DEFAULT clause.
+        b.Property(t => t.TicketType).IsRequired();
+
         b.Property(t => t.QueuedAt).IsRequired();
         b.Property(t => t.TerminalAt);
         b.Property(t => t.SessionId);

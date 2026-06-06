@@ -214,24 +214,33 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    // Renew lease before processing each pool (Pitfall §6 — bail on false).
-                    var renewed = await _lease.RenewLeaseAsync(ct).ConfigureAwait(false);
-                    if (!renewed)
+                    // MATCH-18 SC#2: enumerate default + every AllowedRegions pool per ladder.
+                    // A lease renewal is performed before each pool iteration so a stale lease
+                    // cannot process multiple pools; bailing with LeaseLost on renewal failure
+                    // preserves the existing per-ladder bail semantics.
+                    foreach (var poolName in GetPoolNamesForLadder(ladderCfg))
                     {
-                        _logger.LogWarning(
-                            "MatchmakerTickerService: lease lost mid-tick before pool '{Pool}'. " +
-                            "Bailing with LeaseLost.", ladderCfg.Name);
-                        return MatcherTickResult.LeaseLost;
-                    }
+                        ct.ThrowIfCancellationRequested();
 
-                    var poolResult = await ProcessPoolAsync(ladderCfg, now, ct).ConfigureAwait(false);
-                    if (poolResult == MatcherTickResult.LeaseLost)
-                    {
-                        return MatcherTickResult.LeaseLost;
-                    }
-                    if (poolResult == MatcherTickResult.Matched)
-                    {
-                        anyMatch = true;
+                        // Renew lease before processing each pool (Pitfall §6 — bail on false).
+                        var renewed = await _lease.RenewLeaseAsync(ct).ConfigureAwait(false);
+                        if (!renewed)
+                        {
+                            _logger.LogWarning(
+                                "MatchmakerTickerService: lease lost mid-tick before pool '{Pool}'. " +
+                                "Bailing with LeaseLost.", poolName);
+                            return MatcherTickResult.LeaseLost;
+                        }
+
+                        var poolResult = await ProcessPoolAsync(ladderCfg, poolName, now, ct).ConfigureAwait(false);
+                        if (poolResult == MatcherTickResult.LeaseLost)
+                        {
+                            return MatcherTickResult.LeaseLost;
+                        }
+                        if (poolResult == MatcherTickResult.Matched)
+                        {
+                            anyMatch = true;
+                        }
                     }
                 }
             }
@@ -285,16 +294,17 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
     /// waiters first regardless of which tick observes them.
     /// </remarks>
     private async Task<MatcherTickResult> ProcessPoolAsync(
-        MatchmakingLadderConfig ladderCfg, DateTimeOffset now, CancellationToken ct)
+        MatchmakingLadderConfig ladderCfg, string poolName, DateTimeOffset now, CancellationToken ct)
     {
-        // v1: ladder name == pool name. The matchmaker queue is partitioned by
-        // (ladderId, poolName). For the ticker to scan the queue it must resolve the ladder
-        // id from the ladder name; in v1 we pull the candidate id from each ticket hash
-        // ("ladderId" field) rather than maintain a separate name→id index. Each pool's
-        // QueuedParty.LadderId field carries the correct id back to the strategy.
+        // MATCH-18: poolName is now passed explicitly by the caller (GetPoolNamesForLadder
+        // yields "default" + every AllowedRegions entry). The glob format mm:queue:*:{poolName}
+        // is UNCHANGED — the caller drives pool iteration, ProcessPoolAsync scans one pool.
         //
-        // The pool name uses the ladder's name in v1 (single-pool-per-ladder convention).
-        var poolName = ladderCfg.Name;
+        // The matchmaker queue is partitioned by (ladderId, poolName). For the ticker to scan
+        // the queue it must resolve the ladder id from the ladder name; in v1 we pull the
+        // candidate id from each ticket hash ("ladderId" field) rather than maintain a separate
+        // name→id index. Each pool's QueuedParty.LadderId field carries the correct id back to
+        // the strategy.
 
         // To enumerate candidates we need the ladder Guid; the matchmaker writes the ladder
         // id into each ticket hash. v1 scans every queue key matching mm:queue:*:{poolName}
@@ -489,6 +499,19 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
         }
 
         return anyMatchedInPool ? MatcherTickResult.Matched : MatcherTickResult.NoMatch;
+    }
+
+    /// <summary>
+    /// Returns the set of pool names to scan for <paramref name="cfg"/> on each tick.
+    /// Always includes <c>"default"</c> (backwards-compatible null-region route) plus all
+    /// entries in <see cref="MatchmakingLadderConfig.AllowedRegions"/> (MATCH-18 SC#2).
+    /// </summary>
+    private static IEnumerable<string> GetPoolNamesForLadder(MatchmakingLadderConfig cfg)
+    {
+        yield return "default";
+        if (cfg.AllowedRegions is { Count: > 0 })
+            foreach (var r in cfg.AllowedRegions)
+                yield return r;
     }
 
     /// <summary>

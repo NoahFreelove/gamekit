@@ -96,6 +96,9 @@ public enum EnqueueOutcome
 
     /// <summary>An admin has marked the requested ladder for drain — existing tickets continue to match, but new enqueues are rejected.</summary>
     RejectedDueToQueueDraining = 7,
+
+    /// <summary>The supplied region name is not in the ladder's <c>AllowedRegions</c> list (MATCH-18).</summary>
+    InvalidRegion = 8,
 }
 
 /// <summary>Structured result of <see cref="IMatchmakingService.EnqueueAsync"/>.</summary>

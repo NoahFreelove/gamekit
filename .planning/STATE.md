@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
 status: verifying
-last_updated: "2026-06-06T00:53:15.449Z"
+last_updated: "2026-06-06T19:53:01.585Z"
 last_activity: 2026-06-06
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
-  percent: 33
+  completed_phases: 3
+  total_plans: 14
+  completed_plans: 14
+  percent: 50
 ---
 
 # STATE: GameKit
@@ -22,13 +22,13 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 08 — Rankings Depth + Rating-Aware Matchmaking
+**Current Focus:** Phase 9 — Regional Matchmaking Pools + Backfill
 
 ## Current Position
 
-Phase: 08 (Rankings Depth + Rating-Aware Matchmaking) — EXECUTING
+Phase: 9 (Regional Matchmaking Pools + Backfill) — COMPLETE & VERIFIED (status: passed, 10/10)
 Plan: 4 of 4
-Status: Phase complete — ready for verification
+Status: Phase 9 done + code-reviewed (2 critical security fixes) + verified. Next: Phase 10 (Account Merge)
 Last activity: 2026-06-06
 
 ## Performance Metrics
@@ -87,6 +87,10 @@ Last activity: 2026-06-06
 | Phase 08-rankings-depth-rating-aware-matchmaking P02 | 20 | 3 tasks | 5 files |
 | Phase 08 P03 | 8 | 3 tasks | 6 files |
 | Phase 08 P04 | 8min | 3 tasks | 7 files |
+| Phase 09 P01 | 7 | 3 tasks | 13 files |
+| Phase 09-regional-matchmaking-pools-backfill P02 | 45 | 3 tasks | 11 files |
+| Phase 09 P04 | 12 | 3 tasks | 4 files |
+| Phase 09-regional-matchmaking-pools-backfill P03 | 4 | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -299,9 +303,9 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-06-06 — Phase 08 Plan 04 (08-04) complete. MATCH-16 rating-aware EnqueueAsync (IPlayerRatingProvider seam, real ratings into Redis ticket hash) + MATCH-17 MaxBracketWidth hard cap + MinPoolDepthBeforeBracketExpansion depth guard. 16 tests pass (13 unit + 3 Testcontainers integration SC#3+SC#4). Phase 08 all 4 plans complete.
+**Last action:** 2026-06-06 — Session resumed. Confirmed Phase 08 is COMPLETE: all 4 plans executed, 08-VERIFICATION.md status=passed (5/5 truths), code review done (CR-01/WR-01/WR-02/IN-01 fixes applied), committed in 22742ab. Phases 7 + 8 both complete (2/6 v2.0 phases, 33%).
 
-**Next action:** Phase 08 VERIFICATION — run the full 08-VERIFICATION.md checklist; then advance to Phase 09 (Session Completeness + Lobby MVP)
+**Next action:** Phase 09 (Regional Matchmaking Pools + Backfill) — no CONTEXT.md exists yet. Either discuss-phase 9 to gather context, plan-phase 9 directly, or run gsd-autonomous for the remaining v2.0 phases (user's stated build posture).
 
 **Blockers:** None.
 

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Linq;
 using FluentValidation;
 using GameKit.Admin.UI.Authentication;
 using GameKit.Admin.UI.Authorization;
@@ -15,10 +16,13 @@ using GameKit.Core.Data;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.SignalR.StackExchangeRedis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MudBlazor.Services;
+using StackExchange.Redis;
 
 namespace GameKit.Admin.UI.Builder;
 
@@ -162,12 +166,55 @@ public static class AdminBuilderExtensions
         builder.Services.AddSingleton<ErrorRateRingBuffer>();
         builder.Services.AddSingleton<ILoggerProvider, LogErrorCounter>();
 
-        // 8. Rate limiter — registers the gamekit:admin:login sliding-window 5/min/IP policy.
+        // 8. ADMIN-14: opt-in Redis error counter for cross-replica aggregation. Uses
+        //    TryAddSingleton with a factory that returns null! when no IConnectionMultiplexer
+        //    is registered — HealthProbeService and LogErrorCounter both inject it as an
+        //    optional nullable param and fall back to the in-memory ErrorRateRingBuffer.
+        //    Single-instance installs (no Redis) are unaffected.
+        builder.Services.TryAddSingleton<IRedisErrorRateCounter>(sp =>
+        {
+            var mux = sp.GetService<IConnectionMultiplexer>();
+            if (mux is null) return null!;  // single-instance install — in-memory only
+            return new RedisErrorRateCounter(mux, sp.GetRequiredService<GameKitAdminOptions>());
+        });
+
+        // 9. ADMIN-13: SignalR Redis backplane + AdminEventHub + live-broadcast relay.
+        //    AddSignalR() is idempotent (called earlier by AddRazorComponents). AddStackExchangeRedis
+        //    chains off ISignalRServerBuilder to register the StackExchange.Redis backplane ONLY
+        //    when IConnectionMultiplexer has already been registered in the service collection
+        //    (CR-01 fix — single-instance installs that do not register IConnectionMultiplexer use
+        //    the in-process SignalR backplane; calling AddStackExchangeRedis without a connection
+        //    factory causes a default-localhost connection attempt on the first hub use).
+        //    ChannelPrefix "GameKit" matches AddLobby() — hub-type isolation (IHubContext<T>)
+        //    prevents cross-delivery between AdminEventHub and LobbyHub (RESEARCH A4).
+        //    TryAddEnumerable: if AddLobby() already registered LobbyRedisBackplanePostConfigure,
+        //    the Admin one stacks on top — both set ConnectionFactory to the same IConnectionMultiplexer
+        //    instance (idempotent, Pitfall 1 mitigation).
+        var hasMux = builder.Services.Any(
+            sd => sd.ServiceType == typeof(IConnectionMultiplexer));
+        var signalRBuilder = builder.Services.AddSignalR();
+        if (hasMux)
+        {
+            signalRBuilder.AddStackExchangeRedis(options =>
+            {
+                options.Configuration.ChannelPrefix = RedisChannel.Literal("GameKit");
+            });
+            builder.Services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<IPostConfigureOptions<RedisOptions>,
+                    AdminBackplanePostConfigure>());
+        }
+
+        // 10. ADMIN-13: background relay service — registered unconditionally; the service
+        //     injects IConnectionMultiplexer? as nullable and short-circuits ExecuteAsync when
+        //     null (Pitfall 4), so single-instance installs without Redis start cleanly.
+        builder.Services.AddHostedService<AdminLiveBroadcastService>();
+
+        // 11. Rate limiter — registers the gamekit:admin:login sliding-window 5/min/IP policy.
         //    Caller must have previously invoked services.AddRateLimiter(...) for this to take
         //    effect at request time.
         builder.Services.AddAdminRateLimits();
 
-        // 9. Antiforgery (D-16) — pinned header + cookie names.
+        // 12. Antiforgery (D-16) — pinned header + cookie names.
         builder.Services.AddAntiforgery(o =>
         {
             o.HeaderName = AdminAuthenticationSchemeConstants.CsrfHeaderName;
@@ -178,17 +225,17 @@ public static class AdminBuilderExtensions
             o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         });
 
-        // 10. Blazor Server primitives (plan 03-08's App.razor + MapRazorComponents depend on
+        // 13. Blazor Server primitives (plan 03-08's App.razor + MapRazorComponents depend on
         //     these; registering them here keeps AddGameKitAdmin a single entry point).
         builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
-        // 11. MudBlazor services.
+        // 14. MudBlazor services.
         builder.Services.AddMudServices();
 
-        // 12. IHttpContextAccessor — App.razor reads ctx.Items[AdminCspNonceMiddleware.NonceItemKey].
+        // 15. IHttpContextAccessor — App.razor reads ctx.Items[AdminCspNonceMiddleware.NonceItemKey].
         builder.Services.AddHttpContextAccessor();
 
-        // 12b. Intentionally NO HttpClient registration. Admin pages access domain logic via
+        // 15b. Intentionally NO HttpClient registration. Admin pages access domain logic via
         //      DI services (IPlayerBanService, IAdminUserService, IGdprDeleteService, …) — never
         //      via HTTP loopback to /admin/api/*. Loopback from inside a Blazor interactive
         //      circuit is broken twice over: (a) the user's auth cookie does not propagate to
@@ -199,7 +246,7 @@ public static class AdminBuilderExtensions
         //      The /admin/api/* JSON surface remains for SPA / programmatic clients only.
         //      See the architecture note at the top of AdminEndpoints.cs.
 
-        // 13. FluentValidation validators for admin DTOs (plan 03-07). ValidationEndpointFilter<T>
+        // 16. FluentValidation validators for admin DTOs (plan 03-07). ValidationEndpointFilter<T>
         //     resolves IValidator<T> lazily; unregistered types would be a silent no-op, so we
         //     register every DTO with a validator explicitly here.
         builder.Services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();

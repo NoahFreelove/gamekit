@@ -2,15 +2,21 @@
 @* Copyright (c) 2026 GameKit contributors *@
 @*
     UI-SPEC §12 Rank adjust panel (superadmin-only) — if GameKit.Rankings is registered,
-    renders the 3-step adjustment flow; otherwise, shows the MissingPackageAlert.
+    renders a player-search field and opens the existing RankAdjustDialog via IDialogService.
+    When Rankings is NOT installed renders MissingPackageAlert so Core-only installs still work.
 
-    Reflection-safe IRankingAlgorithm check (Type.GetType) so we don't take a compile-time
-    dep on GameKit.Rankings (Phase 4 deliverable).
+    ADMIN-15 close-out: replaces the dead "Rank adjust flow will render when GameKit.Rankings
+    ships" stub body with the functional player-search + dialog-launch flow.
+    Dialog: src/GameKit.Admin.UI/Components/Dialogs/RankAdjustDialog.razor (DO NOT modify).
+    Pattern: mirrors PlayerDetailPane.OpenBanDialog (IDialogService.ShowAsync<TDialog>).
 *@
 @page "/admin/rankings/adjust"
 @attribute [Authorize(Policy = AdminPolicies.Superadmin)]
 @implements IDisposable
+@using Microsoft.Extensions.DependencyInjection
 @inject IServiceProvider Sp
+@inject IDialogService DialogService
+@inject IPlayerSearchService SearchSvc
 
 @* Plan 03.1-08 — sketch's .page-head class replaces the legacy gk-page-heading. *@
 <div class="page-head">
@@ -23,20 +29,89 @@
 }
 else
 {
-    @* Placeholder until Phase 4 ships GameKit.Rankings. UI-SPEC §12 3-step flow lands then. *@
-    <div class="alert" role="status">
-        <div class="alert-body">Rank adjust flow will render when GameKit.Rankings ships.</div>
-    </div>
+    <MudTextField T="string"
+                  @bind-Value="_query"
+                  @bind-Value:after="OnQueryChanged"
+                  Placeholder="Search player by ID or name…"
+                  Adornment="Adornment.Start"
+                  AdornmentIcon="@Icons.Material.Filled.Search"
+                  Immediate="true"
+                  DebounceInterval="250"
+                  Clearable="true"
+                  Variant="Variant.Outlined"
+                  FullWidth="true" />
+
+    @foreach (var row in _rows)
+    {
+        <a class="master-row" @onclick="@(() => OpenRankAdjustAsync(row.Id, row.DisplayName))"
+           @onclick:preventDefault="true">
+            <span>@row.DisplayName</span>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary">Adjust Rating</MudButton>
+        </a>
+    }
 }
 
 @code {
     private bool _rankingsInstalled;
+    private string _query = string.Empty;
+    private readonly List<PlayerRow> _rows = new();
+    private CancellationTokenSource? _cts;
 
+    /// <inheritdoc />
     protected override void OnInitialized()
     {
-        var rankType = Type.GetType("GameKit.Rankings.IRankingAlgorithm, GameKit.Rankings", throwOnError: false);
-        _rankingsInstalled = rankType is not null && Sp.GetService(rankType) is not null;
+        // Direct DI check — avoids fragile Type.GetType string-based reflection (anti-pattern
+        // per RESEARCH §SC#3 / ADMIN-15). Rankings registers IRankAdjustService via AddRankings().
+        _rankingsInstalled = Sp.GetService<GameKit.Rankings.Services.IRankAdjustService>() is not null;
     }
 
-    public void Dispose() { }
+    private async Task OnQueryChanged()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        _rows.Clear();
+
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var page = await SearchSvc.SearchAsync(_query, afterId: null, pageSize: 50, _cts.Token);
+            _rows.AddRange(page.Items);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer query — silently swallow.
+        }
+        catch (Exception)
+        {
+            // Search failures are non-fatal — the list stays empty; user can retry by re-typing.
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task OpenRankAdjustAsync(Guid playerId, string displayName)
+    {
+        var parameters = new DialogParameters
+        {
+            ["PlayerId"] = playerId,
+            ["DisplayName"] = displayName,
+        };
+        await DialogService.ShowAsync<Dialogs.RankAdjustDialog>(
+            $"Adjust rating for {displayName}",
+            parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
 }

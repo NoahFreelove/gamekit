@@ -22,7 +22,7 @@
     <PackageReference Include="Testcontainers.Redis" />
   </ItemGroup>
   <ItemGroup>
-    <!-- All 7 GameKit src ProjectRefs — OPS-04 (GameKitVersion stamping)
+    <!-- All 12 GameKit src ProjectRefs — OPS-04 (GameKitVersion stamping)
          reflects on each Internal.GameKitMarker, OPS-06 (clean-install
          migration test) registers every package's AddXxx() to assert the
          migration history table layout. -->
@@ -33,6 +33,12 @@
     <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
     <ProjectReference Include="..\..\src\GameKit.OpenApi\GameKit.OpenApi.csproj" />
+    <!-- DIST-07 (Plan 12-01): five Phase-12 additions to the coordinated MinVer release train -->
+    <ProjectReference Include="..\..\src\GameKit.Auth.Argon2\GameKit.Auth.Argon2.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth.Google\GameKit.Auth.Google.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth.Apple\GameKit.Auth.Apple.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth.Epic\GameKit.Auth.Epic.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Lobby\GameKit.Lobby.csproj" />
     <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
     <!-- TicTacToeDuel sample ProjectRef — DIST-03 (Plan 06-09) invokes the
          template-generated output which clones the sample; this ref lets the

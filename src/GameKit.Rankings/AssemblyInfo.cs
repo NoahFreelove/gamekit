@@ -39,3 +39,8 @@ using System.Runtime.CompilerServices;
 // RankingsModelBuilderExtension directly so the runtime DbContext sees the ladders entity
 // needed for the two-TestServer Lobby integration harness (lobbies.LadderId FK targets ladders).
 [assembly: InternalsVisibleTo("GameKit.Lobby.Integration.Tests")]
+// Plan 12-02: RankAdjustServiceTests in GameKit.Admin.Integration.Tests applies
+// RankingsModelBuilderExtension + RankingsMigrationModelCustomizer to boot a hybrid
+// Core+Auth+Admin+Rankings test host and prove SC#3: IRankAdjustService.AdjustAsync
+// writes an admin_audit_log row with action "admin.player.rank_adjust".
+[assembly: InternalsVisibleTo("GameKit.Admin.Integration.Tests")]

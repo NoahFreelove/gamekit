@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
 status: verifying
-last_updated: "2026-06-07T00:26:57.641Z"
+last_updated: "2026-06-07T01:56:47.081Z"
 last_activity: 2026-06-07
 progress:
   total_phases: 6
-  completed_phases: 5
-  total_plans: 22
-  completed_plans: 22
-  percent: 83
+  completed_phases: 6
+  total_plans: 26
+  completed_plans: 26
+  percent: 100
 ---
 
 # STATE: GameKit
@@ -22,13 +22,13 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 11 — GameKit.Lobby (New Package)
+**Current Focus:** Phase 12 — Admin Multi-Replica + Distribution Close-Out
 
 ## Current Position
 
-Phase: 11 (GameKit.Lobby) — COMPLETE & VERIFIED (5/5 SCs); 5/6 v2.0 phases (83%)
+Phase: 12 (Admin Multi-Replica + Distribution Close-Out) — EXECUTING
 Plan: 4 of 4
-Status: Phase 11 done + 3 critical review fixes + verified. Next: Phase 12 (Admin Multi-Replica + Distribution Close-Out — FINAL)
+Status: Phase complete — ready for verification
 Last activity: 2026-06-07
 
 **Deferred manual UAT (Phase 10):** live account-merge via Admin UI + idempotent re-request through the antiforgery-cookie stack — both substantially covered by the 27 AccountMerge integration tests; eyeball before production use.
@@ -101,6 +101,9 @@ Last activity: 2026-06-07
 | Phase 11-gamekit-lobby P02 | 20min | - tasks | - files |
 | Phase 11 P11-03 | 9 | 3 tasks | 19 files |
 | Phase 11 P11-04 | 20min | 3 tasks | 10 files |
+| Phase 12 P01 | 3min | 2 tasks | 2 files |
+| Phase 12-admin-multi-replica-distribution-close-out P12-02 | 25 | 2 tasks | 4 files |
+| Phase 12-admin-multi-replica-distribution-close-out P12-03 | 6min | 3 tasks | 6 files |
 
 ## Accumulated Context
 

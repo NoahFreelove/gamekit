@@ -18,7 +18,7 @@
 - [x] **Phase 9: Regional Matchmaking Pools + Backfill** — First-class `RegionName` on enqueue (no migration), cross-region fallback, backfill ticket type with `ParticipationFraction` guard; stabilises the Matchmaking enqueue API before Lobby depends on it. (completed 2026-06-06)
 - [x] **Phase 10: Account Merge (Isolated High-Risk)** — SERIALIZABLE transaction over 8+ FK tables; `account_merges` idempotency table first; crash-resume state machine; superadmin-only; depends on frozen `player_ranks` from Phase 8. (completed 2026-06-06)
 - [x] **Phase 11: GameKit.Lobby (New Package)** — `lobbies` + `lobby_members` tables (chat is ephemeral — NOT persisted, per LOBBY-04); advisory-lock live-verify gate (Wave 0); SignalR + Redis backplane from day one; Lobby→Matchmaking party integration; establishes the SignalR pattern reused in Phase 12. (completed 2026-06-07)
-- [ ] **Phase 12: Admin Multi-Replica + Distribution Close-Out** — `RedisErrorRateCounter` replaces in-memory ring buffer; `AdminEventHub` + Redis backplane; fix Rank-adjust stub; five new packages join the MinVer release train (DIST-07).
+- [x] **Phase 12: Admin Multi-Replica + Distribution Close-Out** — `RedisErrorRateCounter` replaces in-memory ring buffer; `AdminEventHub` + Redis backplane; fix Rank-adjust stub; five new packages join the MinVer release train (DIST-07). (completed 2026-06-07)
 
 ---
 
@@ -119,7 +119,11 @@
   2. An `AdminEventHub` SignalR message published via Redis Pub/Sub channel `"gamekit:admin:events"` reaches all connected admin sessions regardless of which replica they are connected to; the `AdminLiveBroadcastService` `BackgroundService` is responsible for the relay.
   3. A developer navigating to `/admin/rankings/adjust` reaches a functional rank-adjustment UI that calls the existing `IRankAdjustService` and produces an `admin_audit_log` row — the dead stub page is replaced.
   4. All five new packages (`GameKit.Auth.Argon2`, `GameKit.Auth.Google`, `GameKit.Auth.Apple`, `GameKit.Auth.Epic`, `GameKit.Lobby`) are present in the MinVer release train: they share the same version as all other GameKit packages, carry exact-pinned `[X.Y.Z]` sibling refs, and are covered by the `GameKitVersionAssertionHostedService` mismatch check.
-**Plans**: TBD
+**Plans**: 4 plans (2 waves)
+- [x] 12-01-PLAN.md — DIST-07 version-train close-out: extend OPS04 version-coherence test to all 12 packages + 5 ProjectReferences (test-only, zero prod code) (DIST-07) [wave 1]
+- [x] 12-02-PLAN.md — ADMIN-15 rank-adjust page: replace dead stub with player-search + existing RankAdjustDialog launch + SC#3 audit-row integration test (ADMIN-15) [wave 1]
+- [x] 12-03-PLAN.md — ADMIN-14 RedisErrorRateCounter (additive INCRBY bucketed counter) + LogErrorCounter dual-write + async HealthProbe aggregate + two-host cross-replica test (ADMIN-14) [wave 1]
+- [x] 12-04-PLAN.md — ADMIN-13 AdminEventHub (cookie-scheme) + Redis backplane + AdminLiveBroadcastService relay + multi-replica ops guide + cookie-auth/cross-replica test (ADMIN-13) [wave 2]
 
 ---
 
@@ -132,7 +136,7 @@
 | 9. Regional Matchmaking Pools + Backfill | 4/4 | Complete   | 2026-06-06 |
 | 10. Account Merge | 4/4 | Complete   | 2026-06-06 |
 | 11. GameKit.Lobby | 4/4 | Complete   | 2026-06-07 |
-| 12. Admin Multi-Replica + Distribution Close-Out | 0/? | Not started | - |
+| 12. Admin Multi-Replica + Distribution Close-Out | 4/4 | Complete   | 2026-06-07 |
 
 ---
 

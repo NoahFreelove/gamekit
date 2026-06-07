@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
@@ -25,10 +26,13 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace GameKit.Admin.Integration.Tests;
 
@@ -58,6 +62,12 @@ public sealed class AdminTestHost : IAsyncDisposable
 
     /// <summary>The HTTP client bound to the in-memory test server.</summary>
     public HttpClient Client { get; private set; } = default!;
+
+    /// <summary>The in-process TestServer — exposes <c>CreateHandler()</c> for <see cref="HubConnectionBuilder"/>.</summary>
+    public TestServer Server => _host!.GetTestServer();
+
+    /// <summary>The MountPath configured for this host (default <c>/admin</c>).</summary>
+    public string MountPath { get; private set; } = "/admin";
 
     /// <summary>All log messages captured by the in-memory log provider (for warning-assertion tests).</summary>
     public ConcurrentQueue<string> LogMessages => _logMessages;
@@ -106,6 +116,114 @@ public sealed class AdminTestHost : IAsyncDisposable
         return host;
     }
 
+    /// <summary>
+    /// Single-instance (no-Redis) variant: builds and starts a host with NO
+    /// <see cref="IConnectionMultiplexer"/> registered, exercising the CR-01 regression path.
+    /// <see cref="AddGameKitAdmin"/> sees no <c>IConnectionMultiplexer</c> in the service
+    /// collection and skips <c>AddStackExchangeRedis</c>, leaving SignalR's default in-process
+    /// backplane intact.
+    /// </summary>
+    /// <param name="pg">Postgres fixture (still required — admin schema lives in Postgres).</param>
+    /// <param name="env">Hosting environment name.</param>
+    /// <param name="seed">Optional async seed callback executed AFTER migrations but BEFORE host start.</param>
+    /// <param name="configureAdmin">Optional <see cref="GameKitAdminOptions"/> override.</param>
+    public static async Task<AdminTestHost> StartNoRedisAsync(
+        PostgresFixture pg,
+        string env = "Development",
+        Func<AdminTestHost, Task>? seed = null,
+        Action<GameKitAdminOptions>? configureAdmin = null)
+    {
+        var host = new AdminTestHost();
+        await host.InitializeNoRedisAsync(pg, env, seed, configureAdmin).ConfigureAwait(false);
+        return host;
+    }
+
+    private async Task InitializeNoRedisAsync(
+        PostgresFixture pg,
+        string env,
+        Func<AdminTestHost, Task>? seed,
+        Action<GameKitAdminOptions>? configureAdmin = null)
+    {
+        ArgumentNullException.ThrowIfNull(pg);
+        _connectionString = pg.OwnerConnectionString;
+
+        await MigrateAsync(_connectionString).ConfigureAwait(false);
+
+        if (seed is not null)
+            await seed(this).ConfigureAwait(false);
+
+        _host = await Host.CreateDefaultBuilder()
+            .UseEnvironment(env)
+            .ConfigureAppConfiguration((_, cfg) =>
+            {
+                foreach (var src in cfg.Sources.OfType<JsonConfigurationSource>().ToList())
+                    cfg.Sources.Remove(src);
+            })
+            .ConfigureWebHostDefaults(web =>
+            {
+                web.UseTestServer();
+                web.ConfigureServices(services =>
+                {
+                    // No IConnectionMultiplexer registration — single-instance no-Redis path.
+                    // AddGameKitAdmin must detect the absence and skip AddStackExchangeRedis (CR-01).
+                    var b = services.AddGameKit(o =>
+                    {
+                        o.ConnectionString = _connectionString!;
+                        // RedisConnectionString intentionally omitted.
+                        o.AutoMigrate = false;
+                    });
+                    b.AddAuth(o =>
+                    {
+                        o.Jwt.Issuer = "gk-test";
+                        o.Jwt.Audience = "gk-test";
+                        o.Jwt.PrivateKeyPemPath = _privPath;
+                        o.Jwt.PublicKeyPemPath = _pubPath;
+                        o.Jwt.Kid = "test-kid-1";
+                    });
+                    b.AddGameKitAdmin(o =>
+                    {
+                        configureAdmin?.Invoke(o);
+                        MountPath = o.MountPath;
+                    });
+
+                    services.AddDbContext<GameKitDbContext>((_, dbOpts) =>
+                        dbOpts.UseNpgsql(_connectionString!, npg =>
+                        {
+                            npg.MigrationsAssembly(typeof(GameKitDbContext).Assembly.FullName);
+                            npg.MigrationsHistoryTable(
+                                GameKit.Core.Data.GameKitMigrationConstants.MigrationsHistoryTable,
+                                GameKit.Core.Data.GameKitMigrationConstants.SchemaName);
+                        }).ReplaceService<IModelCustomizer, AdminRuntimeQueryCustomizer>());
+
+                    services.AddLogging(log =>
+                    {
+                        log.ClearProviders();
+                        log.SetMinimumLevel(LogLevel.Debug);
+                        log.AddProvider(new TestLoggerProvider(_logMessages));
+                    });
+                });
+                web.Configure(app =>
+                {
+                    app.UseWebSockets();
+                    app.UseRouting();
+                    app.UseRateLimiter();
+                    app.UseGameKitAuth();
+                    app.UseGameKit();
+                    app.UseGameKitAdmin();
+                    app.UseEndpoints(e =>
+                    {
+                        e.MapAuth();
+                        e.MapGameKit();
+                        e.MapGameKitAdmin();
+                    });
+                });
+            })
+            .StartAsync()
+            .ConfigureAwait(false);
+
+        Client = _host.GetTestServer().CreateClient();
+    }
+
     private async Task InitializeAsync(
         PostgresFixture pg,
         RedisFixture redis,
@@ -128,6 +246,18 @@ public sealed class AdminTestHost : IAsyncDisposable
 
         _host = await Host.CreateDefaultBuilder()
             .UseEnvironment(env)
+            .ConfigureAppConfiguration((_, cfg) =>
+            {
+                // Remove all JsonConfigurationSource entries that Host.CreateDefaultBuilder adds
+                // (appsettings.json, appsettings.{Env}.json — both with reloadOnChange:true).
+                // Each source creates a FileSystemWatcher, which consumes an inotify instance.
+                // The Linux default max_user_instances is 128; the full 60-test Admin suite spins
+                // up enough hosts to exhaust that limit, causing later StartAsync calls to throw
+                // IOException instead of the expected InvalidOperationException or success.
+                // Tests configure everything programmatically so appsettings.json is not needed.
+                foreach (var src in cfg.Sources.OfType<JsonConfigurationSource>().ToList())
+                    cfg.Sources.Remove(src);
+            })
             .ConfigureWebHostDefaults(web =>
             {
                 web.UseTestServer();
@@ -147,7 +277,11 @@ public sealed class AdminTestHost : IAsyncDisposable
                         o.Jwt.PublicKeyPemPath = _pubPath;
                         o.Jwt.Kid = "test-kid-1";
                     });
-                    b.AddGameKitAdmin(configureAdmin);
+                    b.AddGameKitAdmin(o =>
+                    {
+                        configureAdmin?.Invoke(o);
+                        MountPath = o.MountPath;
+                    });
 
                     // Test-host DbContext override: the runtime FOLLOW-UP-02-03-01 path relies on
                     // CoreOptionsExtension.ApplicationServiceProvider to resolve IModelBuilderExtension
@@ -190,6 +324,9 @@ public sealed class AdminTestHost : IAsyncDisposable
                 {
                     // Admin-UI friendly pipeline: Routing → RateLimiter → UseGameKitAuth → UseGameKit →
                     // UseGameKitAdmin → Map* (per plan 03-06 SP-6).
+                    // UseWebSockets MUST come before UseRouting for TestServer WebSocket transport to
+                    // function correctly (RESEARCH Pitfall 7 / SC#2 AdminEventHub hub tests).
+                    app.UseWebSockets();
                     app.UseRouting();
                     app.UseRateLimiter();
                     app.UseGameKitAuth();

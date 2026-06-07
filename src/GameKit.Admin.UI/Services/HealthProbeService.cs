@@ -25,17 +25,24 @@ public sealed class HealthProbeService : IHealthProbeService
     private readonly IConnectionMultiplexer? _redis;
     private readonly ErrorRateRingBuffer _errors;
     private readonly IClock _clock;
+    private readonly IRedisErrorRateCounter? _redisErrors;
 
     /// <summary>Constructs the service.</summary>
     /// <param name="gameKitOpts">Core options (supplies the Postgres connection string).</param>
-    /// <param name="redis">Redis multiplexer if registered; null when no Redis connection is configured.</param>
     /// <param name="errors">Shared error-rate ring buffer.</param>
     /// <param name="clock">Clock abstraction.</param>
+    /// <param name="redis">Redis multiplexer if registered; null when no Redis connection is configured.</param>
+    /// <param name="redisErrors">
+    /// Optional Redis error counter (ADMIN-14). When present, <see cref="ProbeAsync"/> reads the
+    /// cross-replica aggregate; when absent or when Redis returns <c>-1</c>, falls back to
+    /// <paramref name="errors"/> for single-instance behavior.
+    /// </param>
     public HealthProbeService(
         GameKitOptions gameKitOpts,
         ErrorRateRingBuffer errors,
         IClock clock,
-        IConnectionMultiplexer? redis = null)
+        IConnectionMultiplexer? redis = null,
+        IRedisErrorRateCounter? redisErrors = null)
     {
         ArgumentNullException.ThrowIfNull(gameKitOpts);
         ArgumentNullException.ThrowIfNull(errors);
@@ -44,6 +51,7 @@ public sealed class HealthProbeService : IHealthProbeService
         _redis = redis;
         _errors = errors;
         _clock = clock;
+        _redisErrors = redisErrors;
     }
 
     /// <inheritdoc />
@@ -51,7 +59,7 @@ public sealed class HealthProbeService : IHealthProbeService
     {
         var pg = await ProbePostgresAsync(cancellationToken).ConfigureAwait(false);
         var redis = await ProbeRedisAsync(cancellationToken).ConfigureAwait(false);
-        var err = ProbeErrorRate();
+        var err = await ProbeErrorRateAsync(cancellationToken).ConfigureAwait(false);
         return new HealthReport(pg, redis, err, _clock.UtcNow);
     }
 
@@ -98,12 +106,22 @@ public sealed class HealthProbeService : IHealthProbeService
         }
     }
 
-    private HealthTile ProbeErrorRate()
+    private async Task<HealthTile> ProbeErrorRateAsync(CancellationToken ct)
     {
-        var count = _errors.RecentErrorCount();
+        long count;
+        if (_redisErrors is not null)
+        {
+            count = await _redisErrors.RecentErrorCountAsync(ct).ConfigureAwait(false);
+            if (count < 0)  // Redis unavailable — fall back to in-memory ring buffer
+                count = _errors.RecentErrorCount();
+        }
+        else
+        {
+            count = _errors.RecentErrorCount();
+        }
+
         var status = count switch
         {
-            0 => "OK",
             < 10 => "OK",
             < 100 => "Degraded",
             _ => "Down",

@@ -57,6 +57,7 @@ If this is your first GameKit deployment, read in this order:
 | [`jwt-keys.md`](jwt-keys.md)                         | RSA 2048 key generation, file-mode hardening, `kid` rotation, emergency rotation.              |
 | [`disaster-recovery.md`](disaster-recovery.md)       | `pg_dump`/`pg_restore` cadence, Redis AOF backup, restore drills, ticker-pause window.         |
 | [`migrations-runbook.md`](migrations-runbook.md)     | Per-package `__ef_migrations_*` history + advisory locks; debugging stuck migrations.          |
+| [`multi-replica.md`](multi-replica.md)               | Shared Data Protection key ring + Redis SignalR backplane + sticky sessions for multi-replica. |
 
 ---
 

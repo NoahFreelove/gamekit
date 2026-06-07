@@ -3,9 +3,11 @@
 
 using System;
 using GameKit.Admin.UI.Http;
+using GameKit.Admin.UI.Hubs;
 using GameKit.Admin.UI.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GameKit.Admin.UI.Builder;
@@ -61,6 +63,14 @@ public static class AdminApplicationBuilderExtensions
         // (currently POST /admin/login from the static Login.razor form). Distinct from the
         // /admin/api/* JSON group above — see AdminFormEndpoints for rationale.
         routes.MapAdminFormEndpoints(mount);
+
+        // ADMIN-13: AdminEventHub at {mount}/hubs/events.
+        // MUST be under MountPath so the path-based default scheme selector in AddGameKitAdmin
+        // routes /admin/hubs/events negotiate + WebSocket upgrade to the GameKitAdmin cookie
+        // scheme (Pitfall 2 mitigation — without this the hub 401s with WWW-Authenticate: Bearer).
+        // An unauthenticated upgrade returns 401 before the WebSocket handshake completes
+        // (T-12-04-SPOOF2 mitigated).
+        routes.MapHub<AdminEventHub>($"{mount}/hubs/events");
 
         // Mount the Blazor Server admin console (plan 03-08). Page @page routes inside
         // GameKit.Admin.UI/Components/**/*.razor are rooted under /admin/* (see UI-SPEC

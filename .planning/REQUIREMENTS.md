@@ -55,13 +55,13 @@
 
 ### Admin — Multi-Replica
 
-- [ ] **ADMIN-13**: Multi-replica Admin UI — SignalR + **Redis** backplane (never Azure SignalR); sticky-session requirement documented for operators
-- [ ] **ADMIN-14**: Replace the in-memory `ErrorRateRingBuffer` with a Redis-backed error-rate counter (`INCRBY` on time-bucketed keys) so the health panel is correct across replicas
-- [ ] **ADMIN-15**: Replace the dead "Rank adjust" stub nav page (`/admin/rankings/adjust`) with the working flow (wires the existing `IRankAdjustService`); Admin hub uses a distinct hub + `[Authorize]` policy from the Lobby hub
+- [x] **ADMIN-13**: Multi-replica Admin UI — SignalR + **Redis** backplane (never Azure SignalR); sticky-session requirement documented for operators
+- [x] **ADMIN-14**: Replace the in-memory `ErrorRateRingBuffer` with a Redis-backed error-rate counter (`INCRBY` on time-bucketed keys) so the health panel is correct across replicas
+- [x] **ADMIN-15**: Replace the dead "Rank adjust" stub nav page (`/admin/rankings/adjust`) with the working flow (wires the existing `IRankAdjustService`); Admin hub uses a distinct hub + `[Authorize]` policy from the Lobby hub
 
 ### Distribution & Ops
 
-- [ ] **DIST-07**: New v2 packages (`GameKit.Auth.Argon2`, `.Google`, `.Apple`, `.Epic`, `GameKit.Lobby`) join the coordinated MinVer release train — same version, exact-pinned `[X.Y.Z]` sibling refs; the runtime version-assertion hosted service covers them
+- [x] **DIST-07**: New v2 packages (`GameKit.Auth.Argon2`, `.Google`, `.Apple`, `.Epic`, `GameKit.Lobby`) join the coordinated MinVer release train — same version, exact-pinned `[X.Y.Z]` sibling refs; the runtime version-assertion hosted service covers them
 - [x] **OPS-11**: Advisory-lock live-verify gate — every new package's migration advisory-lock key is verified pairwise-distinct from the existing five (Core 1800940027, Auth -298890956, Admin -2101739634, Rankings -156812172, Matchmaking 388956820) via Testcontainers before integration tests run (Wave 0 RED→GREEN)
 
 ## Future Requirements (deferred beyond v2.0)
@@ -104,10 +104,10 @@ Carried from v1.0 (unchanged) — see `.planning/PROJECT.md` § Out of Scope. Hi
 | LOBBY-05 | Phase 11 | Complete |
 | LOBBY-06 | Phase 11 | Complete |
 | OPS-11 | Phase 11 | Complete |
-| ADMIN-13 | Phase 12 | Pending |
-| ADMIN-14 | Phase 12 | Pending |
-| ADMIN-15 | Phase 12 | Pending |
-| DIST-07 | Phase 12 | Pending |
+| ADMIN-13 | Phase 12 | Complete |
+| ADMIN-14 | Phase 12 | Complete |
+| ADMIN-15 | Phase 12 | Complete |
+| DIST-07 | Phase 12 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 29 total

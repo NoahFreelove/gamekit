@@ -25,7 +25,9 @@ namespace GameKit.Lobby;
 /// </para>
 /// <para>
 /// <c>IConnectionMultiplexer</c> is a consumer-provided Singleton; <c>AddLobby()</c> MUST
-/// NOT register its own (RESEARCH §Anti-Patterns).
+/// NOT register its own (RESEARCH §Anti-Patterns). If no <c>IConnectionMultiplexer</c> has
+/// been registered, <see cref="PostConfigure"/> throws a clear <see cref="InvalidOperationException"/>
+/// at startup with an actionable message naming the missing service and how to fix it.
 /// </para>
 /// </remarks>
 internal sealed class LobbyRedisBackplanePostConfigure : IPostConfigureOptions<RedisOptions>
@@ -42,7 +44,14 @@ internal sealed class LobbyRedisBackplanePostConfigure : IPostConfigureOptions<R
     /// <inheritdoc />
     public void PostConfigure(string? name, RedisOptions options)
     {
-        var mux = _sp.GetRequiredService<IConnectionMultiplexer>();
+        var mux = _sp.GetService<IConnectionMultiplexer>()
+            ?? throw new InvalidOperationException(
+                "GameKit.Lobby requires a registered IConnectionMultiplexer because AddLobby() " +
+                "mandates a SignalR Redis backplane (LOBBY-06; Azure SignalR is not supported). " +
+                "Register a multiplexer BEFORE calling AddLobby(), for example: " +
+                "services.AddSingleton<IConnectionMultiplexer>(" +
+                "ConnectionMultiplexer.Connect(\"<your-redis-connection-string>\"))");
+
         options.ConnectionFactory = _ => Task.FromResult(mux);
     }
 }

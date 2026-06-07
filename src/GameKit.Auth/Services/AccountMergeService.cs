@@ -43,10 +43,10 @@ namespace GameKit.Auth.Services;
 /// </para>
 /// <para>
 /// Cross-package table mutations (player_ranks, pending_rating_updates, season_rank_archive,
-/// party_members, parties, decline_history) are issued as parameterized SQL via
+/// party_members, parties, decline_history, lobby_members) are issued as parameterized SQL via
 /// <c>Database.ExecuteSqlAsync</c> — GameKit.Auth does not hold a ProjectReference to
-/// GameKit.Rankings or GameKit.Matchmaking (Matchmaking references Auth, not the reverse; adding
-/// the reverse reference would create a circular dependency). The shared <see cref="GameKitDbContext"/>
+/// GameKit.Rankings, GameKit.Matchmaking, or GameKit.Lobby (adding the reverse reference would
+/// create a circular dependency). The shared <see cref="GameKitDbContext"/>
 /// model includes these entities at runtime (via IModelBuilderExtension) so the SQL executes
 /// correctly inside the same SERIALIZABLE transaction.
 /// </para>
@@ -255,9 +255,10 @@ internal sealed class AccountMergeService : IAccountMergeService
     // then idempotency row, then FK surgery, audit, tombstone, status advance.
     //
     // Cross-package table mutations (player_ranks, pending_rating_updates, season_rank_archive,
-    // party_members, parties, decline_history) use parameterized SQL via Database.ExecuteSqlAsync
-    // because GameKit.Auth cannot hold a ProjectReference to GameKit.Rankings or GameKit.Matchmaking
-    // (Matchmaking already references Auth — adding the reverse reference would create a cycle).
+    // party_members, parties, decline_history, lobby_members) use parameterized SQL via
+    // Database.ExecuteSqlAsync because GameKit.Auth cannot hold a ProjectReference to
+    // GameKit.Rankings, GameKit.Matchmaking, or GameKit.Lobby (adding the reverse reference would
+    // create a cycle).
     // ────────────────────────────────────────────────────────────────────────────────────────────
 
     private async Task<Guid> MergeTransactionBodyAsync(
@@ -642,6 +643,46 @@ internal sealed class AccountMergeService : IAccountMergeService
         await _ctx.Database.ExecuteSqlAsync(
             $"""
             UPDATE gamekit.decline_history
+            SET "PlayerId" = {targetPlayerId}
+            WHERE "PlayerId" = {sourcePlayerId}
+            """,
+            ct)
+            .ConfigureAwait(false);
+
+        // ── STEP 11b: LOBBY_MEMBERS ───────────────────────────────────────────────────────────
+        // Uses raw SQL — GameKit.Auth does not reference GameKit.Lobby (adding the reverse
+        // reference would create a circular dependency; Lobby references Core, not Auth).
+        //
+        // lobby_members has UNIQUE(LobbyId, PlayerId). If both source and target are already
+        // members of the same lobby, a blind re-point of "PlayerId" would violate that constraint.
+        // Resolution: dedup-then-repoint — identical to the player_credentials precedent (Step 6).
+        //
+        // Lobby membership is ephemeral state (the lobby hub routes events; there is no long-lived
+        // audit or rating implication). The correct resolution is therefore:
+        //   1. DELETE the source's duplicate row when the target is already in that lobby.
+        //   2. UPDATE the source's remaining (source-only) rows to point at the target.
+        //
+        // This differs from party_members (Step 11) which aborts on same-party conflict (Step 3)
+        // because parties carry matchmaking implications. Lobby membership is ephemeral and has no
+        // audit purpose, so dedup-then-repoint is appropriate.
+        //
+        // Pass 1: DELETE source lobby_members rows for any lobby where the target is already a member.
+        await _ctx.Database.ExecuteSqlAsync(
+            $"""
+            DELETE FROM gamekit.lobby_members
+            WHERE "PlayerId" = {sourcePlayerId}
+              AND "LobbyId" IN (
+                SELECT "LobbyId" FROM gamekit.lobby_members
+                WHERE "PlayerId" = {targetPlayerId}
+              )
+            """,
+            ct)
+            .ConfigureAwait(false);
+
+        // Pass 2: UPDATE remaining source lobby_members rows (source-only lobbies) to the target.
+        await _ctx.Database.ExecuteSqlAsync(
+            $"""
+            UPDATE gamekit.lobby_members
             SET "PlayerId" = {targetPlayerId}
             WHERE "PlayerId" = {sourcePlayerId}
             """,

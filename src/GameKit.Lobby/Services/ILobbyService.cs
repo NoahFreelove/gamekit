@@ -40,7 +40,11 @@ public interface ILobbyService
 
     /// <summary>
     /// Adds <paramref name="playerId"/> to the lobby. Enforces the <c>MaxMembers</c> cap and
-    /// rejects duplicate membership (server-side, NEVER trusting a client claim).
+    /// rejects duplicate membership (server-side, NEVER trusting a client claim). When the join
+    /// fills the lobby to <c>MaxMembers</c> and the lobby is <see cref="LobbyState.Open"/>, the
+    /// lobby transitions to <see cref="LobbyState.ReadyChecking"/> and a state update is broadcast
+    /// to the lobby group — this is the Open→ReadyChecking trigger that makes the LOBBY-03
+    /// ready-check flow reachable through the public REST API without a separate admin call.
     /// </summary>
     /// <param name="lobbyId">Lobby identifier.</param>
     /// <param name="playerId">Canonical player id of the joining player.</param>

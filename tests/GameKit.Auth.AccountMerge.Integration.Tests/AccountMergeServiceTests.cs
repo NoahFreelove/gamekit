@@ -1161,6 +1161,198 @@ public sealed class AccountMergeServiceTests
             """);
     }
 
+    // ─── W-2: LOBBY_MEMBERS RE-POINT ───────────────────────────────────────────────────────────
+    // lobby_members does not exist in this test project's schema — the AccountMerge test project
+    // does not reference GameKit.Lobby and TestHelpers.ApplyMigrations does not apply the Lobby
+    // migration. The tables are created via raw DDL (IF NOT EXISTS) in EnsureLobbyTablesAsync.
+
+    /// <summary>
+    /// Creates <c>gamekit.lobbies</c> and <c>gamekit.lobby_members</c> tables via raw DDL if they
+    /// do not already exist. Mirrors the production schema from the Lobby migration. Safe to call
+    /// multiple times across tests sharing the same Testcontainers PostgresFixture database.
+    /// </summary>
+    private static async Task EnsureLobbyTablesAsync(GameKitDbContext ctx)
+    {
+        await ctx.Database.ExecuteSqlAsync(
+            $"""
+            CREATE TABLE IF NOT EXISTS gamekit.lobbies (
+                "Id"         uuid         PRIMARY KEY,
+                "OwnerId"    uuid         NOT NULL,
+                "LadderId"   uuid         NULL,
+                "State"      int          NOT NULL DEFAULT 0,
+                "MaxMembers" int          NOT NULL DEFAULT 8,
+                "CreatedAt"  timestamptz  NOT NULL,
+                "UpdatedAt"  timestamptz  NOT NULL
+            )
+            """);
+
+        await ctx.Database.ExecuteSqlAsync(
+            $"""
+            CREATE TABLE IF NOT EXISTS gamekit.lobby_members (
+                "Id"       uuid         PRIMARY KEY,
+                "LobbyId"  uuid         NOT NULL REFERENCES gamekit.lobbies("Id") ON DELETE CASCADE,
+                "PlayerId" uuid         NOT NULL REFERENCES gamekit.players("Id") ON DELETE CASCADE,
+                "Ready"    boolean      NOT NULL DEFAULT false,
+                "JoinedAt" timestamptz  NOT NULL
+            )
+            """);
+
+        await ctx.Database.ExecuteSqlAsync(
+            $"""
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_lobby_members_LobbyId_PlayerId"
+                ON gamekit.lobby_members ("LobbyId", "PlayerId")
+            """);
+    }
+
+    /// <summary>
+    /// Seeds a lobby (if needed) and a <c>lobby_members</c> row linking <paramref name="playerId"/>
+    /// to <paramref name="lobbyId"/>. Creates the lobby row owned by <paramref name="ownerId"/>
+    /// using INSERT ... ON CONFLICT DO NOTHING so the same lobby id can be seeded for multiple
+    /// members without a duplicate-key error.
+    /// </summary>
+    private static async Task SeedLobbyMemberAsync(
+        GameKitDbContext ctx,
+        Guid lobbyId,
+        Guid playerId,
+        Guid ownerId)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        // Upsert the lobby row (idempotent across multiple callers for the same lobbyId).
+        await ctx.Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO gamekit.lobbies ("Id", "OwnerId", "LadderId", "State", "MaxMembers", "CreatedAt", "UpdatedAt")
+            VALUES ({lobbyId}, {ownerId}, NULL, 1, 8, {now}, {now})
+            ON CONFLICT ("Id") DO NOTHING
+            """);
+
+        // Insert the member row.
+        await ctx.Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO gamekit.lobby_members ("Id", "LobbyId", "PlayerId", "Ready", "JoinedAt")
+            VALUES ({Guid.CreateVersion7()}, {lobbyId}, {playerId}, false, {now})
+            """);
+    }
+
+    [Fact(DisplayName = "W-2: simple lobby_members re-point — source in lobby A only → target inherits membership")]
+    public async Task W2_LobbyMembersRepoint_SourceOnly_TargetInherits()
+    {
+        await TestHelpers.ApplyMigrations(_pg.OwnerConnectionString);
+        await using var sp = BuildProvider(_pg.OwnerConnectionString, _redis.ConnectionString);
+
+        Guid sourceId, targetId, actorId;
+        var lobbyId = Guid.CreateVersion7();
+
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<GameKitDbContext>();
+            (sourceId, targetId, actorId) = await SeedTwoPlayersAsync(ctx, "w2-src-only-source", "w2-src-only-target");
+            await EnsureLobbyTablesAsync(ctx);
+            // Only source is in lobby A.
+            await SeedLobbyMemberAsync(ctx, lobbyId, sourceId, sourceId);
+        }
+
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<IAccountMergeService>();
+            var result = await svc.MergeAsync(sourceId, targetId, actorId);
+            Assert.Equal(MergeResultKind.Merged, result.Kind);
+        }
+
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<GameKitDbContext>();
+
+            // Target must now be the sole member of lobby A.
+            var targetCount = await ctx.Database
+                .SqlQuery<int>(
+                    $"""
+                    SELECT COUNT(*)::int AS "Value"
+                    FROM gamekit.lobby_members
+                    WHERE "LobbyId" = {lobbyId} AND "PlayerId" = {targetId}
+                    """)
+                .FirstOrDefaultAsync();
+            Assert.Equal(1, targetCount);
+
+            // Source must have no lobby_members rows.
+            var sourceCount = await ctx.Database
+                .SqlQuery<int>(
+                    $"""
+                    SELECT COUNT(*)::int AS "Value"
+                    FROM gamekit.lobby_members
+                    WHERE "PlayerId" = {sourceId}
+                    """)
+                .FirstOrDefaultAsync();
+            Assert.Equal(0, sourceCount);
+        }
+    }
+
+    [Fact(DisplayName = "W-2: same-lobby dedup — source + target both in lobby B → source row deleted, target's single row remains, no UNIQUE violation")]
+    public async Task W2_LobbyMembersDedup_SameLobby_NoUniqueViolation()
+    {
+        await TestHelpers.ApplyMigrations(_pg.OwnerConnectionString);
+        await using var sp = BuildProvider(_pg.OwnerConnectionString, _redis.ConnectionString);
+
+        Guid sourceId, targetId, actorId;
+        var lobbyId = Guid.CreateVersion7();
+
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<GameKitDbContext>();
+            (sourceId, targetId, actorId) = await SeedTwoPlayersAsync(ctx, "w2-dedup-source", "w2-dedup-target");
+            await EnsureLobbyTablesAsync(ctx);
+            // Both source AND target are in lobby B — this is the UNIQUE-violation scenario.
+            await SeedLobbyMemberAsync(ctx, lobbyId, sourceId, sourceId);
+            await SeedLobbyMemberAsync(ctx, lobbyId, targetId, sourceId);
+        }
+
+        // Merge must succeed with no 23505 UNIQUE violation.
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<IAccountMergeService>();
+            var result = await svc.MergeAsync(sourceId, targetId, actorId);
+            Assert.Equal(MergeResultKind.Merged, result.Kind);
+        }
+
+        await using (var scope = sp.CreateAsyncScope())
+        {
+            var ctx = scope.ServiceProvider.GetRequiredService<GameKitDbContext>();
+
+            // Target must have exactly ONE lobby_members row for lobby B.
+            var targetCount = await ctx.Database
+                .SqlQuery<int>(
+                    $"""
+                    SELECT COUNT(*)::int AS "Value"
+                    FROM gamekit.lobby_members
+                    WHERE "LobbyId" = {lobbyId} AND "PlayerId" = {targetId}
+                    """)
+                .FirstOrDefaultAsync();
+            Assert.Equal(1, targetCount);
+
+            // Source must have zero lobby_members rows.
+            var sourceCount = await ctx.Database
+                .SqlQuery<int>(
+                    $"""
+                    SELECT COUNT(*)::int AS "Value"
+                    FROM gamekit.lobby_members
+                    WHERE "PlayerId" = {sourceId}
+                    """)
+                .FirstOrDefaultAsync();
+            Assert.Equal(0, sourceCount);
+
+            // Total lobby_members for lobby B: exactly one row.
+            var lobbyTotal = await ctx.Database
+                .SqlQuery<int>(
+                    $"""
+                    SELECT COUNT(*)::int AS "Value"
+                    FROM gamekit.lobby_members
+                    WHERE "LobbyId" = {lobbyId}
+                    """)
+                .FirstOrDefaultAsync();
+            Assert.Equal(1, lobbyTotal);
+        }
+    }
+
     /// <summary>
     /// Builds a DI service provider configured with Core + Auth (with SkipAuthenticationSchemeRegistration=true)
     /// and the full-scope runtime query customizer for the merge service.

@@ -385,6 +385,47 @@ public sealed class AccountMergeEndpointTests
             await using (var matchmakingCtx = new GameKitDbContext(matchmakingOpts))
                 await MigrationRunner.MigrateWithLockAsync(matchmakingCtx, MatchmakingMigrationConstants.AdvisoryLockKey)
                     .ConfigureAwait(false);
+
+            // Lobby tables (raw DDL) — required by AccountMergeService Step 11b (W-2).
+            // This test project does not reference GameKit.Lobby; create tables via raw DDL.
+            await using var lobbyConn = new Npgsql.NpgsqlConnection(connectionString);
+            await lobbyConn.OpenAsync().ConfigureAwait(false);
+            await using (var cmd = lobbyConn.CreateCommand())
+            {
+                cmd.CommandText = """
+                    CREATE TABLE IF NOT EXISTS gamekit.lobbies (
+                        "Id"         uuid        PRIMARY KEY,
+                        "OwnerId"    uuid        NOT NULL,
+                        "LadderId"   uuid        NULL,
+                        "State"      int         NOT NULL DEFAULT 0,
+                        "MaxMembers" int         NOT NULL DEFAULT 8,
+                        "CreatedAt"  timestamptz NOT NULL,
+                        "UpdatedAt"  timestamptz NOT NULL
+                    )
+                    """;
+                await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+            }
+            await using (var cmd = lobbyConn.CreateCommand())
+            {
+                cmd.CommandText = """
+                    CREATE TABLE IF NOT EXISTS gamekit.lobby_members (
+                        "Id"       uuid        PRIMARY KEY,
+                        "LobbyId"  uuid        NOT NULL REFERENCES gamekit.lobbies("Id") ON DELETE CASCADE,
+                        "PlayerId" uuid        NOT NULL REFERENCES gamekit.players("Id") ON DELETE CASCADE,
+                        "Ready"    boolean     NOT NULL DEFAULT false,
+                        "JoinedAt" timestamptz NOT NULL
+                    )
+                    """;
+                await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+            }
+            await using (var cmd = lobbyConn.CreateCommand())
+            {
+                cmd.CommandText = """
+                    CREATE UNIQUE INDEX IF NOT EXISTS "IX_lobby_members_LobbyId_PlayerId"
+                        ON gamekit.lobby_members ("LobbyId", "PlayerId")
+                    """;
+                await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+            }
         }
 
         private static async Task SeedAdminsAsync(string connectionString)

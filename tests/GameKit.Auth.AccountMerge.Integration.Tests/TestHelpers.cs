@@ -13,13 +13,15 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 
 namespace GameKit.Auth.AccountMerge.Integration.Tests;
 
 /// <summary>
 /// Shared Plan 10-02 test scaffolding: applies Core + Auth + Rankings + Matchmaking migrations
-/// in the correct dependency order so the full account-merge service code path (FK surgery +
-/// Redis cleanup) can execute against a real Postgres + Redis instance.
+/// and creates Lobby tables (via raw DDL) in the correct dependency order so the full
+/// account-merge service code path (FK surgery + Redis cleanup) can execute against a real
+/// Postgres + Redis instance.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,6 +31,7 @@ namespace GameKit.Auth.AccountMerge.Integration.Tests;
 ///   <item>Auth — creates <c>player_identities</c>, <c>player_credentials</c>, <c>refresh_tokens</c>, <c>account_merges</c></item>
 ///   <item>Rankings — creates <c>ladders</c>, <c>player_ranks</c>, and related tables</item>
 ///   <item>Matchmaking — creates <c>matchmaking_tickets</c>, <c>parties</c>, and related tables</item>
+///   <item>Lobby (raw DDL) — creates <c>gamekit.lobbies</c> and <c>gamekit.lobby_members</c> with IF NOT EXISTS</item>
 /// </list>
 /// Matchmaking FKs reference both Ladders (Rankings) and Players (Core), so all four packages
 /// must be applied in order.
@@ -38,14 +41,20 @@ namespace GameKit.Auth.AccountMerge.Integration.Tests;
 /// which skips Auth) because the merge service tests require <c>player_credentials</c> /
 /// <c>player_identities</c> / <c>account_merges</c> tables to seed test data.
 /// </para>
+/// <para>
+/// Lobby tables are created via raw DDL rather than the EF migration because this test project
+/// does not reference GameKit.Lobby. <c>AccountMergeService.MergeTransactionBodyAsync</c> now
+/// re-points <c>gamekit.lobby_members</c> as Step 11b (W-2 backlog fix), so all merge tests
+/// need the table to exist in the test database.
+/// </para>
 /// </remarks>
 internal static class TestHelpers
 {
     /// <summary>
-    /// Applies Core, Auth, Rankings, and Matchmaking migrations in dependency order against
-    /// <paramref name="connectionString"/>. Each migration train runs under its own Postgres
-    /// advisory lock so concurrent test-host invocations (e.g. parallelised class-level
-    /// fixtures) do not deadlock.
+    /// Applies Core, Auth, Rankings, Matchmaking migrations and creates Lobby tables (via raw DDL)
+    /// in dependency order against <paramref name="connectionString"/>. Each migration train runs
+    /// under its own Postgres advisory lock so concurrent test-host invocations (e.g. parallelised
+    /// class-level fixtures) do not deadlock.
     /// </summary>
     /// <param name="connectionString">Owner-role Postgres connection string (typically <c>PostgresFixture.OwnerConnectionString</c>).</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
@@ -138,5 +147,52 @@ internal static class TestHelpers
             matchmakingCtx,
             MatchmakingMigrationConstants.AdvisoryLockKey,
             cancellationToken).ConfigureAwait(false);
+
+        // ── Step 5: Lobby tables (raw DDL — no EF migration) ────────────────────────────────
+        // AccountMergeService.MergeTransactionBodyAsync re-points gamekit.lobby_members (W-2).
+        // This project does not reference GameKit.Lobby, so we create the tables via raw DDL.
+        // IF NOT EXISTS guards are required: tests share the same PostgresFixture container and
+        // ApplyMigrations may be called multiple times across different test classes.
+        await using var lobbyConn = new NpgsqlConnection(connectionString);
+        await lobbyConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using (var cmd = lobbyConn.CreateCommand())
+        {
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS gamekit.lobbies (
+                    "Id"         uuid        PRIMARY KEY,
+                    "OwnerId"    uuid        NOT NULL,
+                    "LadderId"   uuid        NULL,
+                    "State"      int         NOT NULL DEFAULT 0,
+                    "MaxMembers" int         NOT NULL DEFAULT 8,
+                    "CreatedAt"  timestamptz NOT NULL,
+                    "UpdatedAt"  timestamptz NOT NULL
+                )
+                """;
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var cmd = lobbyConn.CreateCommand())
+        {
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS gamekit.lobby_members (
+                    "Id"       uuid        PRIMARY KEY,
+                    "LobbyId"  uuid        NOT NULL REFERENCES gamekit.lobbies("Id") ON DELETE CASCADE,
+                    "PlayerId" uuid        NOT NULL REFERENCES gamekit.players("Id") ON DELETE CASCADE,
+                    "Ready"    boolean     NOT NULL DEFAULT false,
+                    "JoinedAt" timestamptz NOT NULL
+                )
+                """;
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var cmd = lobbyConn.CreateCommand())
+        {
+            cmd.CommandText = """
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_lobby_members_LobbyId_PlayerId"
+                    ON gamekit.lobby_members ("LobbyId", "PlayerId")
+                """;
+            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 }

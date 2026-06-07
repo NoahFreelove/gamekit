@@ -4,6 +4,7 @@
 using GameKit.Admin.UI.Builder;
 using GameKit.Auth.Builder;
 using GameKit.Core.Builder;
+using GameKit.Lobby.Builder;
 using GameKit.Matchmaking.Builder;
 using GameKit.Matchmaking.Strategy;
 using GameKit.OpenApi.Builder;
@@ -122,6 +123,12 @@ gameKitBuilder.AddMatchmaking(opts =>
 // HeartbeatIntervalSeconds=10) match the 3× safety factor.
 gameKitBuilder.AddPresence();
 
+// Lobby (v2.0) — SignalR hub at /hubs/lobby + REST /api/lobbies. Requires the
+// IConnectionMultiplexer registered above (LOBBY-06 mandates the Redis backplane). No options
+// override needed — defaults are production-safe. The Lobby EF migration hosted service creates
+// gamekit.lobbies + gamekit.lobby_members at startup (AutoMigrate is on).
+gameKitBuilder.AddLobby();
+
 // Plan 06-06 — OpenApi (Phase 6). Single combined /openapi/v1.json document covering every
 // player-facing GameKit HTTP endpoint (auth, sessions, matchmaking, parties, presence). The
 // builder wires the inline OpenApiOptions.ShouldInclude lambda that filters out admin
@@ -167,6 +174,7 @@ app.MapAuth();                      // /auth/* — Phase 2
 app.MapDemo();                      // /demo/games (the /demo/players/register endpoint is REMOVED in Phase 2)
 app.MapRankings();                  // /api/players/{id}/export + /admin/api/players/{id}/export + /admin/api/players/{id}/rank-adjust — Phase 4
 app.MapMatchmaking();               // /api/parties/* + /api/mm/* — Phase 5 (Plan 05-08 surface, Plan 05-09 wiring)
+app.MapLobby();                     // /api/lobbies REST + /hubs/lobby SignalR hub — v2.0 Lobby
 app.MapPresence();                  // POST /api/presence/heartbeat — Phase 6 (Plan 06-04 — JWT-bearer required, no rate limit per D-05)
 app.MapGameKitOpenApi();            // GET /openapi/v1.json — Phase 6 (Plan 06-06 — anonymous; admin paths excluded per D-19)
 app.MapGameKitAdmin("/admin");      // Plan 03-12 — /admin/api/* HTTP surface + /admin/* Blazor console.

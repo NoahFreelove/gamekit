@@ -106,7 +106,12 @@ internal sealed class LobbyService : ILobbyService
         _ctx.Set<LobbyMemberEntity>().Add(member);
         await _ctx.SaveChangesAsync(ct).ConfigureAwait(false);
 
-        lobby.Members.Add(member);
+        // EF relationship fixup may have already attached the tracked member to lobby.Members
+        // when _ctx.Set<LobbyMemberEntity>().Add(member) ran; guard against the double-count
+        // that caused the live memberCount=3-for-2 bug.
+        if (lobby.Members.All(m => m.Id != member.Id))
+            lobby.Members.Add(member);
+
         return lobby;
     }
 
@@ -138,7 +143,30 @@ internal sealed class LobbyService : ILobbyService
         lobby.UpdatedAt = DateTimeOffset.UtcNow;
         await _ctx.SaveChangesAsync(ct).ConfigureAwait(false);
 
-        lobby.Members.Add(member);
+        // EF relationship fixup may have already attached the tracked member to lobby.Members
+        // when _ctx.Set<LobbyMemberEntity>().Add(member) ran; guard against the double-count
+        // that caused the live memberCount=3-for-2 bug.
+        if (lobby.Members.All(m => m.Id != member.Id))
+            lobby.Members.Add(member);
+
+        // Open→ReadyChecking trigger: when a join fills the lobby to MaxMembers and the lobby
+        // is still Open, automatically transition to ReadyChecking and broadcast. This is the
+        // missing edge that makes the LOBBY-03 ready-check→matchmaking→InGame flow reachable
+        // through the public API. Integration tests previously missed this because SeedLobbyAsync
+        // seeded ReadyChecking directly, bypassing this path.
+        // The existing MarkReadyAsync all-ready gate (State == ReadyChecking guard) then fires → InGame.
+        if (lobby.Members.Count == lobby.MaxMembers && lobby.State == LobbyState.Open)
+        {
+            lobby.State = LobbyState.ReadyChecking;
+            lobby.UpdatedAt = DateTimeOffset.UtcNow;
+            await _ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            await _hubContext.Clients
+                .Group($"lobby:{lobbyId}")
+                .ReceiveStateUpdateAsync(new LobbyStateUpdate(lobbyId, LobbyState.ReadyChecking))
+                .ConfigureAwait(false);
+        }
+
         return lobby;
     }
 

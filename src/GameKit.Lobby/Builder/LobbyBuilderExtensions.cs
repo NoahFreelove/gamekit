@@ -32,9 +32,14 @@ public static class LobbyBuilderExtensions
     ///   <item><c>LobbyMigrationHostedService</c> — applies <c>__ef_migrations_lobby</c> at
     ///         startup under the per-package advisory-lock key (<c>12178347L</c>, Plan 11-01).</item>
     ///   <item>SignalR with StackExchange Redis backplane (ChannelPrefix <c>"GameKit"</c>).
-    ///         The backplane multiplexer is wired via
+    ///         <c>AddLobby()</c> REQUIRES a consumer-registered <see cref="IConnectionMultiplexer"/>
+    ///         (LOBBY-06 mandates the Redis backplane; Azure SignalR is not supported). A missing
+    ///         registration fails fast at startup with a clear, actionable
+    ///         <see cref="InvalidOperationException"/> naming the missing service and the registration
+    ///         pattern (<c>services.AddSingleton&lt;IConnectionMultiplexer&gt;(ConnectionMultiplexer.Connect(...))</c>
+    ///         before <c>AddLobby()</c>). The backplane multiplexer is wired via
     ///         <see cref="LobbyRedisBackplanePostConfigure"/> at startup time so no second
-    ///         <see cref="IConnectionMultiplexer"/> is registered (LOBBY-06).</item>
+    ///         <see cref="IConnectionMultiplexer"/> is registered.</item>
     ///   <item>JWT Bearer WebSocket query-string token extraction scoped to <c>/hubs/lobby</c>
     ///         via <see cref="LobbyJwtBearerPostConfigure"/> (SC#2 / T-11-03-01).</item>
     ///   <item><see cref="ILobbyService"/> → <c>LobbyService</c> (scoped).</item>

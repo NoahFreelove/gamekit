@@ -10,6 +10,8 @@
     <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <!-- v2.0 — Lobby package: SignalR lobby hub (/hubs/lobby) + Redis backplane (LOBBY-06). -->
+    <ProjectReference Include="..\..\src\GameKit.Lobby\GameKit.Lobby.csproj" />
     <!-- Plan 06-04 — Presence package: Redis TTL-keyed heartbeat + in-match precedence Lua. -->
     <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
     <!-- Plan 06-06 — OpenApi package: combined /openapi/v1.json document with bearerAuth

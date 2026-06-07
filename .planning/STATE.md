@@ -4,7 +4,7 @@ milestone: v2.0
 milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
 status: Awaiting next milestone
 last_updated: "2026-06-07T03:08:29.871Z"
-last_activity: 2026-06-07 — Milestone v2.0 completed and archived
+last_activity: 2026-06-07 — Completed quick task 260607-j3p: fixed lobby Open→ReadyChecking bug (found via live sample exercise)
 progress:
   total_phases: 6
   completed_phases: 6
@@ -312,6 +312,8 @@ None.
 |---|-------------|------|--------|-----------|
 | 260416-tlm | Build Tic-Tac-Toe Duel sample app demonstrating Phase 1 GameKit | 2026-04-17 | 677260e | [260416-tlm-build-tic-tac-toe-duel-sample-app-demons](./quick/260416-tlm-build-tic-tac-toe-duel-sample-app-demons/) |
 | 20260515 | Phase 03.1 verification-gap closure: BLOCKER-GAP-01 (PlayerDetailPane admin lookup), Blazor Server ConfigureAwait regression, INFO-GAP-03 (Tweaks panel aria-checked timing); +2 bUnit regression tests; VERIFICATION.md flipped to 6/6 | 2026-05-15 | ded277d | [20260515-phase-031-verification-gaps](./quick/20260515-phase-031-verification-gaps/) |
+| 260607-bri | Close v2.0 backlog gaps: W-1 (Lobby fail-fast clear error when IConnectionMultiplexer unregistered) + W-2 (account-merge re-points lobby_members with same-lobby dedup, raw SQL, no Lobby ref); +5 tests; full suites green (Lobby 18, AccountMerge 29, Auth 46) | 2026-06-07 | 8d355a7 | [260607-bri-close-w1-w2-backlog-gaps](./quick/260607-bri-close-w1-w2-backlog-gaps/) |
+| 260607-j3p | Fix v2.0 Lobby bug found via live sample exercise: lobbies created through the public API were stuck in Open (LOBBY-03 ready-check→matchmaking→InGame unreachable) — added auto-start-when-full Open→ReadyChecking trigger + fixed member-count over-count; +2 lifecycle tests; full Lobby suite green (20). Also wired GameKit.Lobby into the TicTacToeDuel sample (24390c6). | 2026-06-07 | d246978 | [260607-j3p-fix-lobby-open-to-readychecking](./quick/260607-j3p-fix-lobby-open-to-readychecking/) |
 
 ## Session Continuity
 

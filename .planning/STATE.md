@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
 status: verifying
-last_updated: "2026-06-06T22:13:39.146Z"
-last_activity: 2026-06-06
+last_updated: "2026-06-07T00:26:57.641Z"
+last_activity: 2026-06-07
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 18
-  completed_plans: 18
-  percent: 67
+  completed_phases: 5
+  total_plans: 22
+  completed_plans: 22
+  percent: 83
 ---
 
 # STATE: GameKit
@@ -22,14 +22,14 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 10 — Account Merge (Isolated High-Risk)
+**Current Focus:** Phase 11 — GameKit.Lobby (New Package)
 
 ## Current Position
 
-Phase: 10 (Account Merge) — COMPLETE & VERIFIED (5/5 SCs; 2 live-UI items deferred per autonomous posture)
+Phase: 11 (GameKit.Lobby) — COMPLETE & VERIFIED (5/5 SCs); 5/6 v2.0 phases (83%)
 Plan: 4 of 4
-Status: Phase 10 done + 3 critical security fixes + verified. Next: Phase 11 (GameKit.Lobby — new package, UI)
-Last activity: 2026-06-06
+Status: Phase 11 done + 3 critical review fixes + verified. Next: Phase 12 (Admin Multi-Replica + Distribution Close-Out — FINAL)
+Last activity: 2026-06-07
 
 **Deferred manual UAT (Phase 10):** live account-merge via Admin UI + idempotent re-request through the antiforgery-cookie stack — both substantially covered by the 27 AccountMerge integration tests; eyeball before production use.
 
@@ -97,6 +97,10 @@ Last activity: 2026-06-06
 | Phase 10-account-merge P10-02 | 12min | 3 tasks | 14 files |
 | Phase 10-account-merge P10-03 | — | 3 tasks | 12 files |
 | Phase 10-account-merge P10-04 | 240min | 3 tasks | 18 files |
+| Phase 11 P11-01 | 5 | 3 tasks | 9 files |
+| Phase 11-gamekit-lobby P02 | 20min | - tasks | - files |
+| Phase 11 P11-03 | 9 | 3 tasks | 19 files |
+| Phase 11 P11-04 | 20min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -239,6 +243,7 @@ Last activity: 2026-06-06
 | MatchmakingAdvisoryLockKeyTests duplicates the four prior-package advisory-key integer literals (1800940027 / -298890956 / -2101739634 / -156812172) in addition to symbolic-constant non-equality — defense-in-depth catches sibling-package constant rename that accidentally collides with Matchmaking's new value | 05-01 execution |
 | LoadTestFixture pins Maximum Pool Size=25 via NpgsqlConnectionStringBuilder.MaxPoolSize = 25 — Pitfall §8 mitigation; 1k-concurrent-ticket load test must not exhaust the default Npgsql pool of 100 connections shared across the WebApplicationFactory test host | 05-01 execution |
 | MatchmakingMigrationConstants.AdvisoryLockKey = 388956820L — live-verified on Postgres 17.9 via Testcontainers (`SELECT hashtext('gamekit.matchmaking.migrations')::bigint`). Pairwise-distinct from Core (1800940027), Auth (-298890956), Admin (-2101739634), and Rankings (-156812172); five-package collision-free set asserted by MatchmakingAdvisoryLockKeyTests Test B | 05-02 execution |
+| LobbyMigrationConstants.AdvisoryLockKey = 12178347L — live-verified on Postgres 17.9 via Testcontainers (`SELECT hashtext('gamekit.lobby.migrations')::bigint`). Pairwise-distinct from Core, Auth, Admin, Rankings, and Matchmaking; six-package collision-free set asserted by LobbyAdvisoryLockKeyTests (SC#1 / OPS-11 satisfied in Plan 11-01) | 11-01 execution |
 | MatchmakingMigrationModelCustomizer enumerates 15 prior-package entity types (4 Core + 3 Auth + 1 Admin + 7 Rankings) via typeof() + ExcludeFromMigrations — explicit list (not reflection) so a future entity addition in any prior package forces CS0246 at the exclusion site, surfacing the per-package migration boundary at compile time | 05-02 execution |
 | GameKit.Matchmaking.csproj adds ProjectReferences to GameKit.Auth + GameKit.Admin.UI in addition to Rankings — design-time-boundary-only: typeof() references in the exclusion list only; runtime Matchmaking services do NOT call into Auth/Admin.UI APIs. Verified no circular reference (Auth/Admin/Rankings have no back-reference to Matchmaking) | 05-02 execution |
 | Migration FK `FK_matchmaking_tickets_ladders_LadderId` principalTable hand-corrected from `Ladder` (EF entity-class default) to `ladders` — required because the design-time factory does not apply Rankings configurations (per-package migration boundary), so EF cannot infer the snake_case table name. Cross-package FK names follow PascalCase per Pitfall §4 | 05-02 execution |
@@ -286,7 +291,7 @@ Last activity: 2026-06-06
 | Admin | -2101739634 |
 | Rankings | -156812172 |
 | Matchmaking | 388956820 |
-| Lobby (v2.0 — TBD) | `SELECT hashtext('gamekit.lobby.migrations')::bigint` — live-verify in Phase 11 Wave 0 |
+| Lobby | 12178347 |
 
 ### Open Questions
 
@@ -309,9 +314,9 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-06-06 — Completed Phase 10 Plan 04 (superadmin merge endpoint + SC#1–#5 Testcontainers suite). All 19 tests green. Phase 10 all 4 plans complete — ready for verification.
+**Last action:** 2026-06-06 — Completed Phase 11 Plan 01 (GameKit.Lobby Wave 0 skeleton + advisory lock key 12178347L live-verified; SC#1/OPS-11 satisfied).
 
-**Next action:** Run Phase 10 verification, then proceed to Phase 11 (Lobby/Presence expansion) or gsd-autonomous for remaining v2.0 phases.
+**Next action:** Proceed to Phase 11 Plan 02 (Lobby data model: lobbies/lobby_members entities, EF migration, model customizer).
 
 **Blockers:** None.
 
@@ -320,7 +325,7 @@ None.
 - PROJECT.md, REQUIREMENTS.md, research/{SUMMARY,STACK,FEATURES,ARCHITECTURE,PITFALLS}.md, config.json
 - ROADMAP.md (v1.0 archived + v2.0 Phases 7–12, 29/29 coverage)
 - v1.0 execution history: 01-01 through 05-10 SUMMARYs (all in SESSION CONTINUITY above)
-- v2.0 advisory lock keys: Core=1800940027, Auth=-298890956, Admin=-2101739634, Rankings=-156812172, Matchmaking=388956820; Lobby TBD (live-verify in Phase 11 Wave 0)
+- v2.0 advisory lock keys: Core=1800940027, Auth=-298890956, Admin=-2101739634, Rankings=-156812172, Matchmaking=388956820, Lobby=12178347 (all six live-verified)
 
 ---
 *Initialized: 2026-04-15 at roadmap creation.*

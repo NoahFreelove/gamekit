@@ -20,3 +20,10 @@ using System.Runtime.CompilerServices;
 // directly to apply the Matchmaking migration as part of the cross-package ApplyMigrations
 // scaffold (Core + Auth + Rankings + Matchmaking). Mirrors the Rankings grant above.
 [assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]
+// Plan 11-03: GameKit.Lobby reuses SerializationFailureRetry.Build() for the MarkReadyAsync
+// SERIALIZABLE transaction + 40001 retry pipeline (RESEARCH §SERIALIZABLE Pattern).
+[assembly: InternalsVisibleTo("GameKit.Lobby")]
+// Plan 11-04: LobbyTestModelCustomizer in GameKit.Lobby.Integration.Tests applies
+// MatchmakingModelBuilderExtension directly so the runtime DbContext sees matchmaking entities
+// (parties, matchmaking_tickets, etc.) needed for the two-TestServer integration harness.
+[assembly: InternalsVisibleTo("GameKit.Lobby.Integration.Tests")]

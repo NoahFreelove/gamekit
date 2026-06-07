@@ -46,12 +46,12 @@
 
 ### Lobby — New Package
 
-- [ ] **LOBBY-01**: `GameKit.Lobby` ships as a new NuGet package (net10.0) with its own per-package migration — distinct **live-verified** advisory-lock key, `__ef_migrations_lobby` history table, `IDesignTimeDbContextFactory`, `ExcludeFromMigrations` on all prior packages (never mutates Core tables)
-- [ ] **LOBBY-02**: Lobby data model — `lobbies` + `lobby_members` + ready-state; persistent groups survive across sessions
-- [ ] **LOBBY-03**: Ready-check flow — members mark ready; lobby transitions when all members ready
-- [ ] **LOBBY-04**: In-lobby chat via SignalR groups — **ephemeral only**, no message persistence (documented anti-feature: no chat log storage, GDPR/moderation out of scope)
-- [ ] **LOBBY-05**: Lobby → Matchmaking integration — a ready lobby submits a party ticket (`lobby_id` FK on `matchmaking_tickets`); an `IMatchFoundHandler` transitions lobby state on match-found
-- [ ] **LOBBY-06**: Lobby SignalR hub is `[Authorize]`-gated (player JWT) and runs on a Redis backplane (`Microsoft.AspNetCore.SignalR.StackExchangeRedis`, `ChannelPrefix = "GameKit"`)
+- [x] **LOBBY-01**: `GameKit.Lobby` ships as a new NuGet package (net10.0) with its own per-package migration — distinct **live-verified** advisory-lock key, `__ef_migrations_lobby` history table, `IDesignTimeDbContextFactory`, `ExcludeFromMigrations` on all prior packages (never mutates Core tables)
+- [x] **LOBBY-02**: Lobby data model — `lobbies` + `lobby_members` + ready-state; persistent groups survive across sessions
+- [x] **LOBBY-03**: Ready-check flow — members mark ready; lobby transitions when all members ready
+- [x] **LOBBY-04**: In-lobby chat via SignalR groups — **ephemeral only**, no message persistence (documented anti-feature: no chat log storage, GDPR/moderation out of scope)
+- [x] **LOBBY-05**: Lobby → Matchmaking integration — a ready lobby submits a party ticket (`lobby_id` FK on `matchmaking_tickets`); an `IMatchFoundHandler` transitions lobby state on match-found
+- [x] **LOBBY-06**: Lobby SignalR hub is `[Authorize]`-gated (player JWT) and runs on a Redis backplane (`Microsoft.AspNetCore.SignalR.StackExchangeRedis`, `ChannelPrefix = "GameKit"`)
 
 ### Admin — Multi-Replica
 
@@ -62,7 +62,7 @@
 ### Distribution & Ops
 
 - [ ] **DIST-07**: New v2 packages (`GameKit.Auth.Argon2`, `.Google`, `.Apple`, `.Epic`, `GameKit.Lobby`) join the coordinated MinVer release train — same version, exact-pinned `[X.Y.Z]` sibling refs; the runtime version-assertion hosted service covers them
-- [ ] **OPS-11**: Advisory-lock live-verify gate — every new package's migration advisory-lock key is verified pairwise-distinct from the existing five (Core 1800940027, Auth -298890956, Admin -2101739634, Rankings -156812172, Matchmaking 388956820) via Testcontainers before integration tests run (Wave 0 RED→GREEN)
+- [x] **OPS-11**: Advisory-lock live-verify gate — every new package's migration advisory-lock key is verified pairwise-distinct from the existing five (Core 1800940027, Auth -298890956, Admin -2101739634, Rankings -156812172, Matchmaking 388956820) via Testcontainers before integration tests run (Wave 0 RED→GREEN)
 
 ## Future Requirements (deferred beyond v2.0)
 
@@ -97,13 +97,13 @@ Carried from v1.0 (unchanged) — see `.planning/PROJECT.md` § Out of Scope. Hi
 | AUTH-24 | Phase 10 | Complete |
 | AUTH-25 | Phase 10 | Complete |
 | AUTH-26 | Phase 10 | Complete |
-| LOBBY-01 | Phase 11 | Pending |
-| LOBBY-02 | Phase 11 | Pending |
-| LOBBY-03 | Phase 11 | Pending |
-| LOBBY-04 | Phase 11 | Pending |
-| LOBBY-05 | Phase 11 | Pending |
-| LOBBY-06 | Phase 11 | Pending |
-| OPS-11 | Phase 11 | Pending |
+| LOBBY-01 | Phase 11 | Complete |
+| LOBBY-02 | Phase 11 | Complete |
+| LOBBY-03 | Phase 11 | Complete |
+| LOBBY-04 | Phase 11 | Complete |
+| LOBBY-05 | Phase 11 | Complete |
+| LOBBY-06 | Phase 11 | Complete |
+| OPS-11 | Phase 11 | Complete |
 | ADMIN-13 | Phase 12 | Pending |
 | ADMIN-14 | Phase 12 | Pending |
 | ADMIN-15 | Phase 12 | Pending |

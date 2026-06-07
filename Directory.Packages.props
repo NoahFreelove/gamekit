@@ -93,6 +93,16 @@
          on nuget.org 2026-05-12 by 06-RESEARCH Package Legitimacy Audit. -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
 
+    <!-- Phase 11 Lobby — SignalR Redis backplane (runtime dep of GameKit.Lobby).
+         Microsoft first-party package; 10.0.8 verified GA on nuget.org 2026-05-12
+         (11-RESEARCH §Standard Stack). Reuses existing IConnectionMultiplexer Singleton. -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.8" />
+
+    <!-- Phase 11 Lobby — SignalR test client (test-only; used by HubConnectionBuilder
+         in GameKit.Lobby.Integration.Tests Wave 2+ backplane + hub-auth tests).
+         Microsoft first-party package; same 10.0.8 release train as StackExchangeRedis. -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.8" />
+
     <!-- Phase 3 Admin UI — MudBlazor 9.3.0 verified GA on net10.0 2026-04-18 (MIT / GPL-compatible)
          net10.0 TFM confirmed via nuget.org/packages/MudBlazor/9.3.0 (see 03-RESEARCH.md §Version verification). -->
     <PackageVersion Include="MudBlazor" Version="9.3.0" />

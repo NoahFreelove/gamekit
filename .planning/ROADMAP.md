@@ -17,7 +17,7 @@
 - [x] **Phase 8: Rankings Depth + Rating-Aware Matchmaking** — Rank decay (RD inflation), placement matches, `RankingsRatingSource`; freeze `player_ranks` schema before account merge reads it; simultaneously ships MATCH-16 (real ratings) + MATCH-17 (guardrails). (completed 2026-06-06)
 - [x] **Phase 9: Regional Matchmaking Pools + Backfill** — First-class `RegionName` on enqueue (no migration), cross-region fallback, backfill ticket type with `ParticipationFraction` guard; stabilises the Matchmaking enqueue API before Lobby depends on it. (completed 2026-06-06)
 - [x] **Phase 10: Account Merge (Isolated High-Risk)** — SERIALIZABLE transaction over 8+ FK tables; `account_merges` idempotency table first; crash-resume state machine; superadmin-only; depends on frozen `player_ranks` from Phase 8. (completed 2026-06-06)
-- [ ] **Phase 11: GameKit.Lobby (New Package)** — `lobbies` + `lobby_members` tables (chat is ephemeral — NOT persisted, per LOBBY-04); advisory-lock live-verify gate (Wave 0); SignalR + Redis backplane from day one; Lobby→Matchmaking party integration; establishes the SignalR pattern reused in Phase 12.
+- [x] **Phase 11: GameKit.Lobby (New Package)** — `lobbies` + `lobby_members` tables (chat is ephemeral — NOT persisted, per LOBBY-04); advisory-lock live-verify gate (Wave 0); SignalR + Redis backplane from day one; Lobby→Matchmaking party integration; establishes the SignalR pattern reused in Phase 12. (completed 2026-06-07)
 - [ ] **Phase 12: Admin Multi-Replica + Distribution Close-Out** — `RedisErrorRateCounter` replaces in-memory ring buffer; `AdminEventHub` + Redis backplane; fix Rank-adjust stub; five new packages join the MinVer release train (DIST-07).
 
 ---
@@ -103,7 +103,11 @@
   3. When all `lobby_members.ready = true`, `LobbyService.TryStartMatchmakingAsync` submits a party ticket to `IMatchmakingService.EnqueueAsync` and the lobby state transitions from `ReadyChecking` to `InGame`; the transition is observable via the SignalR group broadcast.
   4. A chat message sent via the hub reaches all connected members in the same lobby group in real time; chat is ephemeral — an integration test asserts NO chat-message table exists and nothing is written to Postgres on send (LOBBY-04 anti-feature: no chat log storage).
   5. A SignalR message broadcast from `LobbyHub` instance A reaches a client connected to `LobbyHub` instance B when both are connected to the same Redis backplane — verified by a two-`TestServer` integration test.
-**Plans**: TBD
+**Plans**: 4 plans (4 waves — linear; all four touch the shared GameKit.Lobby project)
+- [x] 11-01-PLAN.md — Wave 0: package + test-project skeleton, CPM pins, live-verified advisory-lock key distinctness gate (OPS-11, LOBBY-01)
+- [x] 11-02-PLAN.md — Lobby data model + per-package migration (lobbies + lobby_members, 20-entity exclusion, no chat table) (LOBBY-01, LOBBY-02)
+- [x] 11-03-PLAN.md — SignalR LobbyHub + Redis backplane + JWT WS auth + LobbyService ready-check + ephemeral chat relay (LOBBY-02, LOBBY-03, LOBBY-04, LOBBY-06)
+- [x] 11-04-PLAN.md — Lobby→Matchmaking party integration + two-TestServer SC suite (SC#2/#3/#4/#5) (LOBBY-03, LOBBY-04, LOBBY-05, LOBBY-06)
 **UI hint**: yes
 
 ### Phase 12: Admin Multi-Replica + Distribution Close-Out
@@ -127,7 +131,7 @@
 | 8. Rankings Depth + Rating-Aware Matchmaking | 4/4 | Complete   | 2026-06-06 |
 | 9. Regional Matchmaking Pools + Backfill | 4/4 | Complete   | 2026-06-06 |
 | 10. Account Merge | 4/4 | Complete   | 2026-06-06 |
-| 11. GameKit.Lobby | 0/? | Not started | - |
+| 11. GameKit.Lobby | 4/4 | Complete   | 2026-06-07 |
 | 12. Admin Multi-Replica + Distribution Close-Out | 0/? | Not started | - |
 
 ---

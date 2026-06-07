@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>GameKit.Lobby</PackageId>
+    <Description>Lobby package for GameKit — ready-checks, ephemeral chat via SignalR, persistent groups (Postgres). Phase 11.</Description>
+    <PackageTags>gamekit;lobby;signalr;redis;gpl</PackageTags>
+    <RootNamespace>GameKit.Lobby</RootNamespace>
+    <AssemblyName>GameKit.Lobby</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Core\GameKit.Core.csproj" />
+    <!-- Rankings: LobbyConfiguration references Ladder (FK lobbies.LadderId → ladders) -->
+    <ProjectReference Include="..\GameKit.Rankings\GameKit.Rankings.csproj" />
+    <!-- Auth + Admin.UI ProjectReferences are design-time-boundary-only: the
+         LobbyMigrationModelCustomizer enumerates every prior-package entity type
+         (Player/GameSession/... in Core, PlayerIdentity/... in Auth, AdminUser in Admin,
+         Ladder/... in Rankings, Party/... in Matchmaking) so a future entity addition in
+         any prior package forces a CS0246 here — surfacing the per-package migration
+         boundary explicitly at compile time. Runtime: Lobby services do NOT call into
+         Auth or Admin.UI APIs — these references are scoped to typeof() in the
+         exclusion list. -->
+    <ProjectReference Include="..\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
+    <!-- Matchmaking: LobbyService calls IMatchmakingService + IPartyService;
+         SerializationFailureRetry.Build() is reused (no Polly re-registration needed) -->
+    <ProjectReference Include="..\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ASP.NET Core framework reference (IApplicationBuilder, IEndpointRouteBuilder,
+         IHostedService, SignalR Hub/IHubContext — all in Microsoft.AspNetCore.App) -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+    <!-- Redis SignalR backplane (Microsoft first-party, 10.0.8 verified GA nuget.org) -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" />
+
+    <!-- EF Core + Postgres provider (versions pinned centrally in Directory.Packages.props) -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="Npgsql" />
+
+    <!-- Design-time EF Core tooling (dotnet ef migrations add/update) — not shipped in .nupkg -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <!-- Validation + Redis client (pinned centrally) -->
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
+  <!-- D-15: GameKit.Build emits internal GameKitMarker.GameKitVersion + AssemblyName
+       consts at compile time. OutputItemType=Analyzer routes through Roslyn;
+       ReferenceOutputAssembly=false stops the DLL from becoming a runtime dep. -->
+  <ItemGroup>
+    <ProjectReference Include="..\GameKit.Build\GameKit.Build.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

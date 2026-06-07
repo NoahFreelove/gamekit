@@ -35,3 +35,7 @@ using System.Runtime.CompilerServices;
 // to apply the Rankings migration and build a hybrid test host covering all four packages
 // (Core + Auth + Rankings + Matchmaking) for the cross-package FK-surgery tests (AUTH-24).
 [assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]
+// Plan 11-04: LobbyTestModelCustomizer in GameKit.Lobby.Integration.Tests applies
+// RankingsModelBuilderExtension directly so the runtime DbContext sees the ladders entity
+// needed for the two-TestServer Lobby integration harness (lobbies.LadderId FK targets ladders).
+[assembly: InternalsVisibleTo("GameKit.Lobby.Integration.Tests")]

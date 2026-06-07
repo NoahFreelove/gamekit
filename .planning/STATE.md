@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
-status: verifying
-last_updated: "2026-06-07T01:56:47.081Z"
-last_activity: 2026-06-07
+status: Awaiting next milestone
+last_updated: "2026-06-07T03:08:29.871Z"
+last_activity: 2026-06-07 — Milestone v2.0 completed and archived
 progress:
   total_phases: 6
   completed_phases: 6
@@ -26,12 +26,10 @@ progress:
 
 ## Current Position
 
-Phase: 12 (Admin Multi-Replica + Distribution Close-Out) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-06-07
-
-**Deferred manual UAT (Phase 10):** live account-merge via Admin UI + idempotent re-request through the antiforgery-cookie stack — both substantially covered by the 27 AccountMerge integration tests; eyeball before production use.
+Phase: Milestone v2.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-06-07 — Milestone v2.0 completed and archived
 
 ## Performance Metrics
 
@@ -333,3 +331,7 @@ None.
 ---
 *Initialized: 2026-04-15 at roadmap creation.*
 *v2.0 roadmap added: 2026-06-05.*
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

@@ -14,6 +14,12 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 
 <!-- Shipped and confirmed in v1.0 (2026-05-30). 92/92 requirements. Detail archived. -->
 
+- ✓ **v2.0 — Expansion: Providers, Lobby & Rating-Aware Play** (2026-06-07) — Core rating seam; Argon2 + Google/Apple/Epic OAuth sibling packages; rating-aware/regional/backfill matchmaking; rank decay + placement; account merge; `GameKit.Lobby` (SignalR+Redis); multi-replica Admin + MinVer release-train close-out. 29/29 requirements. Detail: `milestones/v2.0-REQUIREMENTS.md`.
+
+<!-- v2.0 Active features are now Validated (above). Active is empty until /gsd:new-milestone. -->
+
+> The per-feature v2.0 "Active" checklist below is superseded by the line above; full traceability is archived in `milestones/v2.0-REQUIREMENTS.md`.
+
 - ✓ **Foundation / Core** (CORE-01..17, OPS-01..03/06..10, DIST-01) — `GameKit.Core`, owned `GameKitDbContext`, per-package migrations, GDPR delete, rate-limit helpers, GPL+egress guards — v1.0 Phase 1
 - ✓ **Authentication** (AUTH-01..16) — `GameKit.Auth`, JWT issuance, refresh-token rotation, BCrypt hasher, in-house Steam OpenID + Discord OAuth, guest upgrade, identity linking — v1.0 Phase 2
 - ✓ **Admin UI** (ADMIN-01..12) — `GameKit.Admin.UI` Blazor Server (MudBlazor), cookie auth, CSP/antiforgery, player CRUD/ban, audit, health panel — v1.0 Phases 3 + 3.1
@@ -109,7 +115,7 @@ This document evolves at phase transitions and milestone boundaries.
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
-## Current Milestone: v2.0 — Expansion: Providers, Lobby & Rating-Aware Play
+## Shipped: v2.0 — Expansion: Providers, Lobby & Rating-Aware Play (2026-06-07)
 
 **Goal:** Deepen GameKit from a complete v1 backend into a richer platform — more auth options, matchmaking that actually uses skill ratings, real lobbies, and an Admin UI that scales horizontally — all still GPL, self-hosted, zero-cloud.
 
@@ -120,4 +126,4 @@ This document evolves at phase transitions and milestone boundaries.
 - Admin: multi-replica UI (SignalR + Redis backplane) · fix "Rank adjust" stub page
 
 ---
-*Last updated: 2026-06-05 after starting milestone v2.0*
+*Last updated: 2026-06-07 — v2.0 shipped (Phases 7–12, 29/29 requirements, audit `tech_debt` with minor non-blocking items). Next: `/gsd:new-milestone`.*

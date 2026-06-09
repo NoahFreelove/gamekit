@@ -1,559 +1,636 @@
 # Architecture Patterns
 
-**Domain:** v2.0 integration design — adding providers, lobby, rating-aware matchmaking, and multi-replica admin to an existing mature GameKit v1.0 codebase.
-**Researched:** 2026-06-05
-**Confidence:** HIGH — all claims grounded in actual source files; paths cited throughout.
+**Domain:** v2.1 — Operability & Hardening integration into existing GameKit v2.0 codebase.
+**Researched:** 2026-06-08
+**Confidence:** HIGH — all claims grounded in verified source files; no external sources needed.
 
 ---
 
-## Existing Architecture (verified from code)
+## Existing Architecture (baseline — do not redesign)
 
-The v1.0 codebase follows a strict set of patterns that v2 must obey.
-
-### Package dependency graph (current)
+### Package dependency graph (current, v2.0 shipped)
 
 ```
-GameKit.Core
-    └─ GameKit.Auth           (ProjectReference → Core)
-        └─ GameKit.Admin.UI   (ProjectReference → Auth + Core)
-            └─ GameKit.Rankings  (ProjectReference → Core; Admin ProjectRef for design-time only)
-                └─ GameKit.Matchmaking (ProjectReference → Core + Rankings; Auth + Admin for design-time boundary only)
-                    └─ GameKit.Presence  (ProjectReference → Core only; registers against IPresenceProvider in Core)
-GameKit.OpenApi  (thin docs; no runtime deps on sibling packages)
-GameKit.Cli
+GameKit.Core                     (IPlayerRatingProvider, IClock, IIdGenerator, IModelBuilderExtension)
+    └─ GameKit.Auth              (IOAuthProvider, IPasswordHasher; migration -298890956)
+        ├─ GameKit.Auth.Argon2   (stateless sibling; no migration)
+        ├─ GameKit.Auth.Google   (stateless sibling; no migration)
+        ├─ GameKit.Auth.Apple    (stateless sibling; no migration)
+        ├─ GameKit.Auth.Epic     (stateless sibling; no migration)
+        └─ GameKit.Admin.UI      (Blazor Server; cookie auth "GameKitAdmin"; migration -2101739634)
+GameKit.Rankings                 (IPlayerRatingProvider impl; migration -156812172)
+    └─ GameKit.Matchmaking       (MatchmakerLeaseHelper; ticker+reconciler; migration 388956820)
+GameKit.Presence                 (stateless; IConnectionMultiplexer; ISessionLifecycleObserver)
+GameKit.Lobby                    (SignalR hub; Redis backplane; migration 12178347)
+GameKit.OpenApi                  (stateless docs shim)
+GameKit.Cli                      (Spectre.Console; dev tooling)
 ```
 
-Key constraint: the `→` direction is only ever DOWN this list (Core is at the root). No package has a back-reference to a downstream package at runtime. The design-time-only `ProjectReference` annotations (Matchmaking → Auth/Admin.UI) exist exclusively for the `typeof()` exclusion list in `MatchmakingMigrationModelCustomizer` — they carry zero runtime coupling.
+Runtime dep direction: downward only. Design-time-only ProjectReferences (for migration exclusion lists) never create runtime coupling.
 
-### Per-package migration pattern (locked)
+### Telemetry seams already present (v2.0)
 
-Source: `src/GameKit.Matchmaking/Data/MatchmakingMigrationConstants.cs`, `src/GameKit.Auth/Data/AuthMigrationConstants.cs`, STATE.md locked decisions.
+These are NOT hypothetical — they are in the actual code:
 
-Every package that owns persistent state must have:
+| Package | Source/Meter | Type | Opt-in key |
+|---------|-------------|------|------------|
+| `GameKit.Matchmaking` | `MatchmakingActivitySource` | `ActivitySource("GameKit.Matchmaking.Ticker")` | `AddSource("GameKit.Matchmaking.Ticker")` |
+| `GameKit.Matchmaking` | `MatchmakingMeter` | `Meter("GameKit.Matchmaking")` | `AddMeter("GameKit.Matchmaking")` |
+| `GameKit.Rankings` | inline `_activitySource` in `RankingsTickerService` | `ActivitySource("GameKit.Rankings.Ticker")` | `AddSource("GameKit.Rankings.Ticker")` |
 
-| Artifact | Naming convention | Advisory lock keys (all live-verified) |
-|---|---|---|
-| `{Pkg}MigrationConstants` | `__ef_migrations_{pkg}` history table | Core = 1800940027 |
-| `{Pkg}MigrationModelCustomizer` | ExcludeFromMigrations all prior-package entities | Auth = -298890956 |
-| `{Pkg}DesignTimeDbContextFactory` | applies only own entities | Admin = -2101739634 |
-| `{Pkg}MigrationHostedService` | acquires advisory lock at IHost.StartAsync | Rankings = -156812172 |
+The Matchmaking `Telemetry/` subfolder exists and is the correct pattern. Rankings inlines its `ActivitySource` directly in the ticker class — inconsistent with Matchmaking. v2.1 should normalize this.
 
-Matchmaking = 388956820. Presence = not yet verified (Phase 6 shipped it; no advisory key in code — see `src/GameKit.Presence/Builder/PresenceBuilderExtensions.cs` which has no migration hosted service, confirming Presence is stateless in v1).
+### Leader-election seams already present (v2.0)
 
-Packages that own no Postgres tables (Presence, OpenApi, Cli, Auth.Argon2) need NO migration machinery.
+Three independent LeaseHelper classes exist with duplicate logic:
 
-### Pluggable-strategy seam (Scrutor)
+| Class | Package | Lock key | LockTtlSeconds |
+|-------|---------|----------|----------------|
+| `RankingsTickerLeaseHelper` | Rankings | `gamekit:rankings:ticker:lease` | from `GameKitRankingsOptions.Ticker.LockTtlSeconds` |
+| `RankDecayLeaseHelper` | Rankings | `gamekit:rankings:decay:lease` | from `GameKitRankingsOptions.Decay.LockTtlSeconds` |
+| `MatchmakerLeaseHelper` implements `IMatchmakerLease` | Matchmaking | `gamekit:matchmaking:matcher:lock` | from `GameKitMatchmakingOptions.Ticker.LockTtlSeconds` |
 
-Source: `src/GameKit.Core/Data/IModelBuilderExtension.cs`, `src/GameKit.Auth/Providers/IOAuthProvider.cs`, `src/GameKit.Auth/Services/IPasswordHasher.cs`.
+All three use `LockTakeAsync / LockExtendAsync / LockReleaseAsync` (StackExchange.Redis Lua-script-verified). All use `MachineName:Guid` fencing tokens. Pattern is correct. Problem: the hardening logic (renew-or-bail, SIGTERM drain, churn edge cases) is duplicated and will drift.
 
-All strategy-interface implementations are auto-discovered via Scrutor's `publicOnly: false` assembly scan in each package's `Add*()` extension. The Core defines the interface; sibling packages implement it. Customers can also add their own implementations to their own assembly and Scrutor finds them.
+### Admin health probes already present (v2.0)
 
-### Background-service + Redis leader-election pattern (locked)
+`HealthProbeService` in `GameKit.Admin.UI` runs three probes:
+1. Postgres `SELECT 1` with 2-second timeout
+2. Redis `PingAsync()`
+3. `ErrorRateRingBuffer` / `IRedisErrorRateCounter` (cross-replica error count)
 
-Source: `src/GameKit.Matchmaking/Services/MatchmakerTickerService.cs` lines 65-132.
-
-`BackgroundService` + `PeriodicTimer` + Polly v8 retry + `SET NX PX` Redis distributed lock. The ticker writes a heartbeat key with TTL 5× the tick interval. The same pattern is required for any v2 background job that must run on exactly one replica.
-
-### Optional-port / null-object-default pattern (locked)
-
-Source: `src/GameKit.Core/Services/IPostSessionCompleteHandler.cs`, `src/GameKit.Core/Services/IPresenceProvider.cs`, STATE.md line 209 ("Optional port injection via factory lambda (GetService<T>) for IPostSessionCompleteHandler, IIdempotencyStore, ICanonicalRequestHasher — Core operates in degraded mode when Rankings not installed").
-
-When Core (or Matchmaking) needs to call an upstream package without a hard dep, it defines an interface in Core and uses `GetService<T>` (nullable resolution) with a null-object fallback. This is the approved seam pattern.
+The `IRedisErrorRateCounter` + `RedisErrorRateCounter` (Phase 12 multi-replica Admin) is already in the codebase — the Admin health panel already aggregates cross-replica error counts. This is the exact machinery that ASP.NET Core health checks would duplicate. Do not introduce `AddHealthChecks()` as a fourth probe path.
 
 ---
 
-## Question 1: Rankings → Matchmaking Rating Seam
+## Decision 1: Package Placement for Observability + Health
 
-### Problem (grounded in code)
+### The question
 
-In `src/GameKit.Matchmaking/Services/MatchmakingService.cs` lines 201-204:
+Should OTel conventions + `/health/live` + `/health/ready` live in `GameKit.Core` or a new `GameKit.Diagnostics` package?
+
+### Decision: Extend GameKit.Core. Do NOT create GameKit.Diagnostics.
+
+**Rationale:**
+
+1. **"Install only what you need" argues AGAINST a new package for core infrastructure.** Observability and health endpoints are operational necessities, not optional features. A consumer who installs `GameKit.Core` and nothing else still needs `/health/live` (Kubernetes liveness probe) and the ability to opt into OTel. Requiring them to also install `GameKit.Diagnostics` adds a package they cannot skip.
+
+2. **The seam already exists in Core.** `GameKit.Core` already references `OpenTelemetry` + `OpenTelemetry.Extensions.Hosting` (CLAUDE.md STACK.md). `ActivitySource` and `Meter` usage is already opt-in pattern-matched to what ASP.NET Core and EF Core do. Adding a thin builder extension (`AddGameKitObservability()` + `MapGameKitHealth()`) to Core is a minimal, additive change.
+
+3. **Avoiding a new package avoids a new migration boundary, new NuGet package, new version-train entry.** The coordinated release train already has 10+ packages. A diagnostics package adds zero game-services value and introduces another package consumers must pin.
+
+4. **The Admin health probes are the RIGHT model for the health endpoint** — but they live in the wrong layer (Admin.UI). The `/health/live` + `/health/ready` endpoints must be available to consumers who do NOT install Admin.UI (e.g. API-only installs). Moving the probe logic to Core (with Admin.UI calling into Core probes, not vice versa) is the correct refactor.
+
+5. **Convention-only centralization, not a new package.** Naming conventions (`GameKit.*` source prefix, metric naming scheme) and the `AddGameKitObservability()` extension can live in Core. Each per-package `Telemetry/` class registers its own `ActivitySource`/`Meter` — no centralized class is needed for that.
+
+**Outcome: NO new GameKit.Diagnostics package. All changes go into existing packages + sample app.**
+
+### Specific placement decisions
+
+| Concern | Where it lives | Why |
+|---------|---------------|-----|
+| `/health/live` + `/health/ready` endpoints | `GameKit.Core` — new `MapGameKitHealth()` in `CoreEndpointExtensions` | Must work without Admin.UI; Core owns `GameKitDbContext` (Postgres probe) |
+| Postgres liveness probe | `GameKit.Core` — reuse existing `GameKitOptions.ConnectionString` | Core already has the connection string |
+| Redis readiness probe | `GameKit.Core` — optional `IConnectionMultiplexer?` (already an optional dep in Admin.UI probes) | Core should not hard-depend on Redis; Admin.UI already resolved this correctly |
+| Migration-applied readiness gate | `GameKit.Core` — new `IMigrationReadinessReporter` interface + per-package implementations | Core gates Kestrel on migration completion already (via `IHostedService` ordering); readiness endpoint queries the same state |
+| OTel naming conventions | `GameKit.Core` — `GameKitTelemetry` static class with `SourceNamePrefix = "GameKit."` + semantic-convention constants | Zero-weight; prevents per-package drift |
+| `AddGameKitObservability()` builder extension | `GameKit.Core` — opt-in extension on `IGameKitBuilder` | Returns `IGameKitBuilder` so callers chain it; wires `AddOpenTelemetry()` shortcut + registers known source names |
+| Per-package `Telemetry/` classes | Each package keeps its own (Matchmaking already has `Telemetry/`; Rankings needs to be refactored out of inline) | Package boundary; each package names its own instruments |
+| Grafana/Prometheus/Tempo docker-compose | `samples/TicTacToeDuel/` — new `docker-compose.observability.yml` | Sample app is the composition root; does not belong in `src/` |
+| Load test harness | `tests/GameKit.LoadTests/` — new project, not shipped | Same pattern as existing `tests/` projects |
+| Docs site generation | Repo root + `docs/` — static site from XML doc comments via DocFX or similar; build step only | Not a runtime package |
+
+---
+
+## Decision 2: Health Endpoint Architecture
+
+### Liveness vs. Readiness — concrete distinction
+
+**Liveness** (`/health/live`): Is the process alive and not deadlocked? Answer: always `200 OK` once the host is running. No probes needed. This is Kubernetes' "should I restart the pod?" signal.
+
+**Readiness** (`/health/ready`): Is the process ready to serve traffic? Requires:
+- All per-package migrations applied (the EF advisory-lock HostedServices have completed)
+- Postgres reachable (same `SELECT 1` as Admin.UI)
+- Redis reachable if any Redis-dependent package is installed (Matchmaking, Presence, Lobby, Admin.UI)
+
+### Integration with existing migration HostedServices
+
+The per-package migration HostedServices already gate Kestrel: they run inside `IHost.StartAsync` before the host accepts traffic. The problem is the readiness probe needs to know when ALL migration services across ALL installed packages have completed — not just one.
+
+**Design: `IMigrationReadinessReporter` (new, in GameKit.Core)**
+
 ```csharp
-var queuedMembers = memberPlayerIds
-    .Select(pid => new QueuedPartyMember(pid, Rating: 0, RatingDeviation: 0, Volatility: 0))
-    .ToList();
-```
-
-All members get `Rating: 0`. This zero-rating is written into the Redis ticket hash at `aggregateRating` and is what `EloRangeMatchmakingStrategy` uses for bracket comparisons. The `QueuedPartyMember` record in `src/GameKit.Matchmaking/Strategy/QueuedParty.cs` already carries the three Glicko-2 fields — the plumbing exists; the source is missing.
-
-Matchmaking has a compile-time `ProjectReference → Rankings` (for migration boundary only), so there is NO runtime Matchmaking→Rankings hard dep today. The v1 comment ("v1 reads zero-rated members from the party") explicitly marks this as tech debt.
-
-### Proposed interface: `IPlayerRatingProvider` in `GameKit.Core`
-
-Place this in `src/GameKit.Core/Services/IPlayerRatingProvider.cs`.
-
-```csharp
-/// <summary>
-/// Optional port: returns Glicko-2 rating data for a set of players on a given ladder.
-/// Implemented by <c>GameKit.Rankings</c>. When not installed, Matchmaking resolves null
-/// and uses zero-rated defaults (preserving v1 behaviour).
-/// </summary>
-public interface IPlayerRatingProvider
+// GameKit.Core
+public interface IMigrationReadinessReporter
 {
-    /// <summary>
-    /// Returns rating snapshots for <paramref name="playerIds"/> on <paramref name="ladderId"/>.
-    /// Players with no existing rank row are returned with default Glicko-2 values
-    /// (rating = 1500.0, RD = 350.0, volatility = 0.06 — the Glicko-2 standard defaults).
-    /// </summary>
-    ValueTask<IReadOnlyDictionary<Guid, PlayerRatingSnapshot>> GetRatingsAsync(
-        IReadOnlyCollection<Guid> playerIds,
-        Guid ladderId,
-        CancellationToken ct = default);
+    /// <summary>Reports whether this package's migrations have been applied.</summary>
+    string PackageName { get; }
+    bool IsReady { get; }
 }
-
-/// <summary>
-/// Glicko-2 rating snapshot for a single player. Mirrors <c>PlayerRank</c> from
-/// <c>GameKit.Rankings</c> without creating a cross-package entity dependency.
-/// </summary>
-public sealed record PlayerRatingSnapshot(
-    Guid PlayerId,
-    double Rating,
-    double RatingDeviation,
-    double Volatility);
 ```
 
-The `PlayerRankingsProvider : IPlayerRatingProvider` implementation lives in `src/GameKit.Rankings/`, performs a batched `SELECT` against `player_ranks WHERE player_id = ANY(@ids) AND ladder_id = @ladderId`, and is registered in `AddRankings()` as:
+Each migration HostedService implements `IMigrationReadinessReporter` and sets `IsReady = true` on successful migration completion. The readiness probe resolves `IEnumerable<IMigrationReadinessReporter>` and returns `503` until all reporters are `IsReady`. Empty enumerable = no migrations registered = ready immediately (Core-only install with no migration packages).
+
+This uses the existing `IEnumerable<T>` resolution pattern already used for `ISessionLifecycleObserver` and `IModelBuilderExtension`.
+
+### Startup-gating vs. readiness endpoint
+
+The readiness endpoint is NOT a startup gate — it is a probe. The actual startup gate already works via HostedService ordering. The readiness endpoint reflects the same state for load balancer health checks. These are NOT the same thing and must not be conflated.
+
+### Reuse of existing Admin.UI probes
+
+The Admin health panel's `IHealthProbeService` + `HealthProbeService` will be refactored to delegate to the new Core-level probes for Postgres + Redis. Admin.UI keeps the error-rate ring buffer and `IRedisErrorRateCounter` (those are admin-specific). The Core probes focus on dependency connectivity only.
+
+**Dependency direction stays clean:** Core does not depend on Admin.UI. Admin.UI imports Core probes. This is the correct direction.
+
+---
+
+## Decision 3: OTel Conventions and Cross-Package Naming
+
+### Current state (v2.0, verified)
+
+- Matchmaking: `ActivitySource("GameKit.Matchmaking.Ticker", "1.0.0")` + `Meter("GameKit.Matchmaking", "1.0.0")`
+- Rankings: `ActivitySource("GameKit.Rankings.Ticker", "1.0.0")` (inlined in `RankingsTickerService`)
+- Core: no ActivitySource/Meter yet (only referenced in CLAUDE.md as planned)
+- Auth, Admin.UI, Presence, Lobby: no ActivitySource/Meter yet
+
+### Naming convention to adopt for v2.1
+
+Source names follow `GameKit.<Package>.<Component>` pattern. Meter names follow `GameKit.<Package>` pattern.
+
+| Package | ActivitySource name | Meter name |
+|---------|--------------------|-----------:|
+| Core | `GameKit.Core` (HTTP handlers, session ops) | `GameKit.Core` |
+| Auth | `GameKit.Auth` (login, token rotation) | `GameKit.Auth` |
+| Rankings | `GameKit.Rankings.Ticker` (already exists) | `GameKit.Rankings` |
+| Matchmaking | `GameKit.Matchmaking.Ticker` (already exists) | `GameKit.Matchmaking` (already exists) |
+| Presence | `GameKit.Presence` (heartbeat, in-match flip) | `GameKit.Presence` |
+| Lobby | `GameKit.Lobby` (join, ready-check, transition) | `GameKit.Lobby` |
+| Admin.UI | `GameKit.Admin` (admin actions) | `GameKit.Admin` |
+
+### Centralization mechanism
+
+A `GameKitTelemetry` static class in `GameKit.Core` defines only string constants:
 
 ```csharp
-services.TryAddSingleton<IPlayerRatingProvider, PlayerRankingsProvider>();
-```
-
-### Where MatchmakingService reads it
-
-Source read point: `EnqueueAsync` in `src/GameKit.Matchmaking/Services/MatchmakingService.cs` lines 200-217 (the `queuedMembers` construction).
-
-`IPlayerRatingProvider?` is injected as a nullable optional dep via constructor parameter with a default of `null`:
-
-```csharp
-public MatchmakingService(
-    ...existing params...,
-    IPlayerRatingProvider? ratingProvider = null)
-```
-
-Then in `EnqueueAsync` Step 4, replace the zero-fill:
-
-```csharp
-IReadOnlyDictionary<Guid, PlayerRatingSnapshot> ratings =
-    ratingProvider is not null
-        ? await ratingProvider.GetRatingsAsync(memberPlayerIds, ladderId, ct)
-        : ImmutableDictionary<Guid, PlayerRatingSnapshot>.Empty;
-
-var queuedMembers = memberPlayerIds.Select(pid =>
+// GameKit.Core/Telemetry/GameKitTelemetry.cs
+public static class GameKitTelemetry
 {
-    ratings.TryGetValue(pid, out var r);
-    return new QueuedPartyMember(
-        pid,
-        Rating: r?.Rating ?? 0,
-        RatingDeviation: r?.RatingDeviation ?? 0,
-        Volatility: r?.Volatility ?? 0);
-}).ToList();
+    public const string SourcePrefix = "GameKit.";
+    // Semantic attribute keys (follow OpenTelemetry semantic conventions where applicable)
+    public const string AttrPlayerId   = "gamekit.player.id";
+    public const string AttrLadderId   = "gamekit.ladder.id";
+    public const string AttrPoolName   = "gamekit.pool.name";
+    public const string AttrPackage    = "gamekit.package";
+}
 ```
 
-This is the ONLY code change in `MatchmakingService` — the existing `aggregateRating` computation, Redis HSET, and spread-cap logic work unchanged.
+Each package's `Telemetry/` class references these constants. The `ActivitySource` and `Meter` instances remain in each package (not centralized). This avoids a hard `using` dependency from all packages on a new central class — each package just adopts the naming convention.
 
-### Redis ticket hash caching
+### `AddGameKitObservability()` extension
 
-The `aggregateRating` field is already written to `mm:ticket:{id}` at enqueue time (line 276 in `MatchmakingService.cs`). With real ratings flowing in, this cached value is correct at enqueue time. For long-waiting tickets the cache goes stale — this is documented and accepted (comment in `QueuedParty.cs` lines 19-21: "cache may be stale by up to one ratings period for long-waiting tickets").
-
-Per-member ratings are also serialized as JSON into the `members` hash field (line 265-276 in `MatchmakingService.cs`). With real ratings, `QueuedPartyMember.Rating/RatingDeviation/Volatility` will be non-zero, enabling `PartyRatingAggregator.GlickoWeighted` to work correctly for the first time.
-
-The ticker (`MatchmakerTickerService.BuildQueuedPartyFromHash`) reads both `aggregateRating` and `members` from the hash — no ticker changes needed. The existing `QueuedParty` and `EloRangeMatchmakingStrategy` are already rating-aware; they just received zeros in v1.
-
-### Package independence preserved
-
-- `GameKit.Core` defines `IPlayerRatingProvider` — no new deps.
-- `GameKit.Rankings` implements it — no new deps (it already owns `player_ranks`).
-- `GameKit.Matchmaking` injects it as `?` optional — no new compile-time dep on Rankings beyond the design-time boundary that already exists.
-- A consumer who installs only Matchmaking without Rankings gets the v1 zero-rating behaviour silently.
-
----
-
-## Question 2: New Package Integration
-
-### GameKit.Auth.Argon2
-
-**Purpose:** `Argon2idPasswordHasher : IPasswordHasher` using Isopoh.Cryptography.Argon2.
-
-**Migration:** NONE. This package is stateless — it provides only an `IPasswordHasher` implementation. No new Postgres tables. No migration hosted service. No advisory lock.
-
-**Integration point:** `IPasswordHasher` is defined in `src/GameKit.Auth/Services/IPasswordHasher.cs`. `BCryptPasswordHasher` is the default. `Argon2idPasswordHasher` replaces it. The consumer opts in by calling `AddArgon2()` (or `AddAuth().UseArgon2()`) which does `services.Replace(ServiceDescriptor.Singleton<IPasswordHasher, Argon2idPasswordHasher>())`. No other code changes.
-
-**ProjectReference:** `GameKit.Auth.Argon2 → GameKit.Auth` (for the interface). No dep on Core, Rankings, Matchmaking.
-
-**Build order:** Any phase after Phase 2 (Auth is already shipped). Independent of all other v2 work. Goes first because it is the simplest.
-
----
-
-### GameKit.Auth.Google / .Apple / .Epic (OAuth providers)
-
-**Purpose:** Each provides an `IOAuthProvider` implementation using `aspnet-contrib` `AuthenticationBuilder` handlers.
-
-**Migration:** NONE. These packages are stateless — they register authentication schemes and implement `IOAuthProvider`. No new Postgres tables. The `player_identities` table already stores any provider's identity; the `Provider` discriminator column accepts new string values. No schema change needed for new providers.
-
-**Integration point:** `IOAuthProvider` is defined in `src/GameKit.Auth/Providers/IOAuthProvider.cs`. `DiscordOAuthProvider` in `src/GameKit.Auth/Providers/` is the reference implementation pattern. Each new provider package registers its `IOAuthProvider` implementation via Scrutor scan in `AddAuth()` (existing scan picks up any `IOAuthProvider` in any assembly). The aspnet-contrib handler is conditionally registered (like Discord in STATE.md line 147: "Discord authentication scheme registered conditionally only when ClientId+ClientSecret both supplied").
-
-**ProjectReference:** `GameKit.Auth.Google/Apple/Epic → GameKit.Auth` only.
-
-**Build order:** After Auth.Argon2 (though independent in practice). All three provider packages can be built in parallel.
-
-**Asymmetric consideration for Apple:** Apple Sign-In uses a JWT-based identity token (not OAuth2 code flow) and requires a `p8` private key. The `IOAuthProvider.CompleteLoginAsync` contract is the right abstraction level, but the "challenge" step (generating an authorization URL) differs from Discord/Google. The provider package must also expose a `/auth/challenge/apple` endpoint that generates the Apple URL with the correct `response_type=code` + `scope=name email`. This is contained entirely within the provider package — no Core or Auth changes.
-
----
-
-### GameKit.Lobby
-
-**Does it need its own migration?** YES. Lobby introduces new Postgres tables (`lobbies`, `lobby_members`). It follows the per-package migration pattern exactly.
-
-**Advisory lock key:** Needs live-verification via `SELECT hashtext('gamekit.lobby.migrations')::bigint` in Testcontainers. Placeholder until verified.
-
-**Migration model customizer exclusion list:** All six prior packages: Core (4 entities) + Auth (3) + Admin (1) + Rankings (7) + Matchmaking (5) + Presence (0, stateless) = 20 entity types to exclude.
-
-**Migration timestamp:** Use deterministic `20260520000000_LobbyInitial` (one day after Matchmaking's `20260516000000`).
-
----
-
-## Question 3: Account Merge
-
-### Package ownership
-
-Account merge lives in **`GameKit.Auth`**. Rationale: the `player_identities`, `player_credentials`, and `refresh_tokens` tables are Auth-owned entities. The merge operation needs to re-point all of them from the source player to the target player. The merge also touches `players` (Core-owned) and cross-package tables, which is why it is the highest-risk operation.
-
-### Data model
-
-No new table is strictly required for the merge operation itself, but an `account_merges` table (owned by Auth) should record merge history for audit and idempotency.
-
-```sql
--- Auth package migration
-CREATE TABLE gamekit.account_merges (
-    id         uuid PRIMARY KEY,
-    source_player_id uuid NOT NULL,   -- player that was absorbed (may be deleted)
-    target_player_id uuid NOT NULL REFERENCES gamekit.players(id) ON DELETE RESTRICT,
-    merged_at  timestamptz NOT NULL,
-    actor_id   uuid,                  -- admin who triggered or NULL for self-service
-    metadata   jsonb
-);
-CREATE INDEX idx_account_merges_source ON gamekit.account_merges (source_player_id);
-CREATE INDEX idx_account_merges_target ON gamekit.account_merges (target_player_id);
-```
-
-### FK references that must be re-pointed (from code inspection)
-
-| Table | Owner package | FK column | Action |
-|---|---|---|---|
-| `player_identities` | Auth | `player_id` | UPDATE SET player_id = target WHERE player_id = source |
-| `player_credentials` | Auth | `player_id` | UPDATE SET player_id = target WHERE player_id = source |
-| `refresh_tokens` | Auth | `player_id` | REVOKE ALL (DELETE WHERE player_id = source — tokens for absorbed account must be invalidated) |
-| `game_sessions` | Core | session rows use participant join, not direct player FK | no change needed |
-| `session_participants` | Core | `player_id` | UPDATE SET player_id = target WHERE player_id = source (or leave if already same ladder) |
-| `player_ranks` | Rankings | `player_id` | MERGE STRATEGY (see below) |
-| `admin_audit_log` | Core | `actor_id` | UPDATE SET actor_id = target WHERE actor_id = source |
-| `matchmaking_tickets` | Matchmaking | no direct player FK (party-based) | no direct change; stale Redis tickets expire |
-| `party_members` | Matchmaking | `player_id` | UPDATE SET player_id = target WHERE player_id = source (unique constraint on player_id per party — may conflict) |
-| `account_merges` | Auth | `source_player_id`, `target_player_id` | check for cycles |
-
-**`player_ranks` merge strategy:** Both players may have a rank row on the same ladder. Cannot simply re-point the FK — there is a `UNIQUE(player_id, ladder_id)` constraint. Options:
-
-1. **Keep higher-rated rank** (recommended): UPDATE the source row to point to target only if `source.Rating > target.Rating` on each ladder; otherwise DELETE the source row. Write audit trail before delete.
-2. **Weighted average**: combine ratings using Glicko-2 mean (requires Rankings knowledge inside Auth — violates package boundaries).
-3. **Defer to operator**: expose a `IRankMergeStrategy` interface with a default of "keep-higher" and an "keep-target" alternative.
-
-Option 1 (keep-higher) is the correct default. It is computable without calling into Rankings — Auth only needs to read the two `double` rating columns and compare. The query `SELECT * FROM gamekit.player_ranks WHERE player_id IN (source, target) AND ladder_id = x` is readable from Auth via the shared `GameKitDbContext` (same DbContext, Auth has access to all tables via EF model).
-
-### Transaction design
-
-```
-BEGIN ISOLATION LEVEL SERIALIZABLE;
--- 1. Lock both player rows in ID order (prevent deadlock)
-SELECT id FROM gamekit.players WHERE id IN (source, target) ORDER BY id FOR UPDATE;
--- 2. Verify source is not already merged (idempotency check via account_merges)
-SELECT id FROM gamekit.account_merges WHERE source_player_id = source AND target_player_id = target LIMIT 1;
--- return already_merged if found
--- 3. Verify neither player is banned (or caller chose to merge anyway)
--- 4. Re-point player_identities
-UPDATE gamekit.player_identities SET player_id = target WHERE player_id = source;
--- UNIQUE(provider, external_id) is on the identity itself, not player_id, so no conflict
--- 5. Re-point player_credentials
-UPDATE gamekit.player_credentials SET player_id = target WHERE player_id = source;
--- UNIQUE(username) is on username, not player_id, so no conflict
--- 6. Revoke all refresh tokens for source player
-DELETE FROM gamekit.refresh_tokens WHERE player_id = source;
--- 7. Merge player_ranks (per-ladder: keep higher)
--- For each ladder where both have a row: keep the higher-rated one
--- (handled in application code with N small queries or a single CTE)
--- 8. Re-point session_participants
-UPDATE gamekit.session_participants SET player_id = target WHERE player_id = source;
--- UNIQUE(session_id, player_id) may conflict if both players were in the same session
--- Conflict = violation of business invariant; abort merge
--- 9. Re-point admin_audit_log.actor_id (optional — keeps history coherent)
-UPDATE gamekit.admin_audit_log SET actor_id = target WHERE actor_id = source;
--- 10. Delete the source player row (CASCADE deletes any remaining orphans)
-DELETE FROM gamekit.players WHERE id = source;
--- 11. Insert account_merges record
-INSERT INTO gamekit.account_merges ...;
--- 12. Insert admin_audit_log record
-INSERT INTO gamekit.admin_audit_log (action='auth.account_merge', target_id=target, before=..., after=...) ...;
-COMMIT;
-```
-
-**Isolation level:** SERIALIZABLE. The source and target players must be locked together to prevent concurrent merges racing. Lock acquisition in ID order prevents deadlock. Retry on `40001` (serialization failure) — reuse the existing `SerializationFailureRetry` pattern from `src/GameKit.Rankings/Services/SerializationFailureRetry.cs`.
-
-**Idempotency:** Check `account_merges` for an existing `(source, target)` row before proceeding. Return `MergeResult.AlreadyMerged` if found. This makes the operation safe to retry.
-
-**Admin audit log:** The `admin_audit_log` entity is defined in `src/GameKit.Core/Entities/AdminAuditLog.cs`. Auth writes to it directly via `_ctx.Set<AdminAuditLog>()` (same pattern as `EndSeasonService` in STATE.md line 211 — not via `IAdminAuditWriter` to avoid circular dependency). Action literal: `"auth.account_merge"`.
-
-**`IAccountMergeService` interface** lives in `GameKit.Auth`. Exposed on the `IGameKitAuthBuilder` fluent builder. The Admin UI calls it via `IAccountMergeService` injected into an admin Blazor component or admin API endpoint.
-
----
-
-## Question 4: Regional Pools
-
-### Region as Matchmaking-local concept
-
-Region does NOT need to be a Core concept. The existing `PoolName` field on `MatchmakingTicket` (`src/GameKit.Matchmaking/Entities/MatchmakingTicket.cs` line 52) is already designed for this: "Multiple pools per ladder support region affinity or game-mode segmentation". The PoolName is used as the queue key suffix: `mm:queue:{ladderId}:{poolName}` (verified in `src/GameKit.Matchmaking/Redis/MatchmakingRedisKeys.cs`).
-
-### What "first-class" means vs. v1 escape hatch
-
-v1 used `metadata.region` as an unstructured escape hatch with no validation, no pool routing, and no queue partitioning. v2 makes region first-class by:
-
-1. Adding `AllowedRegions IReadOnlyList<string>` to `MatchmakingLadderConfig` (in `src/GameKit.Matchmaking/Builder/MatchmakingLadderConfig.cs`). Empty = all regions allowed (backwards-compatible default).
-2. Adding `RegionName string?` to the enqueue request DTO. Validated against `AllowedRegions` at enqueue. Defaults to `null` → maps to pool `"default"` (existing v1 behaviour).
-3. When `RegionName` is non-null, `MatchmakingService.EnqueueAsync` uses `poolName = $"{regionName}"` (or `"{ladderName}:{regionName}"` — operator's naming convention) rather than `"default"`.
-4. The Redis queue key becomes `mm:queue:{ladderId}:{regionName}` — the ticker's SCAN glob `mm:queue:*:{poolName}` already handles this by scanning per-ladder.
-
-**No schema migration needed.** `PoolName` is already a Postgres column (varchar in `matchmaking_tickets`). Region is just a poolName value. The ticker's existing `server.Keys(pattern: poolGlob)` scan in `MatchmakerTickerService.ProcessPoolAsync` already iterates multiple pools per ladder.
-
-**Cross-region fallback:** When a player's regional pool has no matching ticket after the bracket reaches `BracketEnd`, the ticker could optionally promote the ticket to a `"global"` pool. This is an operator config choice (`MaxWaitBeforeGlobalFallbackSeconds int?` on `MatchmakingLadderConfig`, null = no fallback). Implemented entirely within `MatchmakingService.EnqueueAsync` (enqueue into both regional and global pools simultaneously, or re-enqueue after timeout — latter is cleaner, matches the reconciler sweep pattern).
-
----
-
-## Question 5: GameKit.Lobby
-
-### Entity model
-
-```
-lobbies
-├── id             uuid PK
-├── name           text NOT NULL
-├── owner_id       uuid FK → players(id) ON DELETE SET NULL
-├── ladder_id      uuid FK → ladders(id) ON DELETE SET NULL  (optional)
-├── state          integer  (Open=0, ReadyChecking=1, Closed=2, InGame=3)
-├── max_members    integer NOT NULL DEFAULT 10
-├── created_at     timestamptz
-├── updated_at     timestamptz
-└── metadata       jsonb
-
-lobby_members
-├── id             uuid PK
-├── lobby_id       uuid FK → lobbies(id) ON DELETE CASCADE
-├── player_id      uuid FK → players(id) ON DELETE CASCADE
-├── ready          boolean NOT NULL DEFAULT false
-├── joined_at      timestamptz
-└── UNIQUE(lobby_id, player_id)
-
-lobby_messages  (in-lobby chat — PERSISTED, not ephemeral)
-├── id             uuid PK
-├── lobby_id       uuid FK → lobbies(id) ON DELETE CASCADE
-├── sender_id      uuid FK → players(id) ON DELETE SET NULL
-├── body           text NOT NULL CHECK (char_length(body) <= 500)
-├── sent_at        timestamptz
-└── INDEX (lobby_id, sent_at DESC)  -- for paginated history fetch
-```
-
-**Persisted vs. ephemeral:** Chat messages should be persisted (Postgres, NOT ephemeral Redis). Rationale: (1) players rejoin after disconnect and need history; (2) admin moderation may need a record; (3) the volume is low (lobbies have max ~10 members, short lifespan). A 30-day retention cleanup job (reuse `MatchmakingRetentionCleanupService` pattern) handles bloat.
-
-### Ready-check → party ticket flow
-
-When all `lobby_members.ready = true` (and `lobby.state = ReadyChecking`), `LobbyService.TryStartMatchmakingAsync` calls `IMatchmakingService.EnqueueAsync` with a party ticket. The Matchmaking party model already supports this: `MatchmakingService.EnqueueAsync` accepts a `partyId` (which is the `lobby.id` cast to a party context). However, since Lobby introduces a new party concept separate from Matchmaking's `Party` entity, the cleanest approach is:
-
-1. `LobbyService.TryStartMatchmakingAsync` creates a `Party` row in Matchmaking (via `IPartyService.CreateAsync`) with members drawn from `lobby_members`.
-2. Then calls `IMatchmakingService.EnqueueAsync` with the new `partyId`.
-3. Lobby state transitions to `InGame`.
-
-This keeps Matchmaking's existing party model intact and avoids a circular `Lobby → Matchmaking` dep. The Lobby package takes a runtime dep on `IMatchmakingService` (Matchmaking package).
-
-**Package dependency:** `GameKit.Lobby → GameKit.Matchmaking` (runtime). This is a NEW downward arc in the dependency chain. It does not create a cycle (Matchmaking has no ref to Lobby).
-
-### SignalR hub placement
-
-The SignalR hub lives in `GameKit.Lobby`. Each lobby gets a group: `"lobby:{lobbyId}"`. Players subscribe via `Groups.AddToGroupAsync` on `JoinLobbyAsync`. Messages are published via `Clients.Group(...)`.
-
-The SignalR hub is registered in `AddLobby()` via `services.AddSignalR()` + `builder.Services.TryAddSingleton<ILobbyHubContext>()`. The endpoint is mapped in `MapLobby()` via `app.MapHub<LobbyHub>("/hubs/lobby")`.
-
-**Redis backplane for multi-replica:** The Lobby SignalR hub must use the Redis backplane from day one (not added later). In `AddLobby()`:
+Located in `GameKit.Core/Builder/GameKitServiceCollectionExtensions.Observability.cs`. Opt-in call by consumer in their `Program.cs`:
 
 ```csharp
-services.AddSignalR()
-        .AddStackExchangeRedis(redisConnectionString, opts =>
-            opts.Configuration.ChannelPrefix = RedisChannel.Literal("gamekit:signalr"));
+builder.Services.AddGameKit(opts => {...})
+    .AddGameKitObservability(otel => otel
+        .WithTracing(t => t.AddSource("GameKit.*"))
+        .WithMetrics(m => m.AddMeter("GameKit.*")));
 ```
 
-The `IConnectionMultiplexer` is already registered by the consumer (required for Matchmaking and Presence). `AddStackExchangeRedis` accepts a connection string — the consumer passes `GameKitLobbyOptions.RedisConnectionString` (defaults to pulling from the same connection string as the multiplexer).
-
-### Per-package migration
-
-YES — Lobby owns `lobbies`, `lobby_members`, `lobby_messages` tables. New advisory lock key needed (live-verify `SELECT hashtext('gamekit.lobby.migrations')::bigint`). Exclusion list: 20 prior-package entities (Core 4 + Auth 3 + Admin 1 + Rankings 7 + Matchmaking 5). Migration timestamp: `20260521000000_LobbyInitial`.
+Internally calls `services.AddOpenTelemetry()` + wires the provided `Action<OpenTelemetryBuilder>`. Does NOT hard-depend on any OTel exporter — the consumer decides exporters. This matches the "opt-in everything" constraint.
 
 ---
 
-## Question 6: Multi-Replica Admin UI
+## Decision 4: Multi-Replica Hardening
 
-### What breaks across replicas today
+### Current correctness (v2.0, verified from code)
 
-**Primary hazard:** `ErrorRateRingBuffer` (`src/GameKit.Admin.UI/Services/ErrorRateRingBuffer.cs`) is an in-memory Singleton registered in `AddGameKitAdmin()`. It counts errors from `LogErrorCounter` (`src/GameKit.Admin.UI/Services/LogErrorCounter.cs`) which taps `ILoggerProvider`. Each replica has its own independent ring buffer counting only its own log errors. The health panel's "recent error rate" tile shows per-replica data, not aggregate. On 3 replicas an operator sees 1/3 of the actual error rate.
+The `MatchmakerLeaseHelper` already uses `LockTakeAsync / LockExtendAsync / LockReleaseAsync` with Lua-script-verified release. The `InstanceId = $"{MachineName}:{Guid.NewGuid()}"` is a correct fencing token. `RenewLeaseAsync` returns `false` when the lock expired — callers check this. This is CORRECT.
 
-**Secondary hazard:** The `HealthProbeService` Postgres/Redis probes (in `src/GameKit.Admin.UI/Services/HealthProbeService.cs`) are per-request, not shared state, so they are fine across replicas.
+The Rankings ticker and decay use the identical pattern.
 
-**Tertiary hazard:** Admin user session state. v1 uses cookie auth (Blazor Server). Cookie encryption keys must be shared across replicas (`services.AddDataProtection().PersistKeysToFileSystem(...)` or `PersistKeysToDbContext(...)` — an operator concern, not a GameKit obligation). GameKit should document this requirement but not solve it prescriptively.
+### What is still missing / incomplete
 
-### Fixing the error-rate ring buffer for multi-replica
+1. **Graceful drain on SIGTERM/`ApplicationStopping`.** The ticker `BackgroundService` has `ExecuteAsync(CancellationToken stoppingToken)`. When `stoppingToken` fires, the current tick should complete its current pool sweep, then release the lock and exit cleanly. The current `MatchmakerTickerService` accepts `stoppingToken` in the `PeriodicTimer` loop — on cancellation the loop exits. The question is whether in-progress pool sweeps respect the token. This needs verification and hardening.
 
-Three options:
+2. **Lock TTL vs. work duration.** The `LockTtlSeconds` default is 90 seconds; a tick budget is `MaxIterationBudgetMs=50`. These are not in tension for normal operation. But the `RenewLeaseAsync` call happens once per tick (every 500ms) with a 90-second TTL extension. This means the lock auto-extends each tick. The hardening needed: verify that `RenewLeaseAsync` is called BEFORE the per-pool sweeps, not after, so a long-running pool sweep doesn't cause the lock to expire mid-work.
 
-1. **Replace with Redis counter (recommended):** Replace `ErrorRateRingBuffer` with a Redis-backed sliding window using `INCRBY` on time-bucketed keys (`"gk:admin:errors:{bucket_epoch_seconds}"`) with `EXPIRE` set to the window duration. The `LogErrorCounter.ILoggerProvider` tap writes to Redis instead of in-memory. `RecentErrorCount()` does a Redis `MGET` over the window bucket keys and sums. This gives aggregate error count across all replicas.
+3. **Shared `ILeaseHelper` interface.** `RankingsTickerLeaseHelper`, `RankDecayLeaseHelper`, and `MatchmakerLeaseHelper` all implement the same logic with no shared interface. A common `ILeaderLease` interface in `GameKit.Core` enables:
+   - Consistent test patterns
+   - A single churn-proof implementation to audit rather than three
+   - Clear documentation of the fencing-token contract in one place
 
-2. **Leave in-memory + document:** Accept that each replica shows only its own error rate. Add prominent documentation: "health panel error rate is per-replica in multi-instance deployments; use your APM (OTel) for aggregated metrics." Low implementation cost; suitable if the admin health panel is understood as an approximate indicator.
+4. **Idempotency keys.** Session completion is already idempotent (`IIdempotencyStore` in Core). Matchmaking ticket enqueue is idempotent (`23505` on `UNIQUE(player_id, ladder_id)` in open status). Rank drain is idempotent (advisory lock serializes; `applied_at` column tracks). The missing piece: lobby ready-check → matchmaking enqueue idempotency (what happens if the same `TryStartMatchmakingAsync` is called twice during a partition recovery?).
 
-3. **OpenTelemetry metrics push:** Export the error counter as an OTel metric (already optional in GameKit via `ActivitySource`/`Meter`). The operator's OTel backend aggregates. Out of scope for multi-replica admin UI itself.
+### Hardening design
 
-**Recommended:** Option 1 (Redis counter). It preserves the same zero-config experience for single-replica installs (Redis is already required). The implementation change is:
-
-- New class `RedisErrorRateCounter` that replaces `ErrorRateRingBuffer` as the in-memory store.
-- `LogErrorCounter` is modified to call `RedisErrorRateCounter.IncrementAsync()` (fire-and-forget `await db.StringIncrByAsync(...).ConfigureAwait(false)`) instead of `ErrorRateRingBuffer.IncrementError()`.
-- `AddGameKitAdmin()` registers `RedisErrorRateCounter` as a Singleton alongside `LogErrorCounter`.
-- `HealthProbeService.GetHealthReportAsync` reads from `RedisErrorRateCounter` rather than `ErrorRateRingBuffer`.
-- `ErrorRateRingBuffer` is **kept** for the test harness (it implements `IClock`-driven decay tests); the production path switches to `RedisErrorRateCounter`.
-
-### SignalR backplane wiring
-
-The Admin UI does NOT currently use SignalR for panel updates. v1 health panel uses Blazor Server + `InvokeAsync(StateHasChanged)` on a periodic timer (client-side polling via `RefreshInterval` option). For multi-replica v2:
-
-**Approach:** Add SignalR hub `AdminEventHub` in `GameKit.Admin.UI` for real-time admin notifications (player ban events, audit writes, health state changes). Register Redis backplane in `AddGameKitAdmin()` alongside the existing SignalR health polling.
+**`ILeaderLease` in `GameKit.Core`** — new interface:
 
 ```csharp
-// In AddGameKitAdmin():
-services.AddSignalR()
-        .AddStackExchangeRedis(adminOpts.RedisConnectionString,
-            opts => opts.Configuration.ChannelPrefix = RedisChannel.Literal("gamekit:admin"));
+// GameKit.Core/Services/ILeaderLease.cs
+public interface ILeaderLease
+{
+    string InstanceId { get; }
+    Task<bool> TryAcquireLeaseAsync(CancellationToken ct);
+    Task<bool> RenewLeaseAsync(CancellationToken ct);
+    Task ReleaseLeaseAsync(CancellationToken ct);
+}
 ```
 
-The `GameKitAdminOptions` gains a `RedisConnectionString string?` property (null = disabled SignalR backplane; admin works in single-replica mode without it).
+The three existing LeaseHelper classes implement this interface (additive change — no breaking change). `ILeaderLease` lives in Core but does NOT force Core to depend on Redis — it is a pure interface. The implementations live in their respective packages.
 
-This is an **additive change** — existing Admin UI functionality (Blazor Server health panel, player CRUD, audit) continues to work unchanged on a single replica. The backplane is opt-in via the connection string option.
+**SIGTERM drain contract** — the pattern every `BackgroundService` that holds a lease MUST follow:
 
-**IHostedService for live updates:** A new `AdminLiveBroadcastService : BackgroundService` subscribes to a Redis Pub/Sub channel `"gamekit:admin:events"` and pushes events to `IHubContext<AdminEventHub>`. Other packages (Auth ban, Rankings end-season) publish to this channel when a significant event occurs. This is the same Pub/Sub pattern already used by `MatchmakingService` (STATUS channel) and the ticker.
+```csharp
+// In MatchmakerTickerService, RankingsTickerService, RankDecayBackgroundService
+protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+{
+    await using var lease = ...;
+    while (!stoppingToken.IsCancellationRequested)
+    {
+        using var tickCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        tickCts.CancelAfter(MaxTickBudget);          // enforce budget
+        bool leaseHeld = await lease.TryAcquireLeaseAsync(stoppingToken);
+        if (!leaseHeld) { await PeriodicTimer.WaitForNextTickAsync(stoppingToken); continue; }
+
+        try   { await RunTickAsync(tickCts.Token); }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+        finally { await lease.ReleaseLeaseAsync(CancellationToken.None); }  // release even on SIGTERM
+    }
+}
+```
+
+The `ReleaseLeaseAsync` MUST use `CancellationToken.None` (not `stoppingToken`) on the finally path — otherwise it would fail to release on SIGTERM, leaving the lock until TTL expiry.
 
 ---
 
-## Component Boundaries Summary
+## Decision 5: Backup / Restore / DR + Migration Ops
 
-| Component | Package | New or Modified | Migration Needed | Deps (runtime) |
-|---|---|---|---|---|
-| `IPlayerRatingProvider` interface | `GameKit.Core` | NEW | No | — |
-| `PlayerRankingsProvider : IPlayerRatingProvider` | `GameKit.Rankings` | NEW | No | Core |
-| `MatchmakingService` enqueue rating injection | `GameKit.Matchmaking` | MODIFIED | No | Core (IPlayerRatingProvider optional) |
-| `GameKit.Auth.Argon2` package | NEW PACKAGE | NEW | No | Auth |
-| `GameKit.Auth.Google` / `.Apple` / `.Epic` | NEW PACKAGES | NEW | No | Auth |
-| `IAccountMergeService` + `AccountMergeService` | `GameKit.Auth` | NEW | YES (account_merges table) | Auth |
-| `MatchmakingLadderConfig.AllowedRegions` | `GameKit.Matchmaking` | MODIFIED | No (PoolName already exists) | — |
-| `EnqueueRequest.RegionName` DTO | `GameKit.Matchmaking` | MODIFIED | No | — |
-| `GameKit.Lobby` package | NEW PACKAGE | NEW | YES (3 tables) | Core + Matchmaking |
-| `LobbyHub : Hub` (SignalR) | `GameKit.Lobby` | NEW | No | — |
-| `RedisErrorRateCounter` | `GameKit.Admin.UI` | NEW | No | — |
-| `AdminLiveBroadcastService` | `GameKit.Admin.UI` | NEW | No | — |
-| Rank decay background service | `GameKit.Rankings` | NEW | YES (decay_log column or table) | Rankings |
-| Placement matches config | `GameKit.Rankings` | MODIFIED | YES (placement state in player_ranks) | Rankings |
-| Backfill into in-progress sessions | `GameKit.Core` + `GameKit.Matchmaking` | MODIFIED | No (SessionState already exists) | — |
+### Where tooling lives
+
+**`GameKit.Cli` (existing package, `Spectre.Console.Cli`)** — new subcommands:
+
+```
+gamekit db backup --connection <cs> --out <path>      # pg_dump wrapper
+gamekit db restore --connection <cs> --in <path>      # pg_restore wrapper
+gamekit db migrate --package <pkg> --dry-run           # migration dry-run
+gamekit db status                                      # per-package migration applied/pending
+```
+
+Rationale: CLI is already the extensible operator-facing tool (`GameKit.Cli` uses `Spectre.Console.Cli`). Adding subcommands is additive. These commands do NOT need to ship as library code — they are operator tooling.
+
+Redis backup is documented (not automated) — Redis persistence is already configured with `--appendonly yes --appendfsync everysec` + `--save` RDB snapshots in `docker-compose.yml`. The runbook documents `redis-cli SAVE` + copy `/data/dump.rdb`.
+
+### Migration dry-run
+
+The per-package advisory-lock + HostedService pattern makes dry-run straightforward:
+
+1. Build the migration script via `EF Core migrations script --idempotent` (already works for each package's design-time factory).
+2. Apply to a local test DB (Testcontainers) before running in production.
+3. No new framework changes needed — this is operator workflow documentation.
+
+For v2.1, the `gamekit db migrate --dry-run` CLI command generates the SQL and prints it without executing. Implementation: resolve the package's `IDesignTimeDbContextFactory`, call `context.Database.GenerateMigrateScript()`, print to stdout.
+
+### Per-package ordering documentation
+
+Correct ordering (guaranteed by HostedService registration order in `AddGameKit()` chain, verified from `GameKitServiceCollectionExtensions`):
+
+```
+1. GameKitVersionAssertionHostedService  (Insert(0) — FIRST)
+2. CoreMigrationHostedService (or whichever Core applies first)
+3. AuthMigrationHostedService
+4. AdminMigrationHostedService
+5. RankingsMigrationHostedService
+6. MatchmakingMigrationHostedService
+7. LobbyMigrationHostedService
+```
+
+This ordering is enforced by the `services.Insert(0, ...)` + default-append pattern. It does not need to change for v2.1 — only needs to be documented clearly.
 
 ---
 
-## Suggested Build Order
+## Decision 6: Load Tests and Docs Site
 
-Dependencies flow top-to-bottom. Items at the same level can be built in parallel.
+### Load test harness location
 
-```
-Phase 1: Core seam + stateless auth add-ons (no migration, lowest risk)
-    ├── Add IPlayerRatingProvider + PlayerRatingSnapshot to GameKit.Core
-    ├── Add PlayerRankingsProvider to GameKit.Rankings (implements IPlayerRatingProvider)
-    ├── Modify MatchmakingService.EnqueueAsync to inject IPlayerRatingProvider?
-    ├── Ship GameKit.Auth.Argon2 (IPasswordHasher, Isopoh, no migration)
-    └── Ship GameKit.Auth.Google / .Apple / .Epic (IOAuthProvider, no migration)
+**`tests/GameKit.LoadTests/`** — new project, NOT shipped as NuGet.
 
-Phase 2: Rankings depth (migration + new background services)
-    ├── Rank decay: new background service + PlayerRank.LastDecayAt column (migration)
-    ├── Placement matches: PlacementMatchesRemaining column in player_ranks (migration)
-    └── Requires: Phase 1 IPlayerRatingProvider (decay reads ratings)
+Follows the existing `tests/` project pattern. Uses `BenchmarkDotNet` for micro-benchmarks + `NBomber` (or a custom `Testcontainers`-based harness) for end-to-end load scenarios. NOT xUnit — load tests should not run in CI on every push. Separate dotnet run invocation.
 
-Phase 3: Regional pools (no migration — pure config + PoolName convention)
-    ├── MatchmakingLadderConfig.AllowedRegions
-    ├── EnqueueRequest.RegionName
-    └── Requires: Phase 1 Matchmaking changes (enqueue path already modified)
+The sample app `TicTacToeDuel` is the composition root for integration-style load tests (connect N simultaneous WebSocket clients to `/hubs/lobby`, measure fan-out latency). The load test project points at a running `TicTacToeDuel` instance (real Postgres + Redis via Testcontainers in the test fixture).
 
-Phase 4: Account merge (high-risk — SERIALIZABLE tx, cross-table FK surgery)
-    ├── account_merges table migration in GameKit.Auth (new advisory lock key)
-    ├── AccountMergeService (SERIALIZABLE, retry on 40001)
-    ├── Admin UI "Account Merge" flow
-    └── Requires: Phase 1 (Auth.Argon2 + providers unblocked), Phase 2 stable (ranks table stable)
+### Docs site location + generation
 
-Phase 5: GameKit.Lobby (new package, new migration, SignalR)
-    ├── Lobby entities + migration (advisory lock live-verified)
-    ├── LobbyHub (SignalR + Redis backplane)
-    ├── LobbyService.TryStartMatchmakingAsync → IMatchmakingService / IPartyService
-    └── Requires: Phase 3 (regional pools stable), Matchmaking package stable
+**`docs/` directory at repo root** — static site generated by DocFX from existing XML doc comments.
 
-Phase 6: Multi-replica Admin UI
-    ├── RedisErrorRateCounter (replace ErrorRateRingBuffer on hot path)
-    ├── AdminLiveBroadcastService (Redis Pub/Sub → IHubContext)
-    ├── AdminEventHub (SignalR + Redis backplane, opt-in)
-    └── Requires: Phase 5 (SignalR pattern validated in Lobby)
+DocFX is the standard .NET documentation tool. It reads `.csproj` `<GenerateDocumentationFile>true` (which GameKit already enforces via `CS1591-as-error`) and generates HTML from XML doc comments. The site is not a NuGet package. It is a build artifact committed to `docs/` or deployed via CI.
 
-Phase 7: Fix "Rank adjust" admin stub page (deferred v1 tech debt)
-    └── Requires: Phase 2 (rank decay + placement stable)
-```
-
-**Rationale for ordering:**
-- Phase 1 first because it is the prerequisite seam for all rating-aware work AND contains zero-migration packages that can ship independently.
-- Phase 2 before Account Merge because the account_merges migration must know the final `player_ranks` schema (Phase 2 adds columns).
-- Phase 3 (regional pools) before Phase 5 (Lobby) because Lobby's `TryStartMatchmakingAsync` needs the stable enqueue API with RegionName support.
-- Phase 4 (account merge) is isolated: high risk, reversible (the merge record prevents re-merge), no downstream deps.
-- Phase 6 (Admin multi-replica) last because it is operational polish, not a new feature gate, and benefits from the SignalR pattern proven in Phase 5 Lobby.
+Build step: `docfx docs/docfx.json` — runs in CI, outputs to `docs/_site/`. Not part of the `dotnet build` graph.
 
 ---
 
-## New Advisory Lock Keys Needed
+## Component Boundaries: New vs. Modified per Package
 
-New packages that own migrations require new advisory lock keys. Each must be live-verified in Testcontainers before use.
+### GameKit.Core (MODIFIED)
 
-| Package | `hashtext(...)` input | Live-verify SQL |
-|---|---|---|
-| `GameKit.Auth` (account_merges) | existing Auth key = -298890956 | New migration in EXISTING Auth package — uses existing key, new timestamp |
-| `GameKit.Lobby` | `'gamekit.lobby.migrations'` | `SELECT hashtext('gamekit.lobby.migrations')::bigint` |
-| Rankings (decay, placement) | existing Rankings key = -156812172 | New migrations in EXISTING Rankings package — uses existing key |
+New additions only — no breaking changes:
 
-Note: new migrations in existing packages reuse the existing advisory lock key for that package (the key serialises all migrations within a package). Only wholly NEW packages need a new key.
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `GameKitTelemetry` | NEW static class | Naming-convention constants for all packages |
+| `ILeaderLease` | NEW interface | Common contract for all leader-election lease helpers |
+| `IMigrationReadinessReporter` | NEW interface | Per-package migration state for readiness endpoint |
+| `AddGameKitObservability()` | NEW builder extension | Opt-in OTel SDK wiring |
+| `MapGameKitHealth()` | NEW endpoint extension | `/health/live` + `/health/ready` endpoints |
+| `CoreHealthProbe` | NEW internal class | Postgres `SELECT 1` probe; Redis `PingAsync()` probe |
+
+### GameKit.Auth (MODIFIED — minor)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `AuthActivitySource` | NEW class in `Telemetry/` | `ActivitySource("GameKit.Auth")` for login, token rotation spans |
+
+### GameKit.Rankings (MODIFIED)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `RankingsActivitySource` | NEW class in `Telemetry/` | Extract inline `_activitySource` from `RankingsTickerService` into canonical `Telemetry/` class; normalize with Matchmaking pattern |
+| `RankingsMeter` | NEW class in `Telemetry/` | `Meter("GameKit.Rankings")` — add counters for drain batch size, match count per tick |
+| `RankingsTickerLeaseHelper` | MODIFIED | Implement `ILeaderLease`; verify SIGTERM drain correctness |
+| `RankDecayLeaseHelper` | MODIFIED | Implement `ILeaderLease`; verify SIGTERM drain correctness |
+| `RankingsMigrationHostedService` | MODIFIED | Implement `IMigrationReadinessReporter` |
+
+### GameKit.Matchmaking (MODIFIED)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `MatchmakerLeaseHelper` | MODIFIED | Implement `ILeaderLease` (already close to the interface; additive) |
+| `MatchmakingMigrationHostedService` | MODIFIED | Implement `IMigrationReadinessReporter` |
+| Additional `MatchmakingMeter` counters | MODIFIED | Enqueue rate, match formation rate, proposal accept/decline rate |
+
+### GameKit.Presence (MODIFIED — minor)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `PresenceActivitySource` | NEW class in `Telemetry/` | `ActivitySource("GameKit.Presence")` for heartbeat spans |
+
+### GameKit.Lobby (MODIFIED — minor)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `LobbyActivitySource` | NEW class in `Telemetry/` | `ActivitySource("GameKit.Lobby")` for join/ready/transition spans |
+| `LobbyMigrationHostedService` | MODIFIED | Implement `IMigrationReadinessReporter` |
+
+### GameKit.Admin.UI (MODIFIED)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `HealthProbeService` | MODIFIED | Delegate Postgres + Redis probes to Core's `CoreHealthProbe`; keep error-rate logic in Admin |
+| `AdminActivitySource` | NEW class in `Telemetry/` | `ActivitySource("GameKit.Admin")` for admin action spans |
+| `AdminMigrationHostedService` | MODIFIED | Implement `IMigrationReadinessReporter` |
+
+### GameKit.Auth (migration hosted service)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `AuthMigrationHostedService` | MODIFIED | Implement `IMigrationReadinessReporter` |
+
+### samples/TicTacToeDuel (MODIFIED)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `docker-compose.observability.yml` | NEW file | Grafana + Prometheus + Tempo stack; `docker compose -f docker-compose.yml -f docker-compose.observability.yml up` |
+| OTel SDK wiring in `Program.cs` | MODIFIED | Add `AddGameKitObservability()` + exporter config for sample |
+
+### tests/GameKit.LoadTests (NEW project)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `MatchmakingTickerBenchmarks` | NEW | BenchmarkDotNet micro-benchmark for ticker throughput |
+| `LobbySignalRLoadTest` | NEW | NBomber / Testcontainers end-to-end SignalR fan-out |
+| `AuthThroughputBenchmarks` | NEW | login/token-refresh throughput under load |
+
+### docs/ (NEW directory)
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `docfx.json` | NEW | DocFX config pointing at all src/*.csproj |
+| Static site output | BUILD ARTIFACT | Per-package API docs + getting-started tutorial |
+
+---
+
+## Data Flow Changes
+
+### Trace propagation through the matchmaking ticker
+
+```
+HTTP POST /api/mm/queue
+    ↓ [GameKit.Core ActivitySource — "GameKit.Core" span "Matchmaking.Enqueue"]
+    ↓ MatchmakingService.EnqueueAsync
+    ↓ [propagate W3C TraceContext into Redis HSET field "trace_context"]
+    ↓
+MatchmakerTickerService.RunOnceAsync (BackgroundService — no HTTP context)
+    ↓ [MatchmakingActivitySource.StartTickActivity() — "GameKit.Matchmaking.Ticker" span "Tick"]
+    ↓ [MatchmakingActivitySource.StartPoolActivity() — child span "PoolSweep" per pool]
+    ↓ [restore W3C TraceContext from Redis ticket's "trace_context" field → Activity.SetParentId]
+    ↓ [spans carry ladderId, poolName, candidatesEvaluated, matchesFormed tags]
+```
+
+**Key design:** The ticker runs in a BackgroundService — no HTTP context = no automatic trace propagation. To link the match-formation span to the original enqueue request, the `trace_context` (W3C Traceparent header value) is stored in the Redis ticket hash at enqueue time and restored at match time via `Activity.SetParentId`. This creates a single causal trace across the async boundary.
+
+### Trace propagation through the Lobby SignalR hub
+
+```
+HTTP POST /api/lobbies/{id}/ready   (player marks ready)
+    ↓ [GameKit.Lobby "Lobby.MarkReady" span]
+    ↓ LobbyService.TryStartMatchmakingAsync (all-ready trigger)
+    ↓ IMatchmakingService.EnqueueAsync (cross-package call)
+    ↓ [Activity context propagates in-process — no special handling needed]
+    ↓ SignalR hub group broadcast to "lobby:{id}" group
+```
+
+For SignalR, Activity context propagates automatically in-process. The broadcast from the hub server to connected clients does NOT propagate trace context (WebSocket binary frames don't carry HTTP headers). This is acceptable — the server-side span captures the full operation.
+
+### Readiness gate data flow
+
+```
+IHost.StartAsync
+    ├── GameKitVersionAssertionHostedService (Insert(0))
+    ├── CoreMigrationHostedService → sets IMigrationReadinessReporter.IsReady = true
+    ├── AuthMigrationHostedService → sets IMigrationReadinessReporter.IsReady = true
+    ├── ...all package migration services...
+    └── Kestrel starts accepting traffic
+
+GET /health/ready
+    → resolve IEnumerable<IMigrationReadinessReporter>
+    → if any IsReady == false → 503 Service Unavailable
+    → CoreHealthProbe.CheckPostgresAsync() → 503 if fails
+    → CoreHealthProbe.CheckRedisAsync() (if IConnectionMultiplexer registered) → 503 if fails
+    → 200 OK
+```
+
+The readiness endpoint returns 503 during startup before migrations complete. This is the correct Kubernetes behavior: the pod is in "Terminating" or "Pending" state until migrations finish, then traffic routes to it.
+
+---
+
+## Anti-Patterns to Avoid
+
+### Anti-Pattern 1: Introducing AddHealthChecks() as a parallel probe path
+
+**What it looks like:** Adding `services.AddHealthChecks().AddNpgsql(...).AddRedis(...)` alongside the existing `HealthProbeService`.
+
+**Why wrong:** GameKit already has Postgres + Redis probes in `HealthProbeService`. `AddHealthChecks()` would create a second, independent probe path with its own configuration, its own response format (`HealthReport` JSON vs. plain status), and its own middleware (`UseHealthChecks`). Two probe systems diverge. The Admin.UI health panel would not benefit from the new system. The new system would not benefit from the Admin's error-rate counter. The result is confusion about which probe is authoritative.
+
+**Do instead:** Expose the probes already in `HealthProbeService` via the new `MapGameKitHealth()` endpoints. The Admin.UI panel calls the same `IHealthProbeService`. One probe path, two consumers (K8s readiness probe + admin panel).
+
+### Anti-Pattern 2: Centralizing ActivitySource/Meter instances in a shared GameKit.Core class
+
+**What it looks like:** `GameKitActivitySources.Matchmaking`, `GameKitActivitySources.Rankings` — all sources in one static class in Core.
+
+**Why wrong:** Creates a hard compile-time coupling from every downstream package to Core's telemetry class. Matchmaking changes its source name → Core must be updated → all packages rebuild. Violates package independence.
+
+**Do instead:** Each package owns its own `Telemetry/` class. Core provides only the naming conventions (string constants). Per-package telemetry classes are package-private or internal.
+
+### Anti-Pattern 3: Storing raw lock keys (not using LockTakeAsync/LockReleaseAsync)
+
+**What it looks like:** `db.StringSetAsync(lockKey, instanceId, ttl, When.NotExists)` + `db.KeyDeleteAsync(lockKey)`.
+
+**Why wrong:** The `KeyDeleteAsync` path deletes the lock unconditionally — if the lock expired and another replica took it, you delete the other replica's lock. This is the primary source of split-brain in Redis-based leader election.
+
+**Do instead:** `db.LockTakeAsync / LockReleaseAsync` (already the pattern in all three existing LeaseHelper classes). The `LockReleaseAsync` uses a Lua script that checks the value matches before deleting. Never replace this.
+
+### Anti-Pattern 4: Running pg_dump from within the library's own connection
+
+**What it looks like:** A `BackgroundService` or endpoint that calls `pg_dump` via `Process.Start` inside the GameKit library.
+
+**Why wrong:** The library runs with the `gamekit_app` role (limited permissions). `pg_dump` requires superuser or a role with `pg_read_all_data` grant. Running it inside the app process also blocks the thread pool during the dump.
+
+**Do instead:** The `gamekit db backup` CLI command runs as a separate process with the operator's credentials. Documented in the ops runbook, not automated within the library.
+
+### Anti-Pattern 5: Creating a GameKit.Diagnostics package
+
+**What it looks like:** Extracting health + OTel extensions into a new NuGet package.
+
+**Why wrong:** See Decision 1 above. Adds a required package that consumers cannot skip, grows the release train, and splits operability concerns away from Core where the connection string and DbContext already live.
+
+**Do instead:** Extend GameKit.Core with opt-in builder extensions.
+
+---
+
+## Suggested Build Order for v2.1 Phases
+
+The following order respects dependency chains, ensures foundations exist before per-package instrumentation is wired, and follows the established pattern of getting infrastructure right before feature work.
+
+```
+Phase 13: Observability foundations (Core conventions + sample OTel stack)
+    Rationale: naming conventions must be established BEFORE per-package Telemetry/ classes
+    are modified. The sample dashboard must exist before per-package traces are wired.
+    Deliverables:
+    ├── GameKitTelemetry constants in Core
+    ├── AddGameKitObservability() builder extension in Core
+    ├── Normalize Rankings telemetry (extract into Telemetry/ class, match Matchmaking pattern)
+    ├── docker-compose.observability.yml in TicTacToeDuel (Prometheus + Tempo + Grafana)
+    └── Sample Program.cs wired to OTel SDK with OTLP exporter to Tempo
+
+Phase 14: Health + readiness endpoints (Core probes + IMigrationReadinessReporter)
+    Rationale: readiness gates depend on IMigrationReadinessReporter; that interface must exist
+    before any package's MigrationHostedService implements it. Health probes must work before
+    the hardening phase adds replica-churn tests that need readiness to behave correctly.
+    Deliverables:
+    ├── IMigrationReadinessReporter interface in Core
+    ├── All 6 MigrationHostedServices implement IMigrationReadinessReporter
+    ├── MapGameKitHealth() → /health/live + /health/ready in Core
+    ├── CoreHealthProbe (Postgres + optional Redis)
+    └── Refactor HealthProbeService to delegate Postgres/Redis to CoreHealthProbe
+
+Phase 15: Per-package OTel instrumentation (one pass per package)
+    Rationale: Phase 13 conventions + Phase 14 readiness endpoint must be stable before adding
+    spans/metrics to each package. Adding instrumentation before the OTel stack is running
+    means no feedback loop.
+    Deliverables:
+    ├── Auth: AuthActivitySource (login, token rotation spans)
+    ├── Rankings: RankingsMeter counters (drain batch size, match count per tick)
+    ├── Matchmaking: additional MatchmakingMeter counters; W3C trace propagation in ticker
+    ├── Presence: PresenceActivitySource (heartbeat spans)
+    ├── Lobby: LobbyActivitySource (join/ready/transition spans)
+    └── Admin.UI: AdminActivitySource (admin action spans)
+
+Phase 16: Multi-replica hardening (ILeaderLease + SIGTERM drain + idempotency audit)
+    Rationale: Phase 14 health/readiness is a prerequisite — the multi-replica churn tests
+    verify liveness/readiness behavior during leader transitions.
+    Deliverables:
+    ├── ILeaderLease interface in Core
+    ├── All three LeaseHelper classes implement ILeaderLease
+    ├── SIGTERM drain correctness audit + fixes in all BackgroundServices holding leases
+    ├── Lobby TryStartMatchmakingAsync idempotency key (prevent double-enqueue on partition recovery)
+    └── Multi-replica correctness test suite (2-replica Testcontainers integration tests)
+
+Phase 17: Backup / restore / DR + migration ops
+    Rationale: independent of telemetry and hardening; can run in parallel with Phase 16
+    but sequenced here to stay after core stability work.
+    Deliverables:
+    ├── gamekit db status / backup / restore / migrate --dry-run CLI subcommands
+    ├── Per-package migration ordering documentation
+    └── Postgres + Redis DR runbook (docs/ops/backup-restore.md)
+
+Phase 18: Security audit (threat-model verification + CVE review)
+    Rationale: audit after all new v2.1 code is in place (health endpoints, new CLI commands,
+    new OTel SDK wiring). CVE scan of all pinned NuGet versions.
+    Deliverables:
+    ├── Threat model re-verification (auth/admin/rate-limit/egress/GDPR)
+    ├── dotnet list package --vulnerable audit
+    └── Resolution of any findings
+
+Phase 19: Load / performance testing
+    Rationale: must run after all hardening (Phase 16) and instrumentation (Phase 15) are in
+    place — otherwise benchmarks don't reflect the final code path.
+    Deliverables:
+    ├── tests/GameKit.LoadTests/ project (BenchmarkDotNet + NBomber or Testcontainers)
+    ├── Matchmaking ticker throughput benchmarks
+    ├── Lobby SignalR fan-out benchmarks (N concurrent clients)
+    └── Auth login throughput benchmarks
+
+Phase 20: Docs + tutorial (static site + getting-started guide)
+    Rationale: last because the API surface is stable only after all prior phases complete.
+    Deliverables:
+    ├── docs/docfx.json + DocFX configuration
+    ├── Getting-started tutorial (end-to-end from dotnet new gamekit to first match)
+    └── Upgrade/compatibility guide (v1.0 → v2.1)
+```
+
+**Phase ordering rationale summary:**
+
+- Phase 13 before Phase 15: OTel naming conventions before per-package instrumentation, to prevent immediately needing to rename instruments.
+- Phase 14 before Phase 16: Health/readiness before multi-replica hardening, because the hardening test suite needs readiness probes to verify leader transitions.
+- Phase 15 after Phase 14: Per-package spans/metrics only after the OTel sample stack is running, enabling immediate feedback during development.
+- Phase 16 after Phase 14–15: Multi-replica hardening benefits from visibility (OTel traces) into leader-election behavior.
+- Phase 17 can run in parallel with Phases 15–16 (no dependency on telemetry or hardening).
+- Phase 18 after Phases 13–17: Security audit of completed code, not in-progress code.
+- Phase 19 after Phase 18: Load tests run against the final, audited codebase.
+- Phase 20 last: docs reflect the stable, final API.
 
 ---
 
 ## Sources
 
-All findings verified by direct file reads. No external sources consulted — the codebase IS the authoritative source for this research.
+All findings verified by direct file reads from the actual v2.0 codebase. No external sources needed — the codebase IS the authoritative source.
 
 | File | Relevance |
 |------|-----------|
-| `src/GameKit.Matchmaking/Services/MatchmakingService.cs:201-204` | Zero-rating hardcode — the exact tech debt being fixed |
-| `src/GameKit.Matchmaking/Services/MatchmakerTickerService.cs:504-577` | `BuildQueuedPartyFromHash` — reads `aggregateRating` and `members` fields; no change needed |
-| `src/GameKit.Matchmaking/Strategy/QueuedParty.cs:19-21` | Documents "cache may be stale" acceptance |
-| `src/GameKit.Matchmaking/Strategy/EloRangeMatchmakingStrategy.cs:112-125` | Bracket + symmetric-overlap rule — works unchanged once ratings are real |
-| `src/GameKit.Core/Services/IPostSessionCompleteHandler.cs` | Null-object-default port pattern — template for IPlayerRatingProvider |
-| `src/GameKit.Core/Services/IPresenceProvider.cs` | Optional-interface pattern in Core — confirms the IPlayerRatingProvider placement |
-| `src/GameKit.Core/Data/IModelBuilderExtension.cs` | TryAddEnumerable Singleton pattern |
-| `src/GameKit.Auth/Providers/IOAuthProvider.cs` | Scrutor strategy interface pattern |
-| `src/GameKit.Auth/Services/IPasswordHasher.cs` | IPasswordHasher interface for Auth.Argon2 |
-| `src/GameKit.Auth/Entities/PlayerIdentity.cs` | UNIQUE(provider, external_id) — no migration needed for new providers |
-| `src/GameKit.Core/Entities/AdminAuditLog.cs` | AccountMerge audit record target |
-| `src/GameKit.Core/Entities/Player.cs` | Source/target of account merge — ON DELETE CASCADE on identities confirmed |
-| `src/GameKit.Rankings/Entities/PlayerRank.cs` | UNIQUE(player_id, ladder_id) — merge strategy constraint |
-| `src/GameKit.Rankings/Entities/Ladder.cs` | FK refs from new tables |
-| `src/GameKit.Admin.UI/Services/ErrorRateRingBuffer.cs` | In-memory counter — multi-replica hazard identified |
-| `src/GameKit.Admin.UI/Services/LogErrorCounter.cs` | ILoggerProvider tap — modification point for RedisErrorRateCounter |
-| `src/GameKit.Matchmaking/Entities/MatchmakingTicket.cs:52` | PoolName already exists — no schema change for regional pools |
-| `src/GameKit.Presence/Builder/PresenceBuilderExtensions.cs` | Confirmed Presence is stateless (no migration hosted service) |
-| `.planning/STATE.md` locked decisions | Advisory lock keys, per-package migration boundary rules |
+| `src/GameKit.Matchmaking/Telemetry/MatchmakingActivitySource.cs` | Existing telemetry pattern; source name `"GameKit.Matchmaking.Ticker"` |
+| `src/GameKit.Matchmaking/Telemetry/MatchmakingMeter.cs` | Existing meter pattern; meter name `"GameKit.Matchmaking"` |
+| `src/GameKit.Rankings/Services/RankingsTickerService.cs` | Inlined `ActivitySource("GameKit.Rankings.Ticker")` — needs extraction |
+| `src/GameKit.Matchmaking/Services/MatchmakerLeaseHelper.cs` | Leader election pattern; `LockTakeAsync/LockExtendAsync/LockReleaseAsync`; fencing token |
+| `src/GameKit.Rankings/Services/RankingsTickerLeaseHelper.cs` | Duplicate leader election pattern — needs `ILeaderLease` interface |
+| `src/GameKit.Rankings/Services/RankDecayLeaseHelper.cs` | Third duplicate — needs `ILeaderLease` interface |
+| `src/GameKit.Admin.UI/Services/HealthProbeService.cs` | Existing probes; `IRedisErrorRateCounter` already cross-replica |
+| `src/GameKit.Admin.UI/Services/AdminLiveBroadcastService.cs` | Redis Pub/Sub relay; SIGTERM drain pattern reference |
+| `src/GameKit.Core/Builder/GameKitServiceCollectionExtensions.cs` | `services.Insert(0, ...)` HostedService ordering; `TryAddSingleton<IPlayerRatingProvider>` opt-port pattern |
+| `samples/TicTacToeDuel/Program.cs` | Composition root; AddGameKit chain; no OTel wiring yet (v2.1 adds it) |
+| `docker-compose.yml` | Postgres+Redis baseline; no Grafana/Prometheus/Tempo yet (v2.1 adds via overlay) |
+| `.planning/STATE.md` | Advisory lock keys; per-package migration boundary; all locked decisions |
+
+---
+*Architecture research for: GameKit v2.1 — Operability & Hardening integration*
+*Researched: 2026-06-08*

@@ -8,6 +8,22 @@ GameKit is a self-hostable, GPL-licensed open-source .NET library that gives gam
 
 A .NET-native, composable, extensible, fully self-hosted game services backend where every algorithm and strategy is an interface the developer can replace — install only what you need, own the rest, depend on no cloud service.
 
+## Current Milestone: v2.1 — Operability & Hardening (Production-Ready, Self-Hosted)
+
+**Goal:** Make GameKit production-hardened for self-hosters — observable, scalable, recoverable, and proven secure & performant — without yet publishing to NuGet.org.
+
+**Target features:**
+- **Observability** — opt-in OTel traces + metrics (`ActivitySource`/`Meter`) across all packages + a self-hosted sample dashboard (Grafana/Prometheus/Tempo via docker-compose)
+- **Health & readiness** — liveness vs. readiness endpoints with Postgres/Redis/migration dependency probes + startup-gating
+- **Horizontal-scale hardening** — proven + documented multi-replica correctness (leader election under churn, graceful drain/shutdown, distributed-lock edge cases, cross-replica idempotency)
+- **Backup / restore / DR + migration ops** — backup-restore tooling & runbook for Postgres + Redis, migration dry-run / rollback ergonomics, per-package ordering docs
+- **Security audit** — cross-cutting threat-model verification (auth/admin/rate-limit/egress/GDPR) + dependency/CVE supply-chain review
+- **Load / performance testing** — repeatable benchmarks (matchmaking ticker, lobby SignalR fan-out, auth throughput) with documented baselines + tuning guidance
+- **Docs & tutorial** — self-hosted/static docs site (per-package API + concepts) + end-to-end getting-started tutorial + upgrade/compatibility guide
+
+**North star:** Production-hardened, **not yet public** — public NuGet.org publish is deferred to a later milestone.
+**Phase numbering:** continues from **Phase 13** (v2.0 ended at Phase 12).
+
 ## Requirements
 
 ### Validated
@@ -31,26 +47,31 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 
 ### Active
 
-<!-- Current scope: v2.0 — Expansion: Providers, Lobby & Rating-Aware Play. REQ-IDs assigned in REQUIREMENTS.md. -->
+<!-- Current scope: v2.1 — Operability & Hardening. REQ-IDs assigned in REQUIREMENTS.md. -->
 
-**Auth expansion**
-- [ ] Argon2 password hasher as opt-in sibling package `GameKit.Auth.Argon2` (Isopoh)
-- [ ] Additional OAuth providers (Google / Apple / Epic) as opt-in sibling packages
-- [ ] Account merge — combine two distinct `player_id`s into one (reverses a v1 Out-of-Scope call; treat as high-risk)
+**Observability**
+- [ ] Opt-in OpenTelemetry traces + metrics (`ActivitySource`/`Meter`) wired across all packages
+- [ ] Self-hosted sample dashboard (Grafana/Prometheus/Tempo via docker-compose in the sample) — no SaaS exporter
 
-**Rankings / Matchmaking depth**
-- [ ] Rating-aware matchmaking — wire Rankings → Matchmaking so EloRange uses real player ratings (v1.0 carried-forward tech debt; EloRange currently runs on rating=0)
-- [ ] Configurable rank decay for inactive top-tier players
-- [ ] Placement matches (initial high-RD games)
-- [ ] Backfill into in-progress sessions
-- [ ] Regional matchmaking pools as a first-class concept (reverses a v1 Out-of-Scope call; was `metadata.region` escape hatch)
+**Health & readiness**
+- [ ] Liveness vs. readiness endpoints with Postgres/Redis/migration dependency probes and startup-gating
 
-**Lobby**
-- [ ] New `GameKit.Lobby` package — ready-checks, in-lobby chat, persistent groups
+**Horizontal-scale hardening**
+- [ ] Prove + document multi-replica correctness — leader election under churn, graceful drain/shutdown, distributed-lock edge cases, idempotency across concurrent replicas
 
-**Admin**
-- [ ] Multi-replica Admin UI via SignalR + **Redis** backplane (no Azure SignalR)
-- [ ] Replace the dead Admin "Rank adjust" stub nav page with the working flow (v1.0 carried-forward tech debt)
+**Backup / restore / DR + migration ops**
+- [ ] Backup-restore tooling & runbook for Postgres + Redis
+- [ ] Migration ergonomics — dry-run / rollback guidance, per-package ordering docs
+
+**Security audit**
+- [ ] Cross-cutting threat-model verification (auth/admin/rate-limit/egress/GDPR) + dependency/CVE supply-chain review
+
+**Load / performance testing**
+- [ ] Repeatable benchmarks (matchmaking ticker, lobby SignalR fan-out, auth throughput) with documented baselines + tuning guidance
+
+**Docs & tutorial**
+- [ ] Self-hosted/static docs site (per-package API + concepts)
+- [ ] End-to-end getting-started tutorial + upgrade/compatibility guide
 
 ### Out of Scope
 
@@ -69,9 +90,10 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 
 - **Mature v1.0 codebase**: ~34.3k LOC source + ~29.6k LOC tests across 18 projects; 7 shipped NuGet packages + CLI + template + build-time version-stamp generator. v2 extends this same codebase and release train.
 - **Established patterns** the v2 build must follow: per-package migrations (distinct advisory-lock key + `__ef_migrations_<pkg>` history table + design-time factory + `ExcludeFromMigrations` for prior packages; never mutate Core tables); coordinated MinVer release train with exact-pinned sibling refs `[X.Y.Z]`; `BackgroundService` + `PeriodicTimer` + Polly for periodic jobs (Redis leader election via `SET NX PX`); Scrutor assembly scanning for pluggable strategies; XML docs on every public API (CS1591-as-error).
-- **Two v1 Out-of-Scope reversals** in this milestone (account merge; first-class regional pools) — research/roadmap should treat these as the riskiest items and surface a clear migration/data-model story.
-- **Sample app** `samples/TicTacToeDuel` is the composition-root reference and integration harness.
-- **Build/run posture for v2**: user wants the build to run **fully autonomously** (`gsd-autonomous`) with automated verification (xUnit + Testcontainers + the GSD verifier/nyquist gates) rather than conversational UAT.
+- **v2.0 shipped** the full feature expansion (Argon2 + Google/Apple/Epic OAuth + account merge; rating-aware/regional/backfill matchmaking; rank decay + placement; `GameKit.Lobby` SignalR+Redis; multi-replica Admin). v2.1 **adds no new game-services surface** — it hardens and operationalizes what exists.
+- **v2.1 is operability + hardening**: observability, health/readiness, horizontal-scale proof, backup/DR, security audit, load testing, and docs. Much of this builds on existing seams rather than new packages: Core's opt-in OTel **abstractions** (Meter/ActivitySource already present), the admin **health panel**, and the Phase 12 **multi-replica** work (fleet error counter + Redis-backplane admin event hub).
+- **Sample app** `samples/TicTacToeDuel` is the composition-root reference, integration harness, and the home for the self-hosted observability stack + the getting-started tutorial.
+- **Build/run posture**: user wants the build to run **fully autonomously** (`gsd-autonomous`) with automated verification (xUnit + Testcontainers + the GSD verifier/nyquist gates) rather than conversational UAT.
 
 ## Constraints
 
@@ -95,8 +117,10 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 | MinVer coordinated release train, exact-pinned siblings | One source of truth; simplest composable-package story | ✓ Good (v1.0) |
 | Reject MediatR / AutoMapper (RPL/commercial after v13) | License risk inside consumers' apps | ✓ Good (v1.0) |
 | Scrutor + MS.DI over source-gen DI | A library cannot dictate the consumer's container | ✓ Good (v1.0) |
-| v2 SignalR backplane MUST be Redis (not Azure SignalR) | Zero-cloud GPL constraint | — Pending (v2.0) |
-| Account merge + first-class regional pools enter scope (reversing v1) | User-prioritized for v2.0 | — Pending (v2.0, high-risk) |
+| v2 SignalR backplane MUST be Redis (not Azure SignalR) | Zero-cloud GPL constraint | ✓ Good (v2.0) |
+| Account merge + first-class regional pools enter scope (reversing v1) | User-prioritized for v2.0 | ✓ Shipped (v2.0) |
+| Observability stack must be self-hostable (Grafana/Prometheus/Tempo via docker-compose) — no SaaS exporters | Zero-cloud GPL constraint | — Pending (v2.1) |
+| Public NuGet.org publish deferred past v2.1 | Harden + audit + load-test first; publish once production-proven | — Pending (v2.1) |
 
 ## Evolution
 
@@ -126,4 +150,4 @@ This document evolves at phase transitions and milestone boundaries.
 - Admin: multi-replica UI (SignalR + Redis backplane) · fix "Rank adjust" stub page
 
 ---
-*Last updated: 2026-06-07 — v2.0 shipped (Phases 7–12, 29/29 requirements, audit `tech_debt` with minor non-blocking items). Next: `/gsd:new-milestone`.*
+*Last updated: 2026-06-07 — v2.1 milestone started (Operability & Hardening; phases continue from 13; public NuGet publish deferred). v2.0 shipped 2026-06-07 (Phases 7–12, 29/29 requirements). Next: define requirements → roadmap.*

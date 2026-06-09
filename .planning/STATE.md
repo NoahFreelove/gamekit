@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: "Expansion: Providers, Lobby & Rating-Aware Play"
-status: Awaiting next milestone
-last_updated: "2026-06-07T03:08:29.871Z"
-last_activity: 2026-06-07 — Completed quick task 260607-j3p: fixed lobby Open→ReadyChecking bug (found via live sample exercise)
+milestone: v2.1
+milestone_name: Operability & Hardening
+status: planning
+last_updated: "2026-06-08T00:00:00.000Z"
+last_activity: 2026-06-08
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 26
-  completed_plans: 26
-  percent: 100
+  total_phases: 8
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # STATE: GameKit
@@ -22,20 +22,23 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 12 — Admin Multi-Replica + Distribution Close-Out
+**Current Focus:** Milestone v2.1 — Operability & Hardening (roadmap created; 47/47 requirements mapped; phases 13–20)
 
 ## Current Position
 
-Phase: Milestone v2.0 complete
+Phase: 13 (not started — roadmap just created)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-06-07 — Milestone v2.0 completed and archived
+Status: Roadmap complete; ready for Phase 13 planning
+Last activity: 2026-06-08 — v2.1 roadmap created (8 phases, 47 requirements mapped)
 
 ## Performance Metrics
 
 | Metric | Value |
 |--------|-------|
-| v2.0 phases complete | 0 / 6 |
+| v2.1 phases defined | 8 (Phases 13–20) |
+| v2.1 requirements mapped | 47 / 47 |
+| v2.1 requirements validated | 0 / 47 |
+| v2.0 phases complete | 6 / 6 |
 | v2.0 requirements mapped | 29 / 29 |
 | v2.0 requirements validated | 0 / 29 |
 | Phase 01 P01 | 4min | 3 tasks | 9 files |
@@ -109,6 +112,7 @@ Last activity: 2026-06-07 — Milestone v2.0 completed and archived
 
 - 2026-04-26 — Phase 03.1 inserted after Phase 03: Admin UI redesign v2 — re-skin per Claude Design hi-fi prototype (violet-600 accent, density tokens, master-detail Players, two-column Audit, ⌘K palette, Tweaks panel, medium ban banner). Source prototype preserved at `.planning/sketches/admin-ui-redesign-v2/`. Re-skins existing UI without changing functional contract. (URGENT-INSERT)
 - 2026-06-05 — v2.0 roadmap created: 6 phases (7–12), 29/29 requirements mapped. Phase numbering continues from v1.0 (which ended at Phase 6).
+- 2026-06-08 — v2.1 roadmap created: 8 phases (13–20), 47/47 requirements mapped. Phase numbering continues from v2.0 (which ended at Phase 12).
 
 ### Decisions Locked (from research)
 
@@ -272,6 +276,8 @@ Last activity: 2026-06-07 — Milestone v2.0 completed and archived
 | MatchmakingService takes IPlayerRatingProvider? as optional 10th ctor param — MS.DI resolves registered IPlayerRatingProvider from the container (NullPlayerRatingProvider or RankingsRatingSource); null default is test convenience only | 08-04 execution |
 | MaxBracketWidth + MinPoolDepthBeforeBracketExpansion validated at AddLadder time (reject <= 0 with "use null to disable" message); null is accepted and preserves v1 behaviour | 08-04 execution |
 | Pool-depth guard applied symmetrically to both candidate bracket and pool-entry bracket — setting candidateElapsed=0 AND poolElapsed=0 when pool.Count - 1 < MinPoolDepthBeforeBracketExpansion prevents asymmetric expansion where one side widens before the other | 08-04 execution |
+| v2.1 architecture decision (LOCKED): health/readiness + `AddGameKitObservability()` live in `GameKit.Core` — NO new `GameKit.Observability` or `GameKit.Diagnostics` package; per-package ActivitySource/Meter stay per-package; Admin.UI HealthProbeService delegates to Core probes; `IMigrationReadinessReporter` bridges migrations→/health/ready; `ReleaseLeaseAsync` on SIGTERM uses `CancellationToken.None` | v2.1 roadmap creation |
+| v2.1 tooling decisions (LOCKED): load testing uses k6 (AGPLv3 CLI, not a library dep) + BenchmarkDotNet (MIT); docs use DocFX 2.78.5 (MIT, net10.0); NBomber excluded (commercial for org use); Statiq excluded (commercial restriction) | v2.1 roadmap creation |
 
 ### v2.0 Pending Decisions (open research flags to resolve in planning)
 
@@ -283,7 +289,7 @@ Last activity: 2026-06-07 — Milestone v2.0 completed and archived
 | `admin_audit_log.actor_id` FK behavior on source-player tombstone | Phase 10 | **RESOLVED (10-04):** No FK on actor_id — stores both player IDs and admin user IDs; FK caused 23503 on all admin-initiated audit rows. Bare nullable UUID retained. |
 | `lobby_messages` persistence decision | Phase 11 | Persist with 30-day retention cleanup + `ILobbyMessageHandler` extension point (confirmed in ARCHITECTURE.md Q5) |
 
-### Advisory Lock Keys (all five v1 keys live-verified)
+### Advisory Lock Keys (all six v2.0 keys live-verified)
 
 | Package | Key |
 |---------|-----|
@@ -296,7 +302,7 @@ Last activity: 2026-06-07 — Milestone v2.0 completed and archived
 
 ### Open Questions
 
-None. All research open questions are tracked in the "v2.0 Pending Decisions" table above and will be resolved in the respective phase's planning step.
+None. All v2.1 architecture decisions resolved in research (see `Decisions Locked` table above).
 
 ### Todos
 
@@ -317,23 +323,24 @@ None.
 
 ## Session Continuity
 
-**Last action:** 2026-06-06 — Completed Phase 11 Plan 01 (GameKit.Lobby Wave 0 skeleton + advisory lock key 12178347L live-verified; SC#1/OPS-11 satisfied).
+**Last action:** 2026-06-08 — v2.1 roadmap created. 8 phases (13–20), 47/47 requirements mapped. Architecture decisions locked: no new packages, health/obs in Core, k6 + BenchmarkDotNet + DocFX as tooling.
 
-**Next action:** Proceed to Phase 11 Plan 02 (Lobby data model: lobbies/lobby_members entities, EF migration, model customizer).
+**Next action:** `/gsd:plan-phase 13` — Phase 13: Observability Foundations. PII lint gate is the first task.
 
 **Blockers:** None.
 
 **Context preserved:**
 
-- PROJECT.md, REQUIREMENTS.md, research/{SUMMARY,STACK,FEATURES,ARCHITECTURE,PITFALLS}.md, config.json
-- ROADMAP.md (v1.0 archived + v2.0 Phases 7–12, 29/29 coverage)
-- v1.0 execution history: 01-01 through 05-10 SUMMARYs (all in SESSION CONTINUITY above)
+- PROJECT.md, REQUIREMENTS.md, research/{SUMMARY,FEATURES,ARCHITECTURE,PITFALLS}.md, config.json
+- ROADMAP.md (v1.0 archived + v2.0 Phases 7–12 + v2.1 Phases 13–20, 47/47 coverage)
 - v2.0 advisory lock keys: Core=1800940027, Auth=-298890956, Admin=-2101739634, Rankings=-156812172, Matchmaking=388956820, Lobby=12178347 (all six live-verified)
+- v2.1 key constraints: GPL/self-hosted/zero-cloud; no new packages; `ReleaseLeaseAsync` with `CancellationToken.None` on SIGTERM; PII span lint gate before any instrumentation; Prometheus /metrics on internal Docker network only; no SaaS OTLP endpoints anywhere
 
 ---
 *Initialized: 2026-04-15 at roadmap creation.*
 *v2.0 roadmap added: 2026-06-05.*
+*v2.1 roadmap added: 2026-06-08.*
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Run `/gsd:plan-phase 13` to plan Phase 13: Observability Foundations

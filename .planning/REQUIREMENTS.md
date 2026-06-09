@@ -1,0 +1,185 @@
+# Requirements: GameKit — v2.1 (Operability & Hardening)
+
+**Defined:** 2026-06-08
+**Core Value:** A .NET-native, composable, extensible, fully self-hosted game services backend where every algorithm and strategy is an interface the developer can replace — install only what you need, own the rest, depend on no cloud service.
+**License:** GPL · **Runtime:** .NET 10 LTS · **Infra:** Postgres + Redis only (zero-cloud)
+
+> Continues v2.0 (29/29 shipped — archived at `.planning/milestones/v2.0-REQUIREMENTS.md`). v2.1 adds **no new game-services surface** — it hardens and operationalizes the existing 7-package library. New operability/hardening categories use fresh REQ-ID prefixes. Research basis: `.planning/research/SUMMARY.md` (+ STACK/FEATURES/ARCHITECTURE/PITFALLS).
+>
+> **North star:** production-hardened, **not yet public** — public NuGet.org publish + public docs-site publishing are deferred to a later milestone (see Future Requirements).
+>
+> **Milestone scope decisions (2026-06-08):** (1) one-call observability ships as an `AddGameKitObservability()` **extension method in `GameKit.Core`** with the OTel SDK as an opt-in dependency — **no** new `GameKit.Observability` package; (2) the DocFX docs site is **generated + CI-verified in-repo but not published** this milestone; (3) backup/DR + migration ops ship as **CLI commands + scripts + runbooks + a CI round-trip test**.
+
+## v2.1 Requirements
+
+### Observability — OTel Traces + Metrics + Self-Hosted Sample Stack
+
+- [ ] **OBS-01**: `AddGameKitObservability()` extension method in `GameKit.Core` registers every GameKit `ActivitySource`/`Meter` and, optionally, an OTLP exporter in one call. The OTel SDK + OTLP exporter (1.15.3, Apache-2.0) are **opt-in dependencies**; all shipped packages use only in-box `System.Diagnostics.DiagnosticSource` and take **no** OTel SDK hard dependency.
+- [ ] **OBS-02**: Per-package named `ActivitySource` following a `gamekit.<package>.*` naming convention centralized as constants in Core (`GameKitTelemetry`); spans cover every HTTP handler path (auth login/refresh, matchmaking enqueue, session-complete, lobby state transitions).
+- [ ] **OBS-03**: Per-package `Meter` RED metrics (request count, error count, latency histogram) namespaced `gamekit.<package>.*`, using only **low-cardinality** labels (ladder/pool/region/status — never player_id/ticket_id).
+- [ ] **OBS-04**: Background-job metrics — matchmaking ticker lag, queue depth per pool, rank-decay job run duration, and leader-lock acquisition failures.
+- [ ] **OBS-05**: Lobby SignalR metrics — connected clients, messages/sec, ready-check completion rate.
+- [ ] **OBS-06**: W3C trace-context propagation through async paths — `traceparent` stored in the Redis ticket hash at enqueue and restored at match-formation; propagated through the rank-decay BackgroundService and the lobby ready-check broadcast.
+- [ ] **OBS-07**: PII/secret span-attribute guard — a CI lint gate plus a documented span/metric attribute allow-list that fails the build if `player_id`, email, tokens, or secrets are tagged; established as the **first** task before any new instrumentation lands (GPL/GDPR landmine).
+- [ ] **OBS-08**: Self-hosted observability stack in `samples/TicTacToeDuel` (`docker-compose.observability.yml`: OTel Collector + Prometheus + Grafana + Tempo, with Jaeger noted as the Apache-2.0 alternative to AGPLv3 Tempo) plus pre-provisioned Grafana dashboards (matchmaking queue depth + ticker health); the Prometheus `/metrics` scrape target is isolated on an internal Docker network and is **never** publicly exposed by default.
+
+### Health & Readiness
+
+- [ ] **HLTH-01**: `AddGameKitHealthChecks()` + map helpers in `GameKit.Core` expose separate `/health/live` and `/health/ready` endpoints with orchestrator-compatible JSON; liveness is process-only (no DB/Redis calls), readiness is dependency-gated.
+- [ ] **HLTH-02**: Readiness probes cover Postgres (`SELECT 1`), Redis (`PING`), and a per-package "all migrations applied" check via a new `IMigrationReadinessReporter` implemented by each package's migration HostedService — a replica stays out of rotation until every dependency and migration passes.
+- [ ] **HLTH-03**: Three-state health (`Healthy`/`Degraded`/`Unhealthy`) — e.g. the matchmaking ticker not holding the leader lock reports `Degraded`, not `Unhealthy`.
+- [ ] **HLTH-04**: Leader-lock health probe reports which replica currently holds the matchmaking leader lock and the TTL remaining.
+- [ ] **HLTH-05**: Health payloads never leak infrastructure details (no connection strings, hosts, or credentials) — component name + status + human-readable description only.
+- [ ] **HLTH-06**: The existing Admin UI health panel consumes the structured `HealthCheckService` results; Admin.UI's `HealthProbeService` is refactored to **delegate to** the Core probes rather than duplicate them.
+
+### Horizontal-Scale Hardening
+
+- [ ] **SCALE-01**: A shared `ILeaderLease` abstraction in `GameKit.Core` unifies the three existing lease helpers (matchmaking ticker, rank-decay, queue reconciler) without changing the `SET NX PX` mechanism — renew/bail-on-lost-lease semantics live in one auditable place.
+- [ ] **SCALE-02**: Graceful shutdown — on SIGTERM, in-flight HTTP requests drain (ASP.NET Core default), the active ticker iteration completes within the stop deadline, and the leader lock is released proactively using `CancellationToken.None` (not the stopping token) so the release survives shutdown.
+- [ ] **SCALE-03**: Idempotent match/session creation across replicas — Postgres `INSERT … ON CONFLICT DO NOTHING` + idempotency key; concurrent `SessionCompleteAsync` calls for the same key produce exactly one row.
+- [ ] **SCALE-04**: Leader-election split-brain integration test (Testcontainers, ≥2 replicas, leader killed under churn at realistic Redis RTT) asserting **zero** duplicate matches and no ticker gap longer than one lock TTL — a CI gate; resolves the `LockTtlSeconds=90` vs ~50 ms tick-budget split-brain risk by proving TTL safely exceeds worst-case tick duration.
+- [ ] **SCALE-05**: Graceful-drain integration test — 100 concurrent requests followed by SIGTERM yields zero 5xx responses and zero match duplicates (proves zero-downtime rolling deploys).
+- [ ] **SCALE-06**: Lobby + Admin SignalR multi-replica correctness proven under replica restart and Redis reconnect (integration test exercising the real Redis backplane); the load-balancer sticky-session requirement is documented for operators.
+
+### Backup / Restore / DR + Migration Ops
+
+- [ ] **DR-01**: Postgres backup/restore runbook (`docs/runbooks/postgres-backup-restore.md`) — `pg_dump` logical backup + WAL-G/Barman incremental + point-in-time-recovery guidance.
+- [ ] **DR-02**: Redis backup/restore runbook (`docs/runbooks/redis-backup-restore.md`) — RDB snapshot copy + AOF truncation guidance + a pre-destructive-operation (`FLUSHALL`) guard.
+- [ ] **DR-03**: Verified DR round-trip — a committed script plus a Testcontainers CI test that backs up the sample DB, drops it, restores it, and asserts the app's health checks pass (makes restore confidence a CI artifact).
+- [ ] **DR-04**: `gamekit migrations list` CLI command — unified view of every installed package's pending-migration count plus the recommended application order.
+- [ ] **DR-05**: `gamekit migrations apply --dry-run` CLI command — prints the idempotent SQL for all pending migrations across all installed packages without executing.
+- [ ] **DR-06**: `gamekit db backup` / `gamekit db restore` CLI helpers wrapping `pg_dump`/`pg_restore` + Redis snapshot, with an operator-supplied destination (no managed/bundled storage; no writing to a library-controlled path).
+- [ ] **DR-07**: Migration-ops documentation (`docs/migration-ops.md`) — per-package apply ordering, idempotent-script generation, the rollback procedure with the destructive-`Down()` warning, a `Down()`-method policy (destructive downs throw `NotSupportedException`), and a migration-timestamp ordering regression test.
+
+### Security Audit
+
+- [ ] **SEC-01**: JWT threat-model verification tests — reject `alg:none`/algorithm-downgrade, wrong audience/issuer, expired tokens, and exchange of a revoked refresh token.
+- [ ] **SEC-02**: Admin endpoint authentication audit — a route-enumeration test asserts every `/admin/*` route requires the `GameKitAdmin` cookie scheme and **no** admin route is reachable by a player JWT.
+- [ ] **SEC-03**: Rate-limit audit — an enumeration test asserts every public auth write endpoint (`login`, `register`, `refresh`, …) has an enforced rate-limit policy.
+- [ ] **SEC-04**: GDPR delete completeness audit — `DeletePlayerAsync` reaches **all** FK tables including v2.0 additions (lobby_members, party_members, matchmaking_tickets, regional-pool refs, account-merge tombstones); a completeness test seeds a player across every table and asserts zero residual rows post-delete.
+- [ ] **SEC-05**: Egress audit — a static check + integration test assert no package makes outbound HTTP beyond the configured OAuth provider hosts (preserves the air-gap guarantee).
+- [ ] **SEC-06**: Security-invariant regression tests — refresh tokens are never stored raw (SHA-256 invariant) and state-changing admin API calls without a valid antiforgery token return 400 (CSRF regression gate).
+- [ ] **SEC-07**: Dependency/CVE supply-chain CI gate — `NuGetAuditMode=all` (built into the .NET 10 SDK) fails the build on high/critical CVEs in GameKit's own dependency graph (scoped to GameKit, not the consumer's app).
+- [ ] **SEC-08**: `docs/security-checklist.md` mapping threat model → implementation → test for the auth/admin/rate-limit/egress/GDPR surface.
+
+### Load / Performance Testing
+
+- [ ] **PERF-01**: BenchmarkDotNet (MIT) micro-benchmarks for hot paths — JWT validation, BCrypt + Argon2id verify, Glicko-2 rating calculation, and the matchmaking-ticket Redis round-trip.
+- [ ] **PERF-02**: Committed performance baselines (`benchmarks/BASELINES.md`) recording machine spec + .NET version + result per benchmark.
+- [ ] **PERF-03**: k6 (AGPLv3 CLI; no library dependency) load scenarios — a matchmaking burst (500 players queue simultaneously, assert p99 match time) and auth throughput — runnable against a local Testcontainers stack and **never** run in CI against production.
+- [ ] **PERF-04**: k6 Lobby SignalR fan-out scenario (N connected clients, one broadcast, measure delivery-time distribution) exercising the real Redis backplane. *(A short spike confirms k6 WebSocket sufficiency for SignalR before committing the scenario.)*
+- [ ] **PERF-05**: Performance tuning guide (`docs/performance-tuning.md`) — BCrypt/Argon2 cost-factor vs latency table, Npgsql connection-pool sizing, and notes on the top-5 hot queries.
+- [ ] **PERF-06**: CI benchmark regression gate — the build fails if any hot-path benchmark regresses >20% from the committed baseline.
+
+### Docs & Tutorial
+
+- [ ] **DOCS-01**: DocFX (MIT, net10.0) site generated from the existing XML doc comments (per-package API reference) with a `docfx build --warningsAsErrors` CI gate; built and verified **in-repo**, not published to a public site this milestone.
+- [ ] **DOCS-02**: Getting-started tutorial (`dotnet new gamekit` → first authenticated player + first completed match in ~15 minutes), runnable against the sample with `docker-compose up`, requiring zero cloud credentials; a CI smoke test executes the tutorial path.
+- [ ] **DOCS-03**: Per-package concepts documentation (what the package does, the interfaces it exposes, and the library-vs-consumer responsibility line).
+- [ ] **DOCS-04**: Upgrade/compatibility guide v2.0 → v2.1 (config additions, new health/observability wiring, any migration-order changes).
+- [ ] **DOCS-05**: Runbook library under `docs/runbooks/` (backup/restore, rolling deploy, migration apply, matchmaking-outage incident response) plus ADRs capturing key v1/v2 decisions.
+- [ ] **DOCS-06**: The sample app (`samples/TicTacToeDuel`) is kept current with all v2.1 features (observability stack, health endpoints) so it serves as both the tutorial target and the integration harness.
+
+## Future Requirements
+
+Deferred to a later milestone (tracked, not in this roadmap).
+
+### Public Release & Distribution
+
+- **DIST-07**: Publish all packages to NuGet.org via a CI release workflow (signing + symbols + README/license badges) on the coordinated MinVer release-train tag.
+- **DIST-08**: Publish the DocFX docs site to a public host (e.g. GitHub Pages) on every release tag.
+- **SEC-09**: SBOM generation (`dotnet sbom-tool` or package lock files) committed as a CI artifact for enterprise supply-chain consumers.
+
+## Out of Scope
+
+Explicitly excluded for v2.1. Anti-features from research with reasoning.
+
+| Feature | Reason |
+|---------|--------|
+| OTel SDK as a hard dependency in every shipped package | Forces ~3 MB of transitive deps on consumers who don't want observability; violates "install only what you need." Packages use in-box `DiagnosticSource`; the SDK is opt-in via `AddGameKitObservability()`. |
+| Auto-uploading traces/metrics to any SaaS (Datadog, New Relic, Honeycomb) from library code | Phone-home; violates GPL self-hosted + zero-telemetry. OTLP-only; all exporters consumer-configured. |
+| A new `GameKit.Observability` package | Decided against — the one-call wiring is a `GameKit.Core` extension method; a new release-train package for ~1 method isn't justified. |
+| Bundling Grafana/Prometheus containers as a NuGet side effect | NuGet packages can't ship containers; the stack lives in `samples/` as docker-compose + provisioned configs only. |
+| `.NET Aspire` dashboard dependency | Dev tool, not a self-hosted production path; would force Aspire on consumers. OTLP + standalone Grafana is the production path. |
+| Opinionated K8s manifests / Helm charts shipped as library artifacts | Operator topologies vary; prescriptive manifests would be wrong for most. Sample YAML lives in `samples/` as docs examples only. |
+| Auto-running EF migrations on startup in multi-replica deployments | All replicas race; recommend a separate pre-deploy/init-container migration step and document the risk. |
+| Auto-rollback of migrations on deploy failure | Destructive `Down()` can lose data; the operator decides. Procedure documented, never auto-executed. |
+| Replacing `SET NX PX` with RedLock.net / multi-master Redis | Introduces multi-master complexity that conflicts with the single-Redis self-hosted model; current pattern is correct for the supported topology. |
+| WAF, IP/geo-blocking, MaxMind GeoIP | Requires a SaaS lookup or a large bundled dataset (violates self-hosted/no-SaaS); these are nginx/firewall/LB concerns. |
+| Versioned docs for every minor release | Maintenance overhead; single latest-release docs + upgrade guides are sufficient at v2.x. |
+| AI-generated changelog | The changelog is a trust signal — human-curated from conventional commits. (Also: no AI in the project at all.) |
+| NuGet.org publish + public docs-site publishing | Deferred to the public-release milestone (see Future Requirements). |
+
+## Traceability
+
+Phase mapping populated by roadmapper 2026-06-08. All 47 requirements mapped.
+
+| Category | REQ-IDs | Count | Phase |
+|----------|---------|-------|-------|
+| Observability (foundations) | OBS-01, OBS-02, OBS-03, OBS-07, OBS-08 | 5 | Phase 13 |
+| Health & Readiness | HLTH-01, HLTH-02, HLTH-03, HLTH-04, HLTH-05, HLTH-06 | 6 | Phase 14 |
+| Observability (per-package instrumentation) | OBS-04, OBS-05, OBS-06 | 3 | Phase 15 |
+| Horizontal-Scale Hardening | SCALE-01, SCALE-02, SCALE-03, SCALE-04, SCALE-05, SCALE-06 | 6 | Phase 16 |
+| Backup / DR + Migration Ops | DR-01, DR-02, DR-03, DR-04, DR-05, DR-06, DR-07 | 7 | Phase 17 |
+| Security Audit | SEC-01, SEC-02, SEC-03, SEC-04, SEC-05, SEC-06, SEC-07, SEC-08 | 8 | Phase 18 |
+| Load / Performance Testing | PERF-01, PERF-02, PERF-03, PERF-04, PERF-05, PERF-06 | 6 | Phase 19 |
+| Docs & Tutorial | DOCS-01, DOCS-02, DOCS-03, DOCS-04, DOCS-05, DOCS-06 | 6 | Phase 20 |
+
+**Coverage:**
+- v2.1 requirements: 47 total
+- Mapped to phases: 47 (100%)
+- Unmapped: 0 ✓
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| OBS-01 | Phase 13 | Pending |
+| OBS-02 | Phase 13 | Pending |
+| OBS-03 | Phase 13 | Pending |
+| OBS-07 | Phase 13 | Pending |
+| OBS-08 | Phase 13 | Pending |
+| HLTH-01 | Phase 14 | Pending |
+| HLTH-02 | Phase 14 | Pending |
+| HLTH-03 | Phase 14 | Pending |
+| HLTH-04 | Phase 14 | Pending |
+| HLTH-05 | Phase 14 | Pending |
+| HLTH-06 | Phase 14 | Pending |
+| OBS-04 | Phase 15 | Pending |
+| OBS-05 | Phase 15 | Pending |
+| OBS-06 | Phase 15 | Pending |
+| SCALE-01 | Phase 16 | Pending |
+| SCALE-02 | Phase 16 | Pending |
+| SCALE-03 | Phase 16 | Pending |
+| SCALE-04 | Phase 16 | Pending |
+| SCALE-05 | Phase 16 | Pending |
+| SCALE-06 | Phase 16 | Pending |
+| DR-01 | Phase 17 | Pending |
+| DR-02 | Phase 17 | Pending |
+| DR-03 | Phase 17 | Pending |
+| DR-04 | Phase 17 | Pending |
+| DR-05 | Phase 17 | Pending |
+| DR-06 | Phase 17 | Pending |
+| DR-07 | Phase 17 | Pending |
+| SEC-01 | Phase 18 | Pending |
+| SEC-02 | Phase 18 | Pending |
+| SEC-03 | Phase 18 | Pending |
+| SEC-04 | Phase 18 | Pending |
+| SEC-05 | Phase 18 | Pending |
+| SEC-06 | Phase 18 | Pending |
+| SEC-07 | Phase 18 | Pending |
+| SEC-08 | Phase 18 | Pending |
+| PERF-01 | Phase 19 | Pending |
+| PERF-02 | Phase 19 | Pending |
+| PERF-03 | Phase 19 | Pending |
+| PERF-04 | Phase 19 | Pending |
+| PERF-05 | Phase 19 | Pending |
+| PERF-06 | Phase 19 | Pending |
+| DOCS-01 | Phase 20 | Pending |
+| DOCS-02 | Phase 20 | Pending |
+| DOCS-03 | Phase 20 | Pending |
+| DOCS-04 | Phase 20 | Pending |
+| DOCS-05 | Phase 20 | Pending |
+| DOCS-06 | Phase 20 | Pending |
+
+---
+*Requirements defined: 2026-06-08*
+*Last updated: 2026-06-08 — traceability filled in by roadmapper (47/47 mapped)*

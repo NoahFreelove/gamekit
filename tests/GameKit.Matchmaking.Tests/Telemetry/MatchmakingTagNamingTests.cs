@@ -38,30 +38,36 @@ public sealed class MatchmakingTagNamingTests
     private static string TickerServiceFile =>
         ReadSourceFile(Path.Combine("src", "GameKit.Matchmaking", "Services", "MatchmakerTickerService.cs"));
 
-    // ── Source-assert: no old camelCase keys remain ─────────────────────────
+    // ── Source-assert: no old camelCase tag keys remain as SetTag arguments ──
+    //
+    // The check looks for the SetTag call form — "SetTag(\"<key>\"" — to assert
+    // that the old camelCase string is not passed as a span tag key argument.
+    // This avoids false positives from Redis hash field reads (which use the same
+    // identifiers as keys in the wire format and must NOT be renamed), comments,
+    // XML doc attributes, or local variable names.
 
     /// <summary>
     /// Source-assert: neither <c>MatchmakingActivitySource.cs</c> nor
-    /// <c>MatchmakerTickerService.cs</c> may contain the old camelCase tag key strings
-    /// from before the D-03 rename. Fails until the normalization is applied (RED gate).
+    /// <c>MatchmakerTickerService.cs</c> may pass an old camelCase string as a
+    /// <c>SetTag</c> key argument. Fails until the D-03 rename is applied (RED gate).
     /// </summary>
     [Theory]
-    [InlineData("ladderId")]
-    [InlineData("poolName")]
-    [InlineData("candidatesEvaluated")]
-    [InlineData("matchesFormed")]
-    [InlineData("budgetBail")]
-    [InlineData("matchCapBail")]
-    [InlineData("hashFanoutMs")]
-    [InlineData("matchLoopMs")]
-    [InlineData("totalMs")]
-    public void MatchmakingSource_DoesNotContain_OldCamelCaseTagKey(string oldKey)
+    [InlineData("SetTag(\"ladderId\"")]
+    [InlineData("SetTag(\"poolName\"")]
+    [InlineData("SetTag(\"candidatesEvaluated\"")]
+    [InlineData("SetTag(\"matchesFormed\"")]
+    [InlineData("SetTag(\"budgetBail\"")]
+    [InlineData("SetTag(\"matchCapBail\"")]
+    [InlineData("SetTag(\"phase.hashFanoutMs\"")]
+    [InlineData("SetTag(\"phase.matchLoopMs\"")]
+    [InlineData("SetTag(\"phase.totalMs\"")]
+    public void MatchmakingSource_DoesNotContain_OldCamelCaseTagKey(string oldSetTagPattern)
     {
         var activitySource = ActivitySourceFile;
         var tickerService = TickerServiceFile;
 
-        Assert.DoesNotContain(oldKey, activitySource);
-        Assert.DoesNotContain(oldKey, tickerService);
+        Assert.DoesNotContain(oldSetTagPattern, activitySource);
+        Assert.DoesNotContain(oldSetTagPattern, tickerService);
     }
 
     // ── Source-assert: cross-cutting keys reference GameKitTelemetry constants ─

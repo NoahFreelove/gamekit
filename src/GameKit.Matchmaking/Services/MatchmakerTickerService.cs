@@ -359,7 +359,7 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                 queueKey, double.NegativeInfinity, double.PositiveInfinity,
                 Exclude.None, Order.Ascending, 0, take: CandidatesPerTick).ConfigureAwait(false);
 
-            poolActivity?.SetTag("candidatesEvaluated", entries.Length);
+            poolActivity?.SetTag("candidates.evaluated", entries.Length);
 
             if (entries.Length < 2)
             {
@@ -392,7 +392,7 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                     candidates.Add(qp);
             }
             var hashFanoutMs = phaseSw.ElapsedMilliseconds;
-            poolActivity?.SetTag("phase.hashFanoutMs", hashFanoutMs);
+            poolActivity?.SetTag("phase.hash_fanout_ms", hashFanoutMs);
 
             if (candidates.Count < 2)
                 continue;
@@ -431,12 +431,12 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                 // next tick (~500 ms later).
                 if (budgetSw.ElapsedMilliseconds >= budgetMs)
                 {
-                    poolActivity?.SetTag("budgetBail", true);
+                    poolActivity?.SetTag("budget.bail", true);
                     break;
                 }
                 if (matchedInPoolCount >= MaxMatchesPerTick)
                 {
-                    poolActivity?.SetTag("matchCapBail", true);
+                    poolActivity?.SetTag("match_cap.bail", true);
                     break;
                 }
 
@@ -493,9 +493,9 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                 }
             }
 
-            poolActivity?.SetTag("matchesFormed", matchedInPoolCount);
-            poolActivity?.SetTag("phase.matchLoopMs", budgetSw.ElapsedMilliseconds);
-            poolActivity?.SetTag("phase.totalMs", phaseSw.ElapsedMilliseconds);
+            poolActivity?.SetTag("matches.formed", matchedInPoolCount);
+            poolActivity?.SetTag("phase.match_loop_ms", budgetSw.ElapsedMilliseconds);
+            poolActivity?.SetTag("phase.total_ms", phaseSw.ElapsedMilliseconds);
         }
 
         return anyMatchedInPool ? MatcherTickResult.Matched : MatcherTickResult.NoMatch;

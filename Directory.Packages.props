@@ -144,12 +144,16 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
     <!-- Transitive pins for the analyzer-testing packages' Roslyn deps.
          CentralPackageTransitivePinningEnabled=true pulls old 1.0.1 Roslyn packages unless
-         these are pinned to modern versions. 4.13.0 matches GameKit.Build.csproj's inline pin.
-         Rule 1 auto-fix: NU1701 blocking the analyzer test project restore. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.13.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.13.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.13.0" />
+         these are pinned to modern versions. Pinned to 5.0.0 (the Roslyn version bundled with
+         the .NET 10 SDK) because these are GLOBAL central pins: Microsoft.EntityFrameworkCore.Design
+         10.0.6 (referenced by GameKit.Core/Lobby/Admin.UI/Cli) requires CodeAnalysis.* >= 5.0.0, so a
+         4.13.0 central pin forces a solution-wide downgrade (NU1109). The analyzer-testing harness and
+         GameKit.Build (which keeps its own inline 4.13.0 floor, opted out of CPM) both run fine against
+         the 5.0.0 host. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzer.Testing" Version="1.1.2" />
   </ItemGroup>
 

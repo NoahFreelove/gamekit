@@ -50,8 +50,8 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 <!-- Current scope: v2.1 — Operability & Hardening. REQ-IDs assigned in REQUIREMENTS.md. -->
 
 **Observability**
-- [ ] Opt-in OpenTelemetry traces + metrics (`ActivitySource`/`Meter`) wired across all packages
-- [ ] Self-hosted sample dashboard (Grafana/Prometheus/Tempo via docker-compose in the sample) — no SaaS exporter
+- [ ] Opt-in OpenTelemetry traces + metrics (`ActivitySource`/`Meter`) wired across all packages *(foundation laid in Phase 13: `GameKitTelemetry` constants + `AddGameKitObservability()` + canonical Rankings/Matchmaking `ActivitySource`s + GK0001 PII lint gate; per-package instrumentation still pending)*
+- [x] Self-hosted sample dashboard (Grafana/Prometheus/Tempo via docker-compose in the sample) — no SaaS exporter *(Phase 13, OBS-08)*
 
 **Health & readiness**
 - [ ] Liveness vs. readiness endpoints with Postgres/Redis/migration dependency probes and startup-gating
@@ -150,4 +150,4 @@ This document evolves at phase transitions and milestone boundaries.
 - Admin: multi-replica UI (SignalR + Redis backplane) · fix "Rank adjust" stub page
 
 ---
-*Last updated: 2026-06-07 — v2.1 milestone started (Operability & Hardening; phases continue from 13; public NuGet publish deferred). v2.0 shipped 2026-06-07 (Phases 7–12, 29/29 requirements). Next: define requirements → roadmap.*
+*Last updated: 2026-06-14 — Phase 13 (Observability Foundations) complete: PII-safe observability foundation — GK0001 PII span-attribute lint gate, `GameKitTelemetry` constants + `AddGameKitObservability()` in Core, canonical Rankings/Matchmaking `ActivitySource`s, and the self-hosted OTel/Prometheus/Tempo/Grafana sample stack (OBS-01/02/03/07/08). v2.1 milestone (Operability & Hardening) started 2026-06-07; public NuGet publish deferred. v2.0 shipped 2026-06-07 (Phases 7–12, 29/29 requirements).*

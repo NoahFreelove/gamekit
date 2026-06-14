@@ -135,6 +135,69 @@ class C
         await CreateTest(source).RunAsync(CancellationToken.None);
     }
 
+    /// <summary>CR-01 regression: snake_case "player_id" → GK0001 (underscore is a token separator).</summary>
+    [Fact]
+    public async Task PlayerUnderscoreId_SnakeCase_ReportsGK0001()
+    {
+        // "player_id" → tokens ["player", "id"] → "player" ∈ denylist → GK0001.
+        // Before the underscore-split fix this snake_case key (the most common OTel/Prometheus
+        // attribute shape) bypassed the gate entirely.
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag({|GK0001:""player_id""|}, ""some-guid"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>CR-01 regression: kebab-case "client-ip" → GK0001 (hyphen is a token separator).</summary>
+    [Fact]
+    public async Task ClientHyphenIp_KebabCase_ReportsGK0001()
+    {
+        // "client-ip" → tokens ["client", "ip"] → "ip" ∈ denylist → GK0001.
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag({|GK0001:""client-ip""|}, ""1.2.3.4"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>WR-02 regression: ActivityTagsCollection.Add("player.id", ...) → GK0001.</summary>
+    [Fact]
+    public async Task TagsCollectionAdd_PlayerId_ReportsGK0001()
+    {
+        // "Add" is now in the method-name pre-filter; the semantic check narrows to
+        // ActivityTagsCollection.Add(string, object?), so the key is validated like SetTag/AddTag.
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var tags = new ActivityTagsCollection();
+        tags.Add({|GK0001:""player.id""|}, ""some-guid"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
+    }
+
     // -----------------------------------------------------------------------
     // Clean keys — NO diagnostic (whole-token match, not substring)
     // -----------------------------------------------------------------------
@@ -199,6 +262,26 @@ class C
         await CreateTest(source).RunAsync(CancellationToken.None);
     }
 
+    /// <summary>CR-01 guard: snake_case "ladder_id" → no diagnostic (separator split must not over-flag clean keys).</summary>
+    [Fact]
+    public async Task LadderUnderscoreId_SnakeCase_NoDiagnostic()
+    {
+        // "ladder_id" → tokens ["ladder", "id"] — neither in denylist.
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag(""ladder_id"", ""guid-value"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
+    }
+
     // -----------------------------------------------------------------------
     // Allow-list — key with PII token but listed in pii-allowlist.txt → NO GK0001
     // -----------------------------------------------------------------------
@@ -217,6 +300,27 @@ class C
     {
         var activity = new Activity(""test"");
         activity.SetTag(""player.self"", ""own-player-context"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source, allowListContent: "player.self\n").RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>WR-03 regression: allow-list match is case-insensitive (consistent with the denylist).</summary>
+    [Fact]
+    public async Task AllowListed_Key_CaseInsensitive_NoDiagnostic()
+    {
+        // Denylist tokenization lowercases tokens, so the allow-list must match case-insensitively:
+        // allow-listing "player.self" must also exempt "Player.Self".
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag(""Player.Self"", ""own-player-context"");
     }
 }
 " + ActivityStub;

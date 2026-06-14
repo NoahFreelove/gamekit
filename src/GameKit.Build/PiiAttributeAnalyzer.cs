@@ -113,9 +113,10 @@ public sealed class PiiAttributeAnalyzer : DiagnosticAnalyzer
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
 
-        // 1. Check that the method name is SetTag or AddTag.
+        // 1. Check that the method name is SetTag, AddTag, or Add (ActivityTagsCollection).
+        //    This is a cheap syntactic pre-filter; the semantic check below narrows by type.
         var methodName = GetMethodName(invocation);
-        if (methodName != "SetTag" && methodName != "AddTag")
+        if (methodName != "SetTag" && methodName != "AddTag" && methodName != "Add")
         {
             return;
         }
@@ -193,6 +194,15 @@ public sealed class PiiAttributeAnalyzer : DiagnosticAnalyzer
             return false;
         }
 
+        // Narrow to the (string key, ...) overloads. This admits Activity.SetTag/AddTag and
+        // ActivityTagsCollection.Add(string, object?) while excluding the Add(KeyValuePair<...>)
+        // overload, whose first argument is not a key string and must not raise GK0002.
+        if (method.Parameters.Length == 0 ||
+            method.Parameters[0].Type.SpecialType != SpecialType.System_String)
+        {
+            return false;
+        }
+
         var containingType = method.ContainingType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         return containingType == "global::System.Diagnostics.Activity" ||
                containingType == "global::System.Diagnostics.ActivityTagsCollection";
@@ -217,11 +227,15 @@ public sealed class PiiAttributeAnalyzer : DiagnosticAnalyzer
 
     /// <summary>
     /// Tokenizes a span attribute key into lowercase whole-word tokens.
-    /// Algorithm (D-07): split on dots, then on PascalCase/camelCase boundaries; lowercase each token.
+    /// Algorithm (D-07): split on separators (dot, underscore, hyphen), then on
+    /// PascalCase/camelCase boundaries; lowercase each token. Covers dotted, snake_case,
+    /// and kebab-case keys — the common OpenTelemetry / Prometheus attribute shapes.
     /// </summary>
     /// <example>
     /// <list type="bullet">
     /// <item><c>"player.id"</c> → <c>["player", "id"]</c></item>
+    /// <item><c>"player_id"</c> → <c>["player", "id"]</c></item>
+    /// <item><c>"client-ip"</c> → <c>["client", "ip"]</c></item>
     /// <item><c>"playerCount"</c> → <c>["player", "count"]</c></item>
     /// <item><c>"recipient.count"</c> → <c>["recipient", "count"]</c> (not ["recip", "ient", "count"])</item>
     /// <item><c>"client.ip"</c> → <c>["client", "ip"]</c></item>
@@ -229,16 +243,19 @@ public sealed class PiiAttributeAnalyzer : DiagnosticAnalyzer
     /// </example>
     private static IEnumerable<string> Tokenize(string key)
     {
-        // Step 1: split on dots.
-        foreach (var dotPart in key.Split('.'))
+        // Step 1: split on separators — dot, underscore, and hyphen. OTel/Prometheus keys
+        // are overwhelmingly snake_case or dotted; without '_' and '-' a key like
+        // "player_id" would tokenize to a single ["player_id"] and never match the denylist
+        // (the OBS-07 bypass fixed here, CR-01).
+        foreach (var part in key.Split('.', '_', '-'))
         {
-            if (string.IsNullOrEmpty(dotPart))
+            if (string.IsNullOrEmpty(part))
             {
                 continue;
             }
 
             // Step 2: split on PascalCase/camelCase boundaries.
-            foreach (var token in CaseBoundaryRegex.Split(dotPart))
+            foreach (var token in CaseBoundaryRegex.Split(part))
             {
                 if (!string.IsNullOrEmpty(token))
                 {
@@ -276,7 +293,9 @@ public sealed class PiiAttributeAnalyzer : DiagnosticAnalyzer
                     continue;
                 }
 
-                if (string.Equals(lineText, key, StringComparison.Ordinal))
+                // Case-insensitive to match the denylist tokenizer (which lowercases tokens):
+                // an operator who allow-lists "player.self" should also exempt "Player.Self" (WR-03).
+                if (string.Equals(lineText, key, StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }

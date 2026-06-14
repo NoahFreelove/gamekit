@@ -1,0 +1,9 @@
+apiVersion: 1
+
+# Grafana dashboard provisioning for GameKit TicTacToeDuel sample.
+# Dashboards are loaded from /var/lib/grafana/dashboards automatically on start.
+providers:
+  - name: GameKit
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

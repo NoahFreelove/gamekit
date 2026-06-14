@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# Grafana provisioned datasources for GameKit TicTacToeDuel sample.
+# Prometheus and Tempo are accessed via internal Docker DNS — not host ports.
+# These are loaded automatically on Grafana container start (zero click-ops).
+datasources:
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    access: proxy
+
+  - name: Tempo
+    type: tempo
+    url: http://tempo:3200
+    access: proxy

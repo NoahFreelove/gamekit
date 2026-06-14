@@ -133,6 +133,13 @@
     <!-- Instrumentation.* sit on a separate release cadence from the core SDK; 1.15.2 is the latest
          on this line and is not flagged by the advisories above. -->
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+
+    <!-- Phase 13 Plan 01 — Roslyn analyzer test harness (OBS-07 PII lint gate tests).
+         Both packages: Microsoft/RoslynTeam, dotnet/roslyn-analyzers source repo.
+         Operator-approved in slopcheck gate (Task 1, checkpoint:human-verify passed 2026-06-14).
+         Test-only: consumed exclusively by tests/GameKit.Build.Tests/. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
   </ItemGroup>
 
   <ItemGroup>

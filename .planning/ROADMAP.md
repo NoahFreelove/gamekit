@@ -59,8 +59,8 @@
 Plans:
 **Wave 1**
 
-- [ ] 13-01-PLAN.md — PII Roslyn analyzer (GK0001/GK0002) + allow-list + analyzer test project (OBS-07, the gate)
-- [ ] 13-04-PLAN.md — Sample observability stack: Collector/Prometheus/Tempo/Grafana compose + provisioned dashboards (OBS-08)
+- [x] 13-01-PLAN.md — PII Roslyn analyzer (GK0001/GK0002) + allow-list + analyzer test project (OBS-07, the gate)
+- [x] 13-04-PLAN.md — Sample observability stack: Collector/Prometheus/Tempo/Grafana compose + provisioned dashboards (OBS-08)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -194,7 +194,7 @@ Plans:
 | 10. Account Merge | v2.0 | 4/4 | Complete | 2026-06-06 |
 | 11. GameKit.Lobby | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
-| 13. Observability Foundations | v2.1 | 0/TBD | Not started | — |
+| 13. Observability Foundations | v2.1 | 2/4 | In Progress|  |
 | 14. Health & Readiness | v2.1 | 0/TBD | Not started | — |
 | 15. Per-Package OTel Instrumentation | v2.1 | 0/TBD | Not started | — |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |

@@ -1,0 +1,21 @@
+# Tempo configuration for GameKit TicTacToeDuel sample.
+# Minimal single-binary mode. Accepts OTLP gRPC traces from the OTel Collector.
+# Local block storage under /var/tempo (persisted via Docker volume tempo-data).
+# Pinned image: grafana/tempo:2.6.1 (avoid 3.0.x — breaking storage format change).
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/blocks
+    wal:
+      path: /var/tempo/wal

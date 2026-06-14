@@ -1,0 +1,12 @@
+# Prometheus configuration for GameKit TicTacToeDuel sample.
+# Scrapes the OTel Collector's Prometheus exporter endpoint on port 8889.
+# The target otel-collector:8889 is resolved via Docker internal DNS — not a host port.
+# Prometheus itself has no host port binding (criterion #3: internal network only).
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'gamekit'
+    static_configs:
+      - targets: ['otel-collector:8889']   # Internal Docker DNS — not a host port

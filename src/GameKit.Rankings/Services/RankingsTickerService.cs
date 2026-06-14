@@ -4,7 +4,6 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -12,8 +11,10 @@ using System.Threading.Tasks;
 using GameKit.Core.Data;
 using GameKit.Core.Entities;
 using GameKit.Core.Services;
+using GameKit.Core.Telemetry;
 using GameKit.Rankings.Algorithms;
 using GameKit.Rankings.Entities;
+using GameKit.Rankings.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -50,15 +51,13 @@ namespace GameKit.Rankings.Services;
 /// </para>
 /// <para>
 /// <b>Observability (opt-in, D-04):</b> drain events are emitted via
-/// <c>ActivitySource("GameKit.Rankings.Ticker")</c>. Register
-/// <c>AddSource("GameKit.Rankings.Ticker")</c> in your OpenTelemetry setup to subscribe.
+/// <see cref="RankingsActivitySource"/> (<c>ActivitySource("GameKit.Rankings.Ticker")</c>).
+/// Register <c>AddSource(GameKitTelemetry.RankingsTickerSourceName)</c> in your
+/// OpenTelemetry setup to subscribe.
 /// </para>
 /// </remarks>
 internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
 {
-    private static readonly ActivitySource _activitySource =
-        new("GameKit.Rankings.Ticker", "1.0.0");
-
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly RankingsTickerLeaseHelper _lease;
     private readonly IRankingAlgorithm _algorithm;
@@ -210,9 +209,9 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
         DateTimeOffset now,
         CancellationToken ct)
     {
-        using var activity = _activitySource.StartActivity("DrainLadder");
-        activity?.SetTag("ladder.id", ladder.Id.ToString());
-        activity?.SetTag("ladder.name", ladder.Name);
+        using var activity = RankingsActivitySource.StartDrainLadderActivity();
+        activity?.SetTag(GameKitTelemetry.AttrLadderId, ladder.Id.ToString());
+        activity?.SetTag(GameKitTelemetry.AttrLadderName, ladder.Name);
 
         await using var tx = await ctx.Database
             .BeginTransactionAsync(IsolationLevel.ReadCommitted, ct)
@@ -437,7 +436,7 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
 
             await tx.CommitAsync(ct).ConfigureAwait(false);
 
-            activity?.SetTag("result", "Drained");
+            activity?.SetTag(GameKitTelemetry.AttrResult, "Drained");
             _logger.LogInformation(
                 "RankingsTickerService: ladder '{Name}' drained {Count} rows successfully.",
                 ladder.Name, pendingRows.Count);
@@ -452,8 +451,8 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
 
             try { await tx.RollbackAsync(ct).ConfigureAwait(false); } catch { /* ignore rollback errors */ }
 
-            activity?.SetTag("result", "DrainFailedRolledBack");
-            activity?.SetTag("error", ex.GetType().Name);
+            activity?.SetTag(GameKitTelemetry.AttrResult, "DrainFailedRolledBack");
+            activity?.SetTag(GameKitTelemetry.AttrErrorType, ex.GetType().Name);
 
             return TickResult.DrainFailedRolledBack;
         }

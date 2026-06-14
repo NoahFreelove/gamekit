@@ -31,7 +31,7 @@
 
 ### v2.1 — Operability & Hardening (Phases 13–20)
 
-- [ ] **Phase 13: Observability Foundations** — PII lint gate + Core OTel conventions + `AddGameKitObservability()` + sample observability stack
+- [x] **Phase 13: Observability Foundations** — PII lint gate + Core OTel conventions + `AddGameKitObservability()` + sample observability stack (completed 2026-06-14)
 - [ ] **Phase 14: Health & Readiness** — `MapGameKitHealth()` + `IMigrationReadinessReporter` across all packages + three-probe model + Admin.UI delegation
 - [ ] **Phase 15: Per-Package OTel Instrumentation** — Activity spans + RED metrics + W3C trace propagation wired into every package
 - [ ] **Phase 16: Multi-Replica Hardening** — `ILeaderLease` abstraction + SIGTERM drain + idempotency + split-brain CI gate
@@ -68,7 +68,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 13-03-PLAN.md — Extract RankingsActivitySource + normalize Matchmaking camelCase tags to lowercase-dotted (OBS-02/03)
+- [x] 13-03-PLAN.md — Extract RankingsActivitySource + normalize Matchmaking camelCase tags to lowercase-dotted (OBS-02/03)
 
 **UI hint**: no
 
@@ -194,7 +194,7 @@ Plans:
 | 10. Account Merge | v2.0 | 4/4 | Complete | 2026-06-06 |
 | 11. GameKit.Lobby | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
-| 13. Observability Foundations | v2.1 | 3/4 | In Progress|  |
+| 13. Observability Foundations | v2.1 | 4/4 | Complete   | 2026-06-14 |
 | 14. Health & Readiness | v2.1 | 0/TBD | Not started | — |
 | 15. Per-Package OTel Instrumentation | v2.1 | 0/TBD | Not started | — |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |

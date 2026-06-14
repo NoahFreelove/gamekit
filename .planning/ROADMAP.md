@@ -194,7 +194,7 @@ Plans:
 | 10. Account Merge | v2.0 | 4/4 | Complete | 2026-06-06 |
 | 11. GameKit.Lobby | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
-| 13. Observability Foundations | v2.1 | 4/4 | Complete   | 2026-06-14 |
+| 13. Observability Foundations | v2.1 | 4/4 | Complete    | 2026-06-14 |
 | 14. Health & Readiness | v2.1 | 0/TBD | Not started | — |
 | 15. Per-Package OTel Instrumentation | v2.1 | 0/TBD | Not started | — |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |

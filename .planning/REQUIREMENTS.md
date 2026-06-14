@@ -14,14 +14,14 @@
 
 ### Observability — OTel Traces + Metrics + Self-Hosted Sample Stack
 
-- [ ] **OBS-01**: `AddGameKitObservability()` extension method in `GameKit.Core` registers every GameKit `ActivitySource`/`Meter` and, optionally, an OTLP exporter in one call. The OTel SDK + OTLP exporter (1.15.3, Apache-2.0) are **opt-in dependencies**; all shipped packages use only in-box `System.Diagnostics.DiagnosticSource` and take **no** OTel SDK hard dependency.
-- [ ] **OBS-02**: Per-package named `ActivitySource` following a `gamekit.<package>.*` naming convention centralized as constants in Core (`GameKitTelemetry`); spans cover every HTTP handler path (auth login/refresh, matchmaking enqueue, session-complete, lobby state transitions).
-- [ ] **OBS-03**: Per-package `Meter` RED metrics (request count, error count, latency histogram) namespaced `gamekit.<package>.*`, using only **low-cardinality** labels (ladder/pool/region/status — never player_id/ticket_id).
+- [x] **OBS-01**: `AddGameKitObservability()` extension method in `GameKit.Core` registers every GameKit `ActivitySource`/`Meter` and, optionally, an OTLP exporter in one call. The OTel SDK + OTLP exporter (1.15.3, Apache-2.0) are **opt-in dependencies**; all shipped packages use only in-box `System.Diagnostics.DiagnosticSource` and take **no** OTel SDK hard dependency.
+- [x] **OBS-02**: Per-package named `ActivitySource` following a `gamekit.<package>.*` naming convention centralized as constants in Core (`GameKitTelemetry`); spans cover every HTTP handler path (auth login/refresh, matchmaking enqueue, session-complete, lobby state transitions).
+- [x] **OBS-03**: Per-package `Meter` RED metrics (request count, error count, latency histogram) namespaced `gamekit.<package>.*`, using only **low-cardinality** labels (ladder/pool/region/status — never player_id/ticket_id).
 - [ ] **OBS-04**: Background-job metrics — matchmaking ticker lag, queue depth per pool, rank-decay job run duration, and leader-lock acquisition failures.
 - [ ] **OBS-05**: Lobby SignalR metrics — connected clients, messages/sec, ready-check completion rate.
 - [ ] **OBS-06**: W3C trace-context propagation through async paths — `traceparent` stored in the Redis ticket hash at enqueue and restored at match-formation; propagated through the rank-decay BackgroundService and the lobby ready-check broadcast.
-- [ ] **OBS-07**: PII/secret span-attribute guard — a CI lint gate plus a documented span/metric attribute allow-list that fails the build if `player_id`, email, tokens, or secrets are tagged; established as the **first** task before any new instrumentation lands (GPL/GDPR landmine).
-- [ ] **OBS-08**: Self-hosted observability stack in `samples/TicTacToeDuel` (`docker-compose.observability.yml`: OTel Collector + Prometheus + Grafana + Tempo, with Jaeger noted as the Apache-2.0 alternative to AGPLv3 Tempo) plus pre-provisioned Grafana dashboards (matchmaking queue depth + ticker health); the Prometheus `/metrics` scrape target is isolated on an internal Docker network and is **never** publicly exposed by default.
+- [x] **OBS-07**: PII/secret span-attribute guard — a CI lint gate plus a documented span/metric attribute allow-list that fails the build if `player_id`, email, tokens, or secrets are tagged; established as the **first** task before any new instrumentation lands (GPL/GDPR landmine).
+- [x] **OBS-08**: Self-hosted observability stack in `samples/TicTacToeDuel` (`docker-compose.observability.yml`: OTel Collector + Prometheus + Grafana + Tempo, with Jaeger noted as the Apache-2.0 alternative to AGPLv3 Tempo) plus pre-provisioned Grafana dashboards (matchmaking queue depth + ticker health); the Prometheus `/metrics` scrape target is isolated on an internal Docker network and is **never** publicly exposed by default.
 
 ### Health & Readiness
 
@@ -132,11 +132,11 @@ Phase mapping populated by roadmapper 2026-06-08. All 47 requirements mapped.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OBS-01 | Phase 13 | Pending |
-| OBS-02 | Phase 13 | Pending |
-| OBS-03 | Phase 13 | Pending |
-| OBS-07 | Phase 13 | Pending |
-| OBS-08 | Phase 13 | Pending |
+| OBS-01 | Phase 13 | Complete |
+| OBS-02 | Phase 13 | Complete |
+| OBS-03 | Phase 13 | Complete |
+| OBS-07 | Phase 13 | Complete |
+| OBS-08 | Phase 13 | Complete |
 | HLTH-01 | Phase 14 | Pending |
 | HLTH-02 | Phase 14 | Pending |
 | HLTH-03 | Phase 14 | Pending |

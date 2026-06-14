@@ -166,4 +166,24 @@
 | 20. Docs & Tutorial | v2.1 | 0/TBD | Not started | — |
 
 ---
+
+## Backlog
+
+Candidate work not yet promoted into an active phase. Promote via `/gsd:review-backlog`.
+
+### Phase 999.1: Final Demo — 3D Multiplayer Platformer (BACKLOG)
+
+**Goal:** A small 3D multiplayer platformer that showcases GameKit end-to-end as a live demo — GameKit hosts matchmaking; a real, containerized game server establishes secure server↔GameKit communication; the whole thing runs with a simple `docker compose up` so it can be demoed easily.
+
+**Captured:** 2026-06-14 (user request during Phase 13 discussion)
+**Milestone:** TBD — likely a v2.1 capstone or its own demo milestone (substantial: real game + game-server + secure server-to-GameKit auth + container packaging).
+**Sketch of scope:**
+- [ ] Tiny 3D multiplayer platformer client — whichever engine is convenient (Godot / Unity / three.js — pick for demo speed, mind GPL compatibility of any bundled engine bits).
+- [ ] Real game server (not a sample stub) that authenticates to GameKit and drives matchmaking via the GameKit HTTP API.
+- [ ] Secure server↔GameKit communication (service-to-service auth — confirm the right primitive: dedicated server credential / JWT scope / mutual TLS).
+- [ ] Containerized so the full demo (game server + GameKit backend + Postgres + Redis) comes up with one `docker compose up`.
+
+**Why backlog, not Phase 13:** This is a milestone-level demo deliverable, well outside Phase 13's observability-foundations scope. Recorded so it isn't lost; sequence it during milestone planning.
+
+---
 *v1.0 + v2.0 shipped. v2.1 roadmap created 2026-06-08 — 47/47 requirements mapped across Phases 13–20.*

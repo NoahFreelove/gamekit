@@ -52,7 +52,12 @@
   3. `docker compose -f docker-compose.yml -f docker-compose.observability.yml up` in `samples/TicTacToeDuel` starts OTel Collector + Prometheus + Grafana + Tempo; the Prometheus `/metrics` scrape target is on the internal Docker network only — `curl http://localhost:9090` from the host does NOT reach app metrics
   4. `GameKitTelemetry` constants are the single source of truth for source name prefix and span attribute key names; per-package `Telemetry/` classes reference these constants (no magic strings)
   5. `RankingsActivitySource` extracted from inline `_activitySource` in `RankingsTickerService` into a canonical `Telemetry/` class, matching the existing Matchmaking pattern
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 13-01-PLAN.md — PII Roslyn analyzer (GK0001/GK0002) + allow-list + analyzer test project (OBS-07, the gate)
+- [ ] 13-02-PLAN.md — GameKitTelemetry constants + AddGameKitObservability() + OTel PrivateAssets refs (OBS-01/02/03)
+- [ ] 13-03-PLAN.md — Extract RankingsActivitySource + normalize Matchmaking camelCase tags to lowercase-dotted (OBS-02/03)
+- [ ] 13-04-PLAN.md — Sample observability stack: Collector/Prometheus/Tempo/Grafana compose + provisioned dashboards (OBS-08)
 **UI hint**: no
 
 ### Phase 14: Health & Readiness

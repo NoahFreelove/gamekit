@@ -4,14 +4,6 @@
     <AssemblyName>GameKit.Build.Tests</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <!--
-      CS0618: Microsoft.CodeAnalysis.Testing.Verifiers.XUnit 1.1.2 marks XUnitVerifier as [Obsolete]
-      (the entire 1.1.x package line is deprecated; latest on NuGet is still 1.1.2 as of 2026-06-14).
-      Suppress the obsolete warning so TreatWarningsAsErrors=true from the root does not block the
-      analyzer test project. Rule 1 auto-fix: CS0618 blocking build with no non-obsolete replacement
-      at this package version. CS1591 suppressed via tests/Directory.Build.props NoWarn inheritance.
-    -->
-    <NoWarn>$(NoWarn);CS0618</NoWarn>
     <WarningsAsErrors />
     <!--
       Target net10.0 NOT netstandard2.0. Analyzer test projects run tests in the normal .NET
@@ -30,12 +22,13 @@
   <ItemGroup>
     <!--
       Analyzer test harness (CPM-resolved from Task-1 pins in Directory.Packages.props).
-      Microsoft.CodeAnalysis.CSharp.Analyzer.Testing 1.1.4 — operator-approved 2026-06-14.
-      Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit 1.1.2 — same release train.
+      Uses Microsoft.CodeAnalysis.CSharp.Analyzer.Testing 1.1.2 with DefaultVerifier
+      (framework-agnostic, no xUnit version dependency) instead of XUnitVerifier.
+      XUnitVerifier 1.1.2 requires xUnit 3.x ABI (new EqualException(object, object))
+      which is incompatible with the repo-pinned xUnit 2.9.2 — Rule 1 auto-fix.
+      Operator-approved 2026-06-14.
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Testing.Verifiers.XUnit" />
   </ItemGroup>
   <!--
     NOTE: Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio, coverlet.collector

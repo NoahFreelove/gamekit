@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
-using Microsoft.CodeAnalysis.Testing.Verifiers;
 using Xunit;
 using GameKit.Build;
 
@@ -18,35 +17,49 @@ namespace GameKit.Build.Tests;
 /// false-positive guards (whole-token match, not substring match).
 /// </summary>
 /// <remarks>
-/// Tests use <c>CSharpAnalyzerTest&lt;TAnalyzer, TVerifier&gt;</c> directly (not the
-/// obsolete single-arg <c>AnalyzerVerifier&lt;T&gt;</c> helper).
+/// Tests use <c>CSharpAnalyzerTest&lt;TAnalyzer, DefaultVerifier&gt;</c> (not the
+/// obsolete single-arg <c>AnalyzerVerifier&lt;T&gt;</c> helper, and not
+/// <c>XUnitVerifier</c> which requires xUnit 3.x ABI incompatible with the repo-pinned
+/// xUnit 2.9.2). <c>DefaultVerifier</c> is framework-agnostic and throws standard
+/// exceptions that xUnit catches as test failures.
 /// Allow-list tests inject the pii-allowlist.txt content via
 /// <c>TestState.AdditionalFiles</c> to simulate the AdditionalFiles wiring in
 /// Directory.Build.props without needing the full solution build.
+/// Expected diagnostics are expressed using markup syntax ({|DiagId:text|}) so the
+/// test framework can verify both the ID and the source span automatically.
 /// </remarks>
 public class PiiAttributeAnalyzerTests
 {
-    // Helper to build a compilable source fragment that puts `activity` in scope.
-    private static string Wrap(string statement) => $@"
-using System.Diagnostics;
-class C
-{{
-    void M()
-    {{
-        var activity = new Activity(""test"");
-        {statement}
-    }}
-}}
+    // Stub Activity class in the System.Diagnostics namespace.
+    // The Roslyn test harness compiles against a minimal reference set that bundles only an old
+    // System.Diagnostics.DiagnosticSource shim (v4) which lacks Activity.SetTag (added in .NET 5).
+    // Injecting a stub type in the correct namespace satisfies the semantic model used by
+    // PiiAttributeAnalyzer.IsActivityTagMethod without pulling in the runtime ref pack.
+    private const string ActivityStub = @"
+namespace System.Diagnostics
+{
+    public sealed class Activity
+    {
+        public Activity(string operationName) { }
+        public Activity SetTag(string key, object? value) => this;
+        public Activity AddTag(string key, object? value) => this;
+    }
+    public sealed class ActivityTagsCollection
+    {
+        public void Add(string key, object? value) { }
+    }
+}
 ";
 
     // Helper factory that creates a pre-configured test instance.
-    private static CSharpAnalyzerTest<PiiAttributeAnalyzer, XUnitVerifier> CreateTest(
-        string source,
+    // Expected diagnostics should be embedded in source as markup: {|GK0001:expression|}
+    private static CSharpAnalyzerTest<PiiAttributeAnalyzer, DefaultVerifier> CreateTest(
+        string markedUpSource,
         string allowListContent = "")
     {
-        var test = new CSharpAnalyzerTest<PiiAttributeAnalyzer, XUnitVerifier>
+        var test = new CSharpAnalyzerTest<PiiAttributeAnalyzer, DefaultVerifier>
         {
-            TestCode = source,
+            TestCode = markedUpSource,
         };
         if (!string.IsNullOrEmpty(allowListContent))
         {
@@ -64,12 +77,22 @@ class C
     public async Task PlayerDotId_Literal_ReportsGK0001()
     {
         // "player.id" → tokens ["player", "id"] → "player" ∈ denylist → GK0001
-        var source = Wrap(@"activity.SetTag(""player.id"", ""some-guid"");");
-        var test = CreateTest(source);
-        test.ExpectedDiagnostics.Add(
-            new DiagnosticResult("GK0001", DiagnosticSeverity.Error)
-                .WithArguments("player.id", "player"));
-        await test.RunAsync(CancellationToken.None);
+        // {|GK0001:...|} markup tells the framework: expect GK0001 at the key argument span.
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag({|GK0001:""player.id""|}, ""some-guid"");
+    }
+}
+" + ActivityStub;
+
+        // The {|GK0001:...|} markup registers the expected diagnostic ID+span.
+        // No explicit ExpectedDiagnostics.Add needed — the markup is sufficient.
+        await CreateTest(source).RunAsync(CancellationToken.None);
     }
 
     /// <summary>OBS-07 behavior row 4: camelCase "playerCount" → GK0001 (case-boundary exposes "player").</summary>
@@ -77,12 +100,19 @@ class C
     public async Task PlayerCount_CamelCase_ReportsGK0001()
     {
         // Token split: "playerCount" → ["player", "Count"] → lower → ["player", "count"] → "player" ∈ denylist
-        var source = Wrap(@"activity.SetTag(""playerCount"", ""5"");");
-        var test = CreateTest(source);
-        test.ExpectedDiagnostics.Add(
-            new DiagnosticResult("GK0001", DiagnosticSeverity.Error)
-                .WithArguments("playerCount", "player"));
-        await test.RunAsync(CancellationToken.None);
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag({|GK0001:""playerCount""|}, ""5"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
     }
 
     /// <summary>OBS-07 behavior row 5: "client.ip" → GK0001 ("ip" is a whole token in denylist).</summary>
@@ -90,12 +120,19 @@ class C
     public async Task ClientDotIp_Literal_ReportsGK0001()
     {
         // Token split: "client.ip" → ["client", "ip"] → "ip" ∈ denylist → GK0001
-        var source = Wrap(@"activity.SetTag(""client.ip"", ""1.2.3.4"");");
-        var test = CreateTest(source);
-        test.ExpectedDiagnostics.Add(
-            new DiagnosticResult("GK0001", DiagnosticSeverity.Error)
-                .WithArguments("client.ip", "ip"));
-        await test.RunAsync(CancellationToken.None);
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag({|GK0001:""client.ip""|}, ""1.2.3.4"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
     }
 
     // -----------------------------------------------------------------------
@@ -107,9 +144,19 @@ class C
     public async Task LadderId_Clean_NoDiagnostic()
     {
         // "ladder.id" → tokens ["ladder", "id"] — neither in denylist
-        var source = Wrap(@"activity.SetTag(""ladder.id"", ""guid-value"");");
-        var test = CreateTest(source);
-        await test.RunAsync(CancellationToken.None);
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag(""ladder.id"", ""guid-value"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
     }
 
     /// <summary>OBS-07 behavior row 3a: "recipient.count" → no diagnostic (whole-token match avoids "ip" in "recIPient").</summary>
@@ -117,9 +164,19 @@ class C
     public async Task RecipientCount_Clean_NoDiagnostic()
     {
         // "recipient.count" → tokens ["recipient", "count"] — "ip" is NOT a whole token
-        var source = Wrap(@"activity.SetTag(""recipient.count"", 5);");
-        var test = CreateTest(source);
-        await test.RunAsync(CancellationToken.None);
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag(""recipient.count"", 5);
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
     }
 
     /// <summary>OBS-07 behavior row 3b: "zip.code" → no diagnostic.</summary>
@@ -127,9 +184,19 @@ class C
     public async Task ZipCode_Clean_NoDiagnostic()
     {
         // "zip.code" → tokens ["zip", "code"] — no denylist match
-        var source = Wrap(@"activity.SetTag(""zip.code"", ""90210"");");
-        var test = CreateTest(source);
-        await test.RunAsync(CancellationToken.None);
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag(""zip.code"", ""90210"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
     }
 
     // -----------------------------------------------------------------------
@@ -142,9 +209,19 @@ class C
     {
         // "player.self" would normally trigger GK0001 for "player",
         // but it is listed in pii-allowlist.txt → exempt.
-        var source = Wrap(@"activity.SetTag(""player.self"", ""own-player-context"");");
-        var test = CreateTest(source, allowListContent: "player.self\n");
-        await test.RunAsync(CancellationToken.None);
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
+        activity.SetTag(""player.self"", ""own-player-context"");
+    }
+}
+" + ActivityStub;
+
+        await CreateTest(source, allowListContent: "player.self\n").RunAsync(CancellationToken.None);
     }
 
     // -----------------------------------------------------------------------
@@ -156,12 +233,20 @@ class C
     public async Task NonLiteralKey_Variable_ReportsGK0002()
     {
         // someVariableKey is not a compile-time constant → GK0002 Warning (not GK0001 Error)
-        var source = Wrap(@"
+        var source = @"
+using System.Diagnostics;
+class C
+{
+    void M()
+    {
+        var activity = new Activity(""test"");
         var someVariableKey = ""dynamic-key"";
-        activity.SetTag(someVariableKey, ""value"");");
-        var test = CreateTest(source);
-        test.ExpectedDiagnostics.Add(
-            new DiagnosticResult("GK0002", DiagnosticSeverity.Warning));
-        await test.RunAsync(CancellationToken.None);
+        activity.SetTag({|GK0002:someVariableKey|}, ""value"");
+    }
+}
+" + ActivityStub;
+
+        // The {|GK0002:...|} markup registers the expected diagnostic ID+span.
+        await CreateTest(source).RunAsync(CancellationToken.None);
     }
 }

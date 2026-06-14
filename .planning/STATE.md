@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: Operability & Hardening
 status: planning
-last_updated: "2026-06-08T00:00:00.000Z"
-last_activity: 2026-06-08
+last_updated: "2026-06-14T17:45:10.795Z"
+last_activity: 2026-06-08 — v2.1 roadmap created (8 phases, 47 requirements mapped)
 progress:
   total_phases: 8
   completed_phases: 0

@@ -137,9 +137,22 @@
     <!-- Phase 13 Plan 01 — Roslyn analyzer test harness (OBS-07 PII lint gate tests).
          Both packages: Microsoft/RoslynTeam, dotnet/roslyn-analyzers source repo.
          Operator-approved in slopcheck gate (Task 1, checkpoint:human-verify passed 2026-06-14).
-         Test-only: consumed exclusively by tests/GameKit.Build.Tests/. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
+         Test-only: consumed exclusively by tests/GameKit.Build.Tests/.
+         Note: XUnit 1.1.2 requires exact-match siblings; both pinned at 1.1.2 for version parity.
+         Plan specified 1.1.4 for the base package, but 1.1.2 satisfies the XUnit constraint without
+         mismatched sibling versions (Rule 1 auto-fix, NU1608). -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" Version="1.1.2" />
+    <!-- Transitive pins for the analyzer-testing packages' Roslyn deps.
+         CentralPackageTransitivePinningEnabled=true pulls old 1.0.1 Roslyn packages unless
+         these are pinned to modern versions. 4.13.0 matches GameKit.Build.csproj's inline pin.
+         Rule 1 auto-fix: NU1701 blocking the analyzer test project restore. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.13.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.13.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.13.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzer.Testing" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Testing.Verifiers.XUnit" Version="1.1.2" />
   </ItemGroup>
 
   <ItemGroup>

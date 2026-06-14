@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Build.Tests</RootNamespace>
+    <AssemblyName>GameKit.Build.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!--
+      CS0618: Microsoft.CodeAnalysis.Testing.Verifiers.XUnit 1.1.2 marks XUnitVerifier as [Obsolete]
+      (the entire 1.1.x package line is deprecated; latest on NuGet is still 1.1.2 as of 2026-06-14).
+      Suppress the obsolete warning so TreatWarningsAsErrors=true from the root does not block the
+      analyzer test project. Rule 1 auto-fix: CS0618 blocking build with no non-obsolete replacement
+      at this package version. CS1591 suppressed via tests/Directory.Build.props NoWarn inheritance.
+    -->
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
+    <WarningsAsErrors />
+    <!--
+      Target net10.0 NOT netstandard2.0. Analyzer test projects run tests in the normal .NET
+      runtime environment (RESEARCH.md §Testing the Analyzer — Pitfall 3 note).
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Plain ProjectReference — NO OutputItemType="Analyzer".
+      RESEARCH.md Pitfall 3: adding OutputItemType="Analyzer" would run the PII analyzer
+      against the test code itself, causing circular verification failures.
+    -->
+    <ProjectReference Include="..\..\src\GameKit.Build\GameKit.Build.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      Analyzer test harness (CPM-resolved from Task-1 pins in Directory.Packages.props).
+      Microsoft.CodeAnalysis.CSharp.Analyzer.Testing 1.1.4 — operator-approved 2026-06-14.
+      Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit 1.1.2 — same release train.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing.XUnit" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Testing.Verifiers.XUnit" />
+  </ItemGroup>
+  <!--
+    NOTE: Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio, coverlet.collector
+    are provided by tests/Directory.Build.props — do NOT duplicate them here.
+  -->
+</Project>

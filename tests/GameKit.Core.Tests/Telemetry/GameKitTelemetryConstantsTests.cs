@@ -4,14 +4,18 @@
 using System;
 using System.IO;
 using System.Reflection;
+using GameKit.Core.Builder;
 using GameKit.Core.Telemetry;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace GameKit.Core.Tests.Telemetry;
 
 /// <summary>
 /// Validates that <see cref="GameKitTelemetry"/> is the single source of truth for all
-/// GameKit ActivitySource/Meter names and D-04 attribute key constants. Criterion #4 enforcement.
+/// GameKit ActivitySource/Meter names and D-04 attribute key constants (criterion #4), and
+/// verifies <see cref="GameKitObservabilityBuilderExtensions.AddGameKitObservability"/> can be
+/// called without throwing (smoke test for Task 2).
 /// </summary>
 public class GameKitTelemetryConstantsTests
 {
@@ -101,17 +105,13 @@ public class GameKitTelemetryConstantsTests
 
     private static Assembly LoadMatchmakingAssembly()
     {
-        // Locate GameKit.Matchmaking.dll from the test output directory (if the solution
-        // was built with --no-build disabled, peer DLLs land in the same net10.0 folder)
-        // or from the src/GameKit.Matchmaking project output.
         var testAsmLocation = typeof(GameKitTelemetryConstantsTests).Assembly.Location;
         var testAsmDir = Path.GetDirectoryName(testAsmLocation)!;
 
-        // Probe 1: same output directory (happens when referenced by a consuming test project)
+        // Probe 1: same output directory
         var p1 = Path.Combine(testAsmDir, "GameKit.Matchmaking.dll");
 
-        // Probe 2: sibling project output, Debug — navigate from bin/ hierarchy
-        // Pattern: tests/GameKit.Core.Tests/bin/Debug/net10.0 → root → src/GameKit.Matchmaking/bin/…
+        // Probe 2: sibling project output — navigate from tests/…/bin/Debug/net10.0
         var netDir = testAsmDir;
         var configDir = Path.GetDirectoryName(netDir)!;
         var binDir = Path.GetDirectoryName(configDir)!;
@@ -119,8 +119,7 @@ public class GameKitTelemetryConstantsTests
         var testsDir = Path.GetDirectoryName(projDir)!;
         var repoRoot = Path.GetDirectoryName(testsDir)!;
 
-        // The worktree root (for parallel agent) may be nested; resolve the shared main repo.
-        // Walk up to find the nearest parent containing "src/GameKit.Matchmaking".
+        // Walk up from worktree root to find directory containing src/GameKit.Matchmaking
         var root = repoRoot;
         for (var i = 0; i < 5; i++)
         {
@@ -131,7 +130,7 @@ public class GameKitTelemetryConstantsTests
             root = parent;
         }
 
-        var config = Path.GetFileName(configDir); // "Debug" or "Release"
+        var config = Path.GetFileName(configDir);
         var p2 = Path.Combine(root, "src", "GameKit.Matchmaking", "bin", config, "net10.0", "GameKit.Matchmaking.dll");
         var p3 = Path.Combine(root, "src", "GameKit.Matchmaking", "bin", "Debug", "net10.0", "GameKit.Matchmaking.dll");
 
@@ -144,7 +143,7 @@ public class GameKitTelemetryConstantsTests
         throw new FileNotFoundException(
             $"GameKit.Matchmaking.dll not found. Probed: '{p1}', '{p2}', '{p3}'. " +
             $"Run 'dotnet build {Path.Combine(root, "src", "GameKit.Matchmaking")} /p:TreatWarningsAsErrors=false' " +
-            "or build the full solution before running this test.");
+            "before running this test.");
     }
 
     [Fact]
@@ -153,8 +152,7 @@ public class GameKitTelemetryConstantsTests
         // Reflection-based single-source-of-truth check (criterion #4, D-02).
         // Verifies at runtime that MatchmakingActivitySource.SourceName VALUE equals
         // the corresponding GameKitTelemetry constant. Catches drift even if the per-package
-        // const is not initialized via GameKitTelemetry (the compiler inlines const values
-        // at call-sites; reflection reads the original const field independently).
+        // const is not initialized via GameKitTelemetry.
         var asm = LoadMatchmakingAssembly();
         var type = asm.GetType("GameKit.Matchmaking.Telemetry.MatchmakingActivitySource");
         Assert.NotNull(type);
@@ -170,17 +168,74 @@ public class GameKitTelemetryConstantsTests
     public void MatchmakingMeter_MeterName_Equals_GameKitTelemetry_MatchmakingMeterName()
     {
         // Reflection-based single-source-of-truth check (criterion #4, D-02).
-        // MatchmakingMeter is internal — the const field is still accessible because
-        // const accessibility follows the field visibility (Public), not the class visibility.
         var asm = LoadMatchmakingAssembly();
         var type = asm.GetType("GameKit.Matchmaking.Telemetry.MatchmakingMeter");
         Assert.NotNull(type);
 
-        var meterNameField = type!.GetField("MeterName",
-            BindingFlags.Public | BindingFlags.Static);
+        var meterNameField = type!.GetField("MeterName", BindingFlags.Public | BindingFlags.Static);
         Assert.NotNull(meterNameField);
 
         var actualValue = (string?)meterNameField!.GetValue(null);
         Assert.Equal(GameKitTelemetry.MatchmakingMeterName, actualValue);
+    }
+
+    // ── AddGameKitObservability smoke test ────────────────────────────────────
+
+    [Fact]
+    public void AddGameKitObservability_DoesNotThrow_WithDefaultOptions()
+    {
+        // Smoke test: AddGameKit(...).AddGameKitObservability() must not throw.
+        // Verifies the method is callable on IGameKitBuilder and registers OTel
+        // sources/meters without error (criterion #2 + OBS-01).
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        var exception = Record.Exception(() =>
+        {
+            services.AddGameKit(opts =>
+                opts.ConnectionString = "Host=localhost;Database=test;Username=u;Password=p")
+                .AddGameKitObservability();
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void AddGameKitObservability_WithOtlpEndpoint_DoesNotThrow()
+    {
+        // Smoke test: AddGameKitObservability with OtlpEndpoint configured must not throw.
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        var exception = Record.Exception(() =>
+        {
+            services.AddGameKit(opts =>
+                opts.ConnectionString = "Host=localhost;Database=test;Username=u;Password=p")
+                .AddGameKitObservability(otel =>
+                {
+                    otel.OtlpEndpoint = "http://localhost:4317";
+                });
+        });
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void AddGameKitObservability_ReturnsIGameKitBuilder()
+    {
+        // Verifies the method returns IGameKitBuilder (fluent chaining — acceptance criterion #1).
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        IGameKitBuilder? result = null;
+        var exception = Record.Exception(() =>
+        {
+            var builder = services.AddGameKit(opts =>
+                opts.ConnectionString = "Host=localhost;Database=test;Username=u;Password=p");
+            result = builder.AddGameKitObservability();
+        });
+
+        Assert.Null(exception);
+        Assert.NotNull(result);
     }
 }

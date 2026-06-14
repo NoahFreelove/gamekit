@@ -32,6 +32,13 @@
     <!-- HTTP request validation for ValidationEndpointFilter<T> generic filter (plan 04-05) -->
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+
+    <!-- OpenTelemetry opt-in extension (AddGameKitObservability) — Plan 13-02 (OBS-01).
+         PrivateAssets="all" prevents the OTel SDK from flowing to consumers who skip the call.
+         Consumers who call AddGameKitObservability() must install the OTel SDK themselves.
+         Versions resolved via CPM (Directory.Packages.props — both pinned at 1.15.3). -->
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" PrivateAssets="all" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" PrivateAssets="all" />
   </ItemGroup>
 
   <!-- D-15 + 06-PATTERNS Critical Misuse Warning #5: GameKit.Build emits

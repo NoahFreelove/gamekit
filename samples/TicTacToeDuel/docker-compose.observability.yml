@@ -1,0 +1,65 @@
+# samples/TicTacToeDuel/docker-compose.observability.yml
+# Observability overlay: OTel Collector + Prometheus + Grafana + Tempo.
+# Prometheus is NOT published to the host — host-isolated on obs-internal network (criterion #3).
+# Start the full stack:
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up
+#
+# Port map:
+#   :4317  → OTel Collector OTLP gRPC (published — sample app pushes from host)
+#   :3000  → Grafana UI (published — browser access to dashboards)
+#   :9090  → Prometheus (NOT published — internal only; curl http://localhost:9090 MUST fail)
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.154.0
+    volumes:
+      - ./observability/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC — published for host-running app
+      # NOTE: 8889 (Prometheus exporter) is NOT published — internal network only
+    networks:
+      - obs-internal
+    depends_on:
+      - tempo
+
+  prometheus:
+    image: prom/prometheus:v3.11.2
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    # NO ports: section — Prometheus is NOT published to the host (criterion #3)
+    # Access within the obs-internal network via http://prometheus:9090
+    networks:
+      - obs-internal
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    networks:
+      - obs-internal
+
+  grafana:
+    image: grafana/grafana:13.0.2
+    ports:
+      - "3000:3000"   # Published for dev: browser access to dashboards
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - obs-internal
+    depends_on:
+      - prometheus
+      - tempo
+
+networks:
+  obs-internal:
+    driver: bridge
+    # No external: true — fully internal bridge network; Prometheus has no host binding
+
+volumes:
+  tempo-data:

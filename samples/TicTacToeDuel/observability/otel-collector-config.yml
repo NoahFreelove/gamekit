@@ -1,0 +1,29 @@
+# OTel Collector configuration for GameKit TicTacToeDuel sample.
+# Receives OTLP from the host-running app on :4317 (gRPC) and :4318 (HTTP).
+# Exports metrics to a Prometheus scrape endpoint on :8889 (internal Docker network only).
+# Exports traces to Tempo on tempo:4317 (internal Docker DNS).
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"   # Prometheus scrapes this — internal network only (not published to host)
+  otlp/tempo:
+    endpoint: "tempo:4317"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheus]

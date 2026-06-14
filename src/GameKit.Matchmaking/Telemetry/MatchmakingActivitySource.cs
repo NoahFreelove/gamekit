@@ -3,6 +3,7 @@
 
 using System;
 using System.Diagnostics;
+using GameKit.Core.Telemetry;
 
 namespace GameKit.Matchmaking.Telemetry;
 
@@ -17,8 +18,8 @@ namespace GameKit.Matchmaking.Telemetry;
 /// <b>Operator action required (Pitfall §7):</b> spans emitted via this source are no-ops
 /// unless the host registers
 /// <c>AddSource("GameKit.Matchmaking.Ticker")</c> in its OpenTelemetry SDK setup. Without
-/// this registration, the ticker's per-tick spans + tags (<c>ladderId</c>, <c>poolName</c>,
-/// <c>candidatesEvaluated</c>, <c>matchesFormed</c>) are discarded silently. Operators MUST
+/// this registration, the ticker's per-tick spans + tags (<c>ladder.id</c>, <c>pool.name</c>,
+/// <c>candidates.evaluated</c>, <c>matches.formed</c>) are discarded silently. Operators MUST
 /// wire the source to observe live matchmaker telemetry — this is the standard ActivitySource
 /// opt-in pattern (matches what ASP.NET Core, EF Core, and StackExchange.Redis do).
 /// </para>
@@ -41,7 +42,7 @@ public static class MatchmakingActivitySource
     /// through the typed helpers <see cref="StartTickActivity"/> + <see cref="StartPoolActivity"/>
     /// to guarantee consistent span naming.
     /// </summary>
-    internal static readonly ActivitySource Source = new(SourceName, "1.0.0");
+    internal static readonly ActivitySource Source = new(SourceName, GameKitTelemetry.Version);
 
     /// <summary>
     /// Starts a span named <c>"Tick"</c> wrapping a single <c>MatchmakerTickerService.RunOnceAsync</c>
@@ -56,16 +57,16 @@ public static class MatchmakingActivitySource
     /// inside a single tick. The span carries the ladder id + pool name as tags so the
     /// telemetry pipeline can group spans per pool.
     /// </summary>
-    /// <param name="ladderId">Ladder identifier (tag <c>ladderId</c>).</param>
-    /// <param name="poolName">Pool name (tag <c>poolName</c>).</param>
+    /// <param name="ladderIdValue">Ladder identifier value (tag <c>ladder.id</c>).</param>
+    /// <param name="poolNameValue">Pool name value (tag <c>pool.name</c>).</param>
     /// <returns>The started <see cref="Activity"/>, or <see langword="null"/> if no listener.</returns>
-    public static Activity? StartPoolActivity(Guid ladderId, string poolName)
+    public static Activity? StartPoolActivity(Guid ladderIdValue, string poolNameValue)
     {
         var activity = Source.StartActivity("PoolSweep");
         if (activity is not null)
         {
-            activity.SetTag("ladderId", ladderId.ToString());
-            activity.SetTag("poolName", poolName);
+            activity.SetTag(GameKitTelemetry.AttrLadderId, ladderIdValue.ToString());
+            activity.SetTag(GameKitTelemetry.AttrPoolName, poolNameValue);
         }
         return activity;
     }

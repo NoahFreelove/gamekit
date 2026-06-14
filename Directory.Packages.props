@@ -133,6 +133,24 @@
     <!-- Instrumentation.* sit on a separate release cadence from the core SDK; 1.15.2 is the latest
          on this line and is not flagged by the advisories above. -->
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
+
+    <!-- Phase 13 Plan 01 — Roslyn analyzer test harness (OBS-07 PII lint gate tests).
+         Microsoft/RoslynTeam, dotnet/roslyn-analyzers source repo.
+         Operator-approved in slopcheck gate (Task 1, checkpoint:human-verify passed 2026-06-14).
+         Test-only: consumed exclusively by tests/GameKit.Build.Tests/.
+         Uses DefaultVerifier (framework-agnostic) instead of XUnitVerifier — the XUnit verifier
+         shim 1.1.2 calls new EqualException(object, object) which is a xUnit 3.x API and is
+         incompatible with the repo-pinned xUnit 2.9.2 (Rule 1 auto-fix). -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
+    <!-- Transitive pins for the analyzer-testing packages' Roslyn deps.
+         CentralPackageTransitivePinningEnabled=true pulls old 1.0.1 Roslyn packages unless
+         these are pinned to modern versions. 4.13.0 matches GameKit.Build.csproj's inline pin.
+         Rule 1 auto-fix: NU1701 blocking the analyzer test project restore. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.13.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.13.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.13.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzer.Testing" Version="1.1.2" />
   </ItemGroup>
 
   <ItemGroup>

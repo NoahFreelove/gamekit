@@ -1,0 +1,25 @@
+# pii-allowlist.txt — PII span attribute key allow-list
+#
+# Format: one fully-qualified tag key per line.
+# Lines starting with '#' are comments and are ignored by PiiAttributeAnalyzer.
+#
+# Purpose (OBS-07 / OBS-08):
+#   The PiiAttributeAnalyzer (GK0001) blocks any SetTag/AddTag call whose key
+#   contains a whole token from the PII denylist:
+#     player, user, email, token, ip, fingerprint
+#
+#   If a key containing one of these tokens is intentionally safe to log (e.g.,
+#   an opaque identifier that contains the word "player" for naming clarity but
+#   carries no personally-identifiable data), add it here.
+#
+# Example:
+#   player.self   — add to allow exceptions for intentional documented cases
+#
+# Rules:
+# - Keys must be exact, case-sensitive matches (e.g., "ladder.id" not "Ladder.Id").
+# - Wildcards are NOT supported; each allowed key must be listed individually.
+# - Document WHY each key is safe to log as a comment above the key.
+# - Review this list during security audits (Phase 15+ GDPR hardening).
+#
+# Currently empty — no keys have been explicitly allow-listed.
+# Keys are added here as needed when a false-positive is confirmed safe.

@@ -62,6 +62,24 @@
     <CompilerVisibleProperty Include="Version" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- OBS-07 / D-07: PII span attribute allow-list wired as AdditionalFiles.
+         PiiAttributeAnalyzer reads this file via context.Options.AdditionalFiles
+         to exempt explicitly-documented keys from the GK0001 denylist check.
+         The absolute-path pattern ensures the file is found regardless of
+         which src/ project the analyzer is compiling. -->
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)src/GameKit.Build/pii-allowlist.txt" />
+  </ItemGroup>
+
+  <!-- RS2008 — Roslyn analyzer release tracking files required when EnforceExtendedAnalyzerRules=true.
+       Wired here (not in GameKit.Build.csproj) to avoid modifying the plan-fixed analyzer csproj.
+       Conditioned on AssemblyName so these files only reach the GameKit.Build compilation,
+       not all src/ projects. (OBS-07 Plan 13-01 auto-fix.) -->
+  <ItemGroup Condition="'$(AssemblyName)' == 'GameKit.Build'">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)src/GameKit.Build/AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)src/GameKit.Build/AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
   <!-- D-17 + D-26: GameKit.targets contributes an <ItemDefinitionGroup> that
        stamps PackageVersion="[$(Version)]" exact-pin metadata onto every
        ProjectReference at Pack time. Primary defense for the coordinated

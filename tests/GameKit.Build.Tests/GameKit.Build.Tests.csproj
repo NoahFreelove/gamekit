@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Build.Tests</RootNamespace>
+    <AssemblyName>GameKit.Build.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <WarningsAsErrors />
+    <!--
+      Target net10.0 NOT netstandard2.0. Analyzer test projects run tests in the normal .NET
+      runtime environment (RESEARCH.md §Testing the Analyzer — Pitfall 3 note).
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Plain ProjectReference — NO OutputItemType="Analyzer".
+      RESEARCH.md Pitfall 3: adding OutputItemType="Analyzer" would run the PII analyzer
+      against the test code itself, causing circular verification failures.
+    -->
+    <ProjectReference Include="..\..\src\GameKit.Build\GameKit.Build.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      Analyzer test harness (CPM-resolved from Task-1 pins in Directory.Packages.props).
+      Uses Microsoft.CodeAnalysis.CSharp.Analyzer.Testing 1.1.2 with DefaultVerifier
+      (framework-agnostic, no xUnit version dependency) instead of XUnitVerifier.
+      XUnitVerifier 1.1.2 requires xUnit 3.x ABI (new EqualException(object, object))
+      which is incompatible with the repo-pinned xUnit 2.9.2 — Rule 1 auto-fix.
+      Operator-approved 2026-06-14.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" />
+  </ItemGroup>
+  <!--
+    NOTE: Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio, coverlet.collector
+    are provided by tests/Directory.Build.props — do NOT duplicate them here.
+  -->
+</Project>

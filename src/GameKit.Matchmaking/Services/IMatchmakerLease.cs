@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 GameKit contributors
 
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -33,6 +34,11 @@ namespace GameKit.Matchmaking.Services;
 public interface IMatchmakerLease
 {
     /// <summary>
+    /// Fencing-token-grade unique id for this process instance (<c>MachineName:Guid</c>).
+    /// </summary>
+    string InstanceId { get; }
+
+    /// <summary>
     /// Attempts to acquire the shared matchmaker leader-election lock. Returns <c>true</c>
     /// when this caller is now the leader for at least <c>LockTtlSeconds</c>.
     /// </summary>
@@ -45,4 +51,16 @@ public interface IMatchmakerLease
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
     Task ReleaseLeaseAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Returns the current lock holder's instance id and remaining TTL without acquiring
+    /// or modifying the lock. Returns <c>null</c> holder when the key is absent or expired.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    Task<LeaseStatus> QueryLeaseAsync(CancellationToken ct);
 }
+
+/// <summary>Snapshot of a distributed leader lock: current holder + TTL.</summary>
+/// <param name="HolderInstanceId">The holder's <c>InstanceId</c>, or <c>null</c> when unheld.</param>
+/// <param name="Ttl">Remaining lease duration, or <c>null</c> when the key has no TTL.</param>
+public sealed record LeaseStatus(string? HolderInstanceId, TimeSpan? Ttl);

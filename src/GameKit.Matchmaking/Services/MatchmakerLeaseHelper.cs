@@ -195,4 +195,24 @@ public sealed class MatchmakerLeaseHelper : IMatchmakerLease
                 "MatchmakerLeaseHelper: failed to release lease — lock will expire via TTL.");
         }
     }
+
+    /// <inheritdoc />
+    public async Task<LeaseStatus> QueryLeaseAsync(CancellationToken ct)
+    {
+        try
+        {
+            var db = _redis.GetDatabase();
+            var holder = await db.LockQueryAsync(_opts.Ticker.LockKey).ConfigureAwait(false);
+            var ttl    = await db.KeyTimeToLiveAsync(_opts.Ticker.LockKey).ConfigureAwait(false);
+            return new LeaseStatus(
+                holder.HasValue ? (string?)holder : null,
+                ttl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "MatchmakerLeaseHelper: QueryLeaseAsync — Redis unavailable.");
+            return new LeaseStatus(null, null);
+        }
+    }
 }

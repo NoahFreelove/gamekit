@@ -55,38 +55,43 @@ CSS custom-property values already in use on the Health page.
 |-------|-------|-------------|----------------------|
 | xs | 4px | — | Icon gaps (`.icon` glyph spacing) |
 | sm | 8px | `--cell-px` partial | Compact button padding (`.btn-sm`) |
+| gap-tight | 12px | — | **LOCKED exception:** flex gap between internal rows inside `.health-tile` (between `.top`, `.v`, `.muted`, `.footer`). Grid-aligned (3×4). Retained verbatim from existing CSS — do not change. |
 | md | 16px | `--card-pad` default | `.card-body` padding; `.health-tile` padding; grid gap (`.grid-12 gap: 16px`) |
 | lg | 24px | `--section-gap` / `--card-pad` | `.page-head` margin-bottom; `.main` left/right padding |
 | xl | 32px | — | `.main` left/right padding |
 | 2xl | 48px | — | Not used on Health page |
 | 3xl | 64px | — | Not used on Health page |
 
-Exceptions:
-- `.health-tile` uses `gap: 12px` between its internal flex children (between `.top`, `.v`,
-  `.muted`, and `.footer` rows) — this is an existing 12px gap, not on the 4-point scale.
-  It is LOCKED as-is and must not be changed.
-- Compact density (`[data-density="compact"]`): `--section-gap` drops to 16px,
-  `--card-pad` drops to 14px. The Health page inherits this automatically via CSS variables.
+Standard 8-point scale: {4, 8, 16, 24, 32, 48, 64}. The 12px gap-tight entry above is the
+only declared exception — locked from existing CSS, grid-aligned (multiple of 4), and limited
+to the `.health-tile` internal flex gap.
+
+Compact-density override (`[data-density="compact"]`): `--section-gap` drops to 16px,
+`--card-pad` drops to **16px** (contract value; legacy CSS emitted 14px — harmonize to 16px
+as a trivial CSS token change in-scope with the panel touch). The Health page inherits density
+overrides automatically via CSS variables.
 
 ---
 
 ## Typography
 
-All from `gamekit-admin.css`. Health page uses the following sizes:
+All from `gamekit-admin.css`. Health page uses exactly **4 font sizes** and **2 weights**.
 
 | Role | Size | Weight | Line Height | CSS / Element | Used On |
 |------|------|--------|-------------|--------------|---------|
 | Page heading | 20px | 600 | 1.1 (tight) | `.page-head h1` | "Health" heading |
-| Card heading | 13px | 600 | — | `.card-head h2` | "Status" card title |
-| Tile label | 14px | 600 | — | `.health-tile .name` | "Postgres", "Redis", "Error rate" |
 | Tile status value | 24px | 600 | — | `.health-tile .v` | "OK" / "Degraded" / "Down" |
-| Body / detail | 14px | 400 | 1.45 | `body` global | Tile detail text (`.muted`) |
-| Small / caption | 13px | 400 | — | `.btn` | "Refresh" button label |
-| Muted caption | 13px | 400 | — | `.muted` | "Auto-refresh every Ns" caption |
-| Footer timestamp | 11px | 400 | — | `.health-tile .footer .mono` | "updated HH:mm:ss UTC" |
+| Body / detail + tile label | 14px | 400 / 600 | 1.45 (body) | `body` global + `.health-tile .name` | Tile detail text (`.muted`) at 400; tile label ("Postgres" etc.) at 600 |
+| Small / caption + footer timestamp | 13px | 400 | — | `.btn`, `.muted`, `.health-tile .footer .mono` | "Refresh" button label; "Auto-refresh every Ns" caption; "updated HH:mm:ss UTC" footer (rendered at 13px; legacy CSS emitted 11px for the footer — harmonize to 13px) |
+
+Declared sizes: **13px, 14px, 20px, 24px** (4 tiers). Declared weights: **400** (regular)
+and **600** (semibold).
 
 Font feature settings: `"ss01", "cv02", "cv11"` — applied globally, inherited by all text.
 Numeric rendering: `tabular-nums` — applied globally, inherited by tile status values.
+
+Primary visual focal point per tile: the `.v` status value (24px / 600) — the largest,
+heaviest element on the panel. The page `h1 "Health"` (20px / 600) anchors the page header.
 
 ---
 
@@ -252,12 +257,15 @@ The Health page has zero destructive actions. No confirmation dialogs.
 
 ## Copywriting Contract (LOCKED)
 
+The single-word CTA "Refresh" is LOCKED existing copy retained verbatim from `Health.razor`
+to avoid a breaking change. All copy below is preserved exactly from the existing implementation.
+
 | Element | Copy | Source |
 |---------|------|--------|
 | Page heading | "Health" | `Health.razor` h1 |
 | Card heading | "Status" | `Health.razor` .card-head h2 |
 | Auto-refresh caption | "Auto-refresh every {N}s" | `Health.razor` .muted span |
-| Button at rest | "Refresh" | `Health.razor` button |
+| Button at rest | "Refresh" | `Health.razor` button — LOCKED, retained verbatim |
 | Button loading | "Refreshing…" | `Health.razor` button |
 | Tile label: column 1 | "Postgres" | `Health.razor` Label param |
 | Tile label: column 2 | "Redis" | `Health.razor` Label param |

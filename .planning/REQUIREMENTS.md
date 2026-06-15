@@ -25,11 +25,11 @@
 
 ### Health & Readiness
 
-- [ ] **HLTH-01**: `AddGameKitHealthChecks()` + map helpers in `GameKit.Core` expose separate `/health/live` and `/health/ready` endpoints with orchestrator-compatible JSON; liveness is process-only (no DB/Redis calls), readiness is dependency-gated.
-- [ ] **HLTH-02**: Readiness probes cover Postgres (`SELECT 1`), Redis (`PING`), and a per-package "all migrations applied" check via a new `IMigrationReadinessReporter` implemented by each package's migration HostedService — a replica stays out of rotation until every dependency and migration passes.
+- [x] **HLTH-01**: `AddGameKitHealthChecks()` + map helpers in `GameKit.Core` expose separate `/health/live` and `/health/ready` endpoints with orchestrator-compatible JSON; liveness is process-only (no DB/Redis calls), readiness is dependency-gated.
+- [x] **HLTH-02**: Readiness probes cover Postgres (`SELECT 1`), Redis (`PING`), and a per-package "all migrations applied" check via a new `IMigrationReadinessReporter` implemented by each package's migration HostedService — a replica stays out of rotation until every dependency and migration passes.
 - [ ] **HLTH-03**: Three-state health (`Healthy`/`Degraded`/`Unhealthy`) — e.g. the matchmaking ticker not holding the leader lock reports `Degraded`, not `Unhealthy`.
 - [ ] **HLTH-04**: Leader-lock health probe reports which replica currently holds the matchmaking leader lock and the TTL remaining.
-- [ ] **HLTH-05**: Health payloads never leak infrastructure details (no connection strings, hosts, or credentials) — component name + status + human-readable description only.
+- [x] **HLTH-05**: Health payloads never leak infrastructure details (no connection strings, hosts, or credentials) — component name + status + human-readable description only.
 - [ ] **HLTH-06**: The existing Admin UI health panel consumes the structured `HealthCheckService` results; Admin.UI's `HealthProbeService` is refactored to **delegate to** the Core probes rather than duplicate them.
 
 ### Horizontal-Scale Hardening
@@ -137,11 +137,11 @@ Phase mapping populated by roadmapper 2026-06-08. All 47 requirements mapped.
 | OBS-03 | Phase 13 | Complete |
 | OBS-07 | Phase 13 | Complete |
 | OBS-08 | Phase 13 | Complete |
-| HLTH-01 | Phase 14 | Pending |
-| HLTH-02 | Phase 14 | Pending |
+| HLTH-01 | Phase 14 | Complete |
+| HLTH-02 | Phase 14 | Complete |
 | HLTH-03 | Phase 14 | Pending |
 | HLTH-04 | Phase 14 | Pending |
-| HLTH-05 | Phase 14 | Pending |
+| HLTH-05 | Phase 14 | Complete |
 | HLTH-06 | Phase 14 | Pending |
 | OBS-04 | Phase 15 | Pending |
 | OBS-05 | Phase 15 | Pending |

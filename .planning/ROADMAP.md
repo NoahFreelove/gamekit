@@ -90,7 +90,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 14-01-PLAN.md — Core health foundation: IMigrationReadinessReporter, Postgres/Redis/migration-aggregate checks, whitelist ResponseWriter, AddGameKitHealthChecks() + MapGameKitHealth() (HLTH-01/02/05)
+- [x] 14-01-PLAN.md — Core health foundation: IMigrationReadinessReporter, Postgres/Redis/migration-aggregate checks, whitelist ResponseWriter, AddGameKitHealthChecks() + MapGameKitHealth() (HLTH-01/02/05)
 
 **Wave 2** *(blocked on Wave 1)*
 
@@ -211,7 +211,7 @@ Plans:
 | 11. GameKit.Lobby | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 13. Observability Foundations | v2.1 | 4/4 | Complete    | 2026-06-14 |
-| 14. Health & Readiness | v2.1 | 0/5 | Planned | — |
+| 14. Health & Readiness | v2.1 | 1/5 | In Progress|  |
 | 15. Per-Package OTel Instrumentation | v2.1 | 0/TBD | Not started | — |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |
 | 17. Backup / DR + Migration Ops | v2.1 | 0/TBD | Not started | — |

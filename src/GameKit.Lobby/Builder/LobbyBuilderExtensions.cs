@@ -5,7 +5,9 @@ using System;
 using FluentValidation;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
+using GameKit.Core.Health;
 using GameKit.Lobby.Data;
+using GameKit.Lobby.Health;
 using GameKit.Lobby.Http.Contracts;
 using GameKit.Lobby.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -71,6 +73,11 @@ public static class LobbyBuilderExtensions
 
         // 3. Migration runner — applies __ef_migrations_lobby under the Lobby advisory-lock key.
         builder.Services.AddHostedService<LobbyMigrationHostedService>();
+        // 3a. Lobby migration readiness reporter — reports whether __ef_migrations_lobby
+        //     migrations are all applied. Registered as an enumerable singleton so the Core
+        //     aggregate "migrations" health check discovers all six IMigrationReadinessReporter
+        //     implementations.
+        builder.Services.AddSingleton<IMigrationReadinessReporter, LobbyMigrationReadinessReporter>();
 
         // 4. SignalR + Redis backplane (ChannelPrefix pinned in code — LOBBY-06 / Pitfall §3).
         //    AddSignalR().AddStackExchangeRedis is chained — AddStackExchangeRedis extends

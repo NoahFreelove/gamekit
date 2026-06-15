@@ -4,8 +4,10 @@
 using System;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
+using GameKit.Core.Health;
 using GameKit.Rankings.Authentication;
 using GameKit.Rankings.Data;
+using GameKit.Rankings.Health;
 using GameKit.Rankings.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -51,6 +53,11 @@ public static partial class RankingsBuilderExtensions
 
         // 2. Migration runner — applies __ef_migrations_rankings at startup.
         builder.Services.AddHostedService<RankingsMigrationHostedService>();
+        // 2a. Rankings migration readiness reporter — reports whether __ef_migrations_rankings
+        //     migrations are all applied. Registered as an enumerable singleton so the Core
+        //     aggregate "migrations" health check discovers all six IMigrationReadinessReporter
+        //     implementations.
+        builder.Services.AddSingleton<IMigrationReadinessReporter, RankingsMigrationReadinessReporter>();
 
         // 3. Startup ladder upserter — idempotently upserts registered ladders (D-21 / RANK-09).
         //    Registered both as IHostedService (for the hosting pipeline) and as the concrete

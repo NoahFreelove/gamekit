@@ -108,13 +108,17 @@ public sealed class HealthProbeService : IHealthProbeService
         if (_redisErrors is not null)
         {
             count = await _redisErrors.RecentErrorCountAsync(ct).ConfigureAwait(false);
-            if (count < 0)  // Redis unavailable — fall back to in-memory ring buffer
+            if (count == -1)  // documented Redis-unavailable sentinel — fall back to ring buffer
                 count = _errors.RecentErrorCount();
         }
         else
         {
             count = _errors.RecentErrorCount();
         }
+
+        // Defensive clamp (WR-06): a stray negative (any non -1 sentinel, or future contract
+        // drift) must never map to "OK" via the `< 10` bucket below.
+        count = Math.Max(0, count);
 
         var status = count switch
         {

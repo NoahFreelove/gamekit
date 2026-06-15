@@ -260,6 +260,19 @@ internal sealed class StubMatchmakerLease : IMatchmakerLease
 {
     private readonly bool _isLeader;
     public StubMatchmakerLease(bool isLeader) => _isLeader = isLeader;
+
+    /// <inheritdoc />
+    public string InstanceId { get; } = $"{Environment.MachineName}:{Guid.NewGuid()}";
+
+    /// <inheritdoc />
     public Task<bool> TryAcquireLeaseAsync(CancellationToken ct) => Task.FromResult(_isLeader);
+
+    /// <inheritdoc />
     public Task ReleaseLeaseAsync(CancellationToken ct) => Task.CompletedTask;
+
+    /// <inheritdoc />
+    public Task<LeaseStatus> QueryLeaseAsync(CancellationToken ct) =>
+        Task.FromResult(_isLeader
+            ? new LeaseStatus(InstanceId, TimeSpan.FromSeconds(90))
+            : new LeaseStatus(null, null));
 }

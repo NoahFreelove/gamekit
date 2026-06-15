@@ -26,6 +26,12 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
 
+    <!-- Redis client — IConnectionMultiplexer is injected into RedisHealthCheck (D-09).
+         Core only registers the Redis health check when IConnectionMultiplexer is already
+         in DI (conditional registration in AddGameKitHealthChecks); this reference makes
+         the type resolvable at compile time without forcing Redis on Core-only consumers. -->
+    <PackageReference Include="StackExchange.Redis" />
+
     <!-- DI scanning for IModelBuilderExtension / sibling strategies -->
     <PackageReference Include="Scrutor" />
 

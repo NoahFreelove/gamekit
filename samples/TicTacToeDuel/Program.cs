@@ -129,6 +129,14 @@ gameKitBuilder.AddPresence();
 // gamekit.lobbies + gamekit.lobby_members at startup (AutoMigrate is on).
 gameKitBuilder.AddLobby();
 
+// Phase 14 — Health & Readiness. Registered AFTER all Add* extensions that consume
+// IConnectionMultiplexer (Matchmaking/Presence/Lobby above) so the conditional Redis
+// readiness check guard sees the multiplexer in DI (D-09 / Pitfall 1). The six
+// IMigrationReadinessReporter registrations (Core + Auth + Admin + Rankings + Matchmaking
+// + Lobby) are added by their respective Add* builders above; this call adds the
+// Postgres check, conditional Redis check, and migrations aggregate check.
+gameKitBuilder.AddGameKitHealthChecks();
+
 // Plan 06-06 — OpenApi (Phase 6). Single combined /openapi/v1.json document covering every
 // player-facing GameKit HTTP endpoint (auth, sessions, matchmaking, parties, presence). The
 // builder wires the inline OpenApiOptions.ShouldInclude lambda that filters out admin
@@ -169,6 +177,7 @@ app.UseGameKitAdmin();  // Plan 03-12 — admin CSP nonce + antiforgery; scoped 
 // inside MapGameKitAdmin depends on this being mounted.
 app.MapStaticAssets();
 
+app.MapGameKitHealth();             // /health/live + /health/ready — anonymous, outside auth + rate-limit (D-02/D-03)
 app.MapGameKit();                   // /api/players (RequireAuthorization — Bearer JWT now enforced)
 app.MapAuth();                      // /auth/* — Phase 2
 app.MapDemo();                      // /demo/games (the /demo/players/register endpoint is REMOVED in Phase 2)

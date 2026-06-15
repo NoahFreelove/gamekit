@@ -85,7 +85,23 @@ Plans:
   4. Health check JSON responses contain component name, status, and human-readable description only — no connection strings, hostnames, or credentials appear in any response body
   5. The Admin.UI health panel displays structured check results sourced from `HealthCheckService`; `HealthProbeService` no longer duplicates the Postgres + Redis probe logic
 
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+
+**Wave 1**
+
+- [ ] 14-01-PLAN.md — Core health foundation: IMigrationReadinessReporter, Postgres/Redis/migration-aggregate checks, whitelist ResponseWriter, AddGameKitHealthChecks() + MapGameKitHealth() (HLTH-01/02/05)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 14-02-PLAN.md — Auth + Rankings + Lobby migration readiness reporters (HLTH-02)
+- [ ] 14-03-PLAN.md — Matchmaking: IMatchmakerLease.QueryLeaseAsync + leader health check (Degraded-only) + sixth reporter + self-registration (HLTH-02/03/04)
+- [ ] 14-04-PLAN.md — Admin.UI HealthProbeService delegation refactor + Admin migration reporter + delegation unit test (HLTH-02/06)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 14-05-PLAN.md — Integration tests (live/ready, leak, leader) + TicTacToeDuel wiring (HLTH-01/02/03/04/05)
+
 **UI hint**: yes
 
 ### Phase 15: Per-Package OTel Instrumentation
@@ -195,7 +211,7 @@ Plans:
 | 11. GameKit.Lobby | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 13. Observability Foundations | v2.1 | 4/4 | Complete    | 2026-06-14 |
-| 14. Health & Readiness | v2.1 | 0/TBD | Not started | — |
+| 14. Health & Readiness | v2.1 | 0/5 | Planned | — |
 | 15. Per-Package OTel Instrumentation | v2.1 | 0/TBD | Not started | — |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |
 | 17. Backup / DR + Migration Ops | v2.1 | 0/TBD | Not started | — |

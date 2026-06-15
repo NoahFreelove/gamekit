@@ -30,7 +30,7 @@
 - [x] **HLTH-03**: Three-state health (`Healthy`/`Degraded`/`Unhealthy`) — e.g. the matchmaking ticker not holding the leader lock reports `Degraded`, not `Unhealthy`.
 - [x] **HLTH-04**: Leader-lock health probe reports which replica currently holds the matchmaking leader lock and the TTL remaining.
 - [x] **HLTH-05**: Health payloads never leak infrastructure details (no connection strings, hosts, or credentials) — component name + status + human-readable description only.
-- [ ] **HLTH-06**: The existing Admin UI health panel consumes the structured `HealthCheckService` results; Admin.UI's `HealthProbeService` is refactored to **delegate to** the Core probes rather than duplicate them.
+- [x] **HLTH-06**: The existing Admin UI health panel consumes the structured `HealthCheckService` results; Admin.UI's `HealthProbeService` is refactored to **delegate to** the Core probes rather than duplicate them.
 
 ### Horizontal-Scale Hardening
 
@@ -142,7 +142,7 @@ Phase mapping populated by roadmapper 2026-06-08. All 47 requirements mapped.
 | HLTH-03 | Phase 14 | Complete |
 | HLTH-04 | Phase 14 | Complete |
 | HLTH-05 | Phase 14 | Complete |
-| HLTH-06 | Phase 14 | Pending |
+| HLTH-06 | Phase 14 | Complete |
 | OBS-04 | Phase 15 | Pending |
 | OBS-05 | Phase 15 | Pending |
 | OBS-06 | Phase 15 | Pending |

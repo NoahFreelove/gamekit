@@ -7,6 +7,7 @@ using AspNet.Security.OAuth.Discord;
 using FluentValidation;
 using GameKit.Auth.Data;
 using GameKit.Auth.Egress;
+using GameKit.Auth.Health;
 using GameKit.Auth.Http.Contracts;
 using GameKit.Auth.Http.EndpointFilters;
 using GameKit.Auth.Http.RateLimiting;
@@ -17,6 +18,7 @@ using GameKit.Auth.Providers.Steam;
 using GameKit.Auth.Services;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
+using GameKit.Core.Health;
 using GameKit.Core.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,6 +64,10 @@ public static class AuthBuilderExtensions
         // 1a. Auth migration runner — hosted service applies __ef_migrations_auth after Core migrations
         //     run in UseGameKit, and before Kestrel accepts traffic. See AuthMigrationHostedService.
         builder.Services.AddHostedService<AuthMigrationHostedService>();
+        // 1b. Auth migration readiness reporter — reports whether __ef_migrations_auth migrations are
+        //     all applied. Registered as an enumerable singleton so the Core aggregate "migrations"
+        //     health check can discover all six IMigrationReadinessReporter implementations.
+        builder.Services.AddSingleton<IMigrationReadinessReporter, AuthMigrationReadinessReporter>();
 
         // 2. Egress handler — singleton-captured allow-list; registered as transient per MS guidance for DelegatingHandler.
         builder.Services.AddTransient<EgressAllowListHandler>();

@@ -10,8 +10,10 @@ namespace GameKit.Core.Health;
 
 /// <summary>
 /// Readiness check that issues <c>SELECT 1</c> against the configured Postgres instance with a
-/// 2-second command timeout (D-08). Tagged <c>"ready"</c> so it participates in
-/// <c>/health/ready</c> but not <c>/health/live</c>.
+/// 2-second connect timeout AND a 2-second command timeout (D-08) — so a black-holed/filtered
+/// host fails fast (~2s) on connect rather than blocking ~15s on the Npgsql default connect
+/// timeout. Tagged <c>"ready"</c> so it participates in <c>/health/ready</c> but not
+/// <c>/health/live</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,7 +42,15 @@ internal sealed class PostgresHealthCheck : IHealthCheck
     {
         try
         {
-            await using var conn = new NpgsqlConnection(_opts.ConnectionString);
+            // WR-04: bound OpenAsync with a 2s connect timeout in addition to the 2s command
+            // timeout. Without this, a filtered/black-holed host blocks ~15s on connect (the
+            // Npgsql default) before the command timeout ever applies.
+            var probeConnString = new NpgsqlConnectionStringBuilder(_opts.ConnectionString)
+            {
+                Timeout = 2,
+            }.ConnectionString;
+
+            await using var conn = new NpgsqlConnection(probeConnString);
             await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT 1";

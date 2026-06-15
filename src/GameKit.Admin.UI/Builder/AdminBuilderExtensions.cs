@@ -10,9 +10,11 @@ using GameKit.Admin.UI.Data;
 using GameKit.Admin.UI.Http.Contracts;
 using GameKit.Admin.UI.Http.RateLimiting;
 using GameKit.Admin.UI.Http.Validators;
+using GameKit.Admin.UI.Health;
 using GameKit.Admin.UI.Services;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
+using GameKit.Core.Health;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
@@ -71,6 +73,12 @@ public static class AdminBuilderExtensions
         // 2. Migration hosted service — MUST precede SuperadminGate so admin_users exists when
         //    the gate queries it. Hosted services fire in registration order.
         builder.Services.AddHostedService<AdminMigrationHostedService>();
+
+        // 2b. Admin migration readiness reporter — sixth of six IMigrationReadinessReporter
+        //     implementations (Core / Auth / Rankings / Lobby / Matchmaking / Admin). Registered
+        //     as an enumerable singleton so MigrationAggregateHealthCheck discovers all six via
+        //     IEnumerable<IMigrationReadinessReporter> injection (D-05 / HLTH-02).
+        builder.Services.AddSingleton<IMigrationReadinessReporter, AdminMigrationReadinessReporter>();
 
         // 2a. Defensive AddHealthChecks() — ensures HealthCheckService (the MS.Extensions singleton)
         //     is always resolvable for the Admin health panel, even when the consumer has not called

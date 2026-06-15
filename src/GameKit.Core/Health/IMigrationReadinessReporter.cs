@@ -21,7 +21,10 @@ namespace GameKit.Core.Health;
 /// <b>Latch contract (D-07):</b> once a reporter returns <c>true</c> it <em>must</em> continue
 /// returning <c>true</c> on every subsequent call without querying Postgres. Migrations are
 /// never un-applied at runtime, so steady-state probes incur no database round-trip after the
-/// first successful check.
+/// first successful check. During the concurrent first-probe window, however, multiple
+/// simultaneous probes may each issue one <c>GetPendingMigrationsAsync</c> before the volatile
+/// latch is set; it latches thereafter (idempotent), so any redundant query is bounded to that
+/// initial burst.
 /// </para>
 /// </remarks>
 public interface IMigrationReadinessReporter

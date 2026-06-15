@@ -54,7 +54,7 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 - [x] Self-hosted sample dashboard (Grafana/Prometheus/Tempo via docker-compose in the sample) — no SaaS exporter *(Phase 13, OBS-08)*
 
 **Health & readiness**
-- [ ] Liveness vs. readiness endpoints with Postgres/Redis/migration dependency probes and startup-gating
+- [x] Liveness vs. readiness endpoints with Postgres/Redis/migration dependency probes and startup-gating *(Phase 14, HLTH-01..06: `AddGameKitHealthChecks()` + `MapGameKitHealth()` in Core; `/health/live` process-only, `/health/ready` gated on Postgres + conditional Redis + six `IMigrationReadinessReporter`s; three-state with Degraded-only matchmaking-leader probe (non-acquiring holder+TTL read); PII-safe whitelist payload; Admin.UI `HealthProbeService` delegates to `HealthCheckService`)*
 
 **Horizontal-scale hardening**
 - [ ] Prove + document multi-replica correctness — leader election under churn, graceful drain/shutdown, distributed-lock edge cases, idempotency across concurrent replicas
@@ -150,4 +150,4 @@ This document evolves at phase transitions and milestone boundaries.
 - Admin: multi-replica UI (SignalR + Redis backplane) · fix "Rank adjust" stub page
 
 ---
-*Last updated: 2026-06-14 — Phase 13 (Observability Foundations) complete: PII-safe observability foundation — GK0001 PII span-attribute lint gate, `GameKitTelemetry` constants + `AddGameKitObservability()` in Core, canonical Rankings/Matchmaking `ActivitySource`s, and the self-hosted OTel/Prometheus/Tempo/Grafana sample stack (OBS-01/02/03/07/08). v2.1 milestone (Operability & Hardening) started 2026-06-07; public NuGet publish deferred. v2.0 shipped 2026-06-07 (Phases 7–12, 29/29 requirements).*
+*Last updated: 2026-06-15 — Phase 14 (Health & Readiness) complete: K8s-correct `/health/live` (process-only) + `/health/ready` (Postgres + conditional Redis + six per-package `IMigrationReadinessReporter`s) via `AddGameKitHealthChecks()`/`MapGameKitHealth()` in Core; three-state health with a Degraded-only, non-acquiring matchmaking-leader probe (holder GUID token + TTL, hostname stripped per HLTH-05); PII-safe whitelist response writer; Admin.UI `HealthProbeService` delegates to Core `HealthCheckService` (HLTH-01..06). Code review hardened the leader-probe hostname leak (CR-01) + 5 warnings. Phase 13 (Observability Foundations) complete: GK0001 PII span-attribute lint gate, `GameKitTelemetry` + `AddGameKitObservability()`, canonical Rankings/Matchmaking `ActivitySource`s, self-hosted OTel/Prometheus/Tempo/Grafana sample stack (OBS-01/02/03/07/08). v2.1 milestone (Operability & Hardening) started 2026-06-07; public NuGet publish deferred. v2.0 shipped 2026-06-07 (Phases 7–12, 29/29 requirements).*

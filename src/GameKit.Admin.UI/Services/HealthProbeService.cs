@@ -2,108 +2,104 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using GameKit.Admin.UI.Http.Contracts;
-using GameKit.Core;
 using GameKit.Core.Services;
-using Npgsql;
-using StackExchange.Redis;
+using CoreHealthCheckService = Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckService;
+using CoreHealthReport = Microsoft.Extensions.Diagnostics.HealthChecks.HealthReport;
+using CoreHealthStatus = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 
 namespace GameKit.Admin.UI.Services;
 
 /// <summary>
-/// Default <see cref="IHealthProbeService"/>. Three probes run sequentially (they are fast and
-/// independent; parallelism would complicate latency attribution). Each probe swallows its
-/// exception and maps it to a <c>Down</c> tile so one failed dependency does not mask the
-/// others.
+/// Thin adapter over <see cref="CoreHealthCheckService"/> that projects the Core
+/// <c>postgres</c> and <c>redis</c> health-check entries into <see cref="HealthTile"/> view
+/// records, and appends the Admin-local error-rate tile sourced from
+/// <see cref="ErrorRateRingBuffer"/> / <see cref="IRedisErrorRateCounter"/> (D-16).
 /// </summary>
+/// <remarks>
+/// <para>
+/// Postgres and Redis connectivity are probed exclusively via the shared
+/// <c>HealthCheckService</c> registered by <c>AddGameKitHealthChecks()</c> (Plan 01, HLTH-06).
+/// The previous direct <c>NpgsqlConnection</c> / <c>IDatabase.PingAsync</c> logic has been
+/// removed to avoid duplicate round-trips and duplicate error-class leakage (T-14-09 mitigation).
+/// </para>
+/// <para>
+/// When <c>AddGameKitHealthChecks()</c> has not been called (Admin-without-Core-health install),
+/// the <c>postgres</c> / <c>redis</c> entries are absent from the report and the tiles degrade
+/// gracefully to <c>Down</c> / <c>"not configured"</c> (T-14-10 mitigation).
+/// </para>
+/// </remarks>
 public sealed class HealthProbeService : IHealthProbeService
 {
-    private readonly GameKitOptions _gameKitOpts;
-    private readonly IConnectionMultiplexer? _redis;
+    private readonly CoreHealthCheckService _healthCheckService;
     private readonly ErrorRateRingBuffer _errors;
     private readonly IClock _clock;
     private readonly IRedisErrorRateCounter? _redisErrors;
 
     /// <summary>Constructs the service.</summary>
-    /// <param name="gameKitOpts">Core options (supplies the Postgres connection string).</param>
-    /// <param name="errors">Shared error-rate ring buffer.</param>
+    /// <param name="healthCheckService">
+    /// Core <see cref="CoreHealthCheckService"/> from which Postgres and Redis tiles are projected.
+    /// Registered by <c>AddHealthChecks()</c> / <c>AddGameKitHealthChecks()</c>.
+    /// </param>
+    /// <param name="errors">Shared error-rate ring buffer (Admin-local, D-16).</param>
     /// <param name="clock">Clock abstraction.</param>
-    /// <param name="redis">Redis multiplexer if registered; null when no Redis connection is configured.</param>
     /// <param name="redisErrors">
     /// Optional Redis error counter (ADMIN-14). When present, <see cref="ProbeAsync"/> reads the
     /// cross-replica aggregate; when absent or when Redis returns <c>-1</c>, falls back to
     /// <paramref name="errors"/> for single-instance behavior.
     /// </param>
     public HealthProbeService(
-        GameKitOptions gameKitOpts,
+        CoreHealthCheckService healthCheckService,
         ErrorRateRingBuffer errors,
         IClock clock,
-        IConnectionMultiplexer? redis = null,
         IRedisErrorRateCounter? redisErrors = null)
     {
-        ArgumentNullException.ThrowIfNull(gameKitOpts);
+        ArgumentNullException.ThrowIfNull(healthCheckService);
         ArgumentNullException.ThrowIfNull(errors);
         ArgumentNullException.ThrowIfNull(clock);
-        _gameKitOpts = gameKitOpts;
-        _redis = redis;
+        _healthCheckService = healthCheckService;
         _errors = errors;
         _clock = clock;
         _redisErrors = redisErrors;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Runs all health probes and returns a <see cref="HealthReport"/> snapshot.
+    /// Postgres and Redis tiles are projected from the Core <see cref="CoreHealthCheckService"/>;
+    /// the error-rate tile is sourced from the Admin-local <see cref="ErrorRateRingBuffer"/> (D-16).
+    /// </summary>
+    /// <param name="cancellationToken">Propagated to <c>HealthCheckService.CheckHealthAsync</c> and <c>ProbeErrorRateAsync</c>.</param>
+    /// <returns>A <see cref="HealthReport"/> containing three tiles and the UTC check timestamp.</returns>
     public async Task<HealthReport> ProbeAsync(CancellationToken cancellationToken)
     {
-        var pg = await ProbePostgresAsync(cancellationToken).ConfigureAwait(false);
-        var redis = await ProbeRedisAsync(cancellationToken).ConfigureAwait(false);
-        var err = await ProbeErrorRateAsync(cancellationToken).ConfigureAwait(false);
+        var report = await _healthCheckService
+            .CheckHealthAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var pg    = GetTile(report, "postgres");
+        var redis = GetTile(report, "redis");
+        var err   = await ProbeErrorRateAsync(cancellationToken).ConfigureAwait(false);
+
         return new HealthReport(pg, redis, err, _clock.UtcNow);
     }
 
-    private async Task<HealthTile> ProbePostgresAsync(CancellationToken cancellationToken)
+    private static HealthTile GetTile(CoreHealthReport report, string checkName)
     {
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            await using var conn = new NpgsqlConnection(_gameKitOpts.ConnectionString);
-            await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT 1";
-            cmd.CommandTimeout = 2;
-            var result = await cmd.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-            sw.Stop();
-            return result is 1
-                ? new HealthTile("OK", "connected", sw.Elapsed.TotalMilliseconds)
-                : new HealthTile("Degraded", $"unexpected result: {result}", sw.Elapsed.TotalMilliseconds);
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            return new HealthTile("Down", ex.GetType().Name, sw.Elapsed.TotalMilliseconds);
-        }
-    }
+        if (!report.Entries.TryGetValue(checkName, out var entry))
+            return new HealthTile("Down", "not configured", null);
 
-    private async Task<HealthTile> ProbeRedisAsync(CancellationToken cancellationToken)
-    {
-        if (_redis is null)
-            return new HealthTile("Degraded", "not configured", null);
+        var status = entry.Status switch
+        {
+            CoreHealthStatus.Healthy   => "OK",
+            CoreHealthStatus.Degraded  => "Degraded",
+            CoreHealthStatus.Unhealthy => "Down",
+            _                          => "Down",
+        };
 
-        var sw = Stopwatch.StartNew();
-        try
-        {
-            var db = _redis.GetDatabase();
-            var latency = await db.PingAsync().ConfigureAwait(false);
-            sw.Stop();
-            return new HealthTile("OK", "ping ok", latency.TotalMilliseconds);
-        }
-        catch (Exception ex)
-        {
-            sw.Stop();
-            return new HealthTile("Down", ex.GetType().Name, sw.Elapsed.TotalMilliseconds);
-        }
+        return new HealthTile(status, entry.Description ?? string.Empty,
+            entry.Duration.TotalMilliseconds);
     }
 
     private async Task<HealthTile> ProbeErrorRateAsync(CancellationToken ct)

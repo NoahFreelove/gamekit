@@ -72,6 +72,14 @@ public static class AdminBuilderExtensions
         //    the gate queries it. Hosted services fire in registration order.
         builder.Services.AddHostedService<AdminMigrationHostedService>();
 
+        // 2a. Defensive AddHealthChecks() — ensures HealthCheckService (the MS.Extensions singleton)
+        //     is always resolvable for the Admin health panel, even when the consumer has not called
+        //     AddGameKitHealthChecks(). AddHealthChecks() is idempotent (uses TryAddSingleton
+        //     internally), so calling it here does not duplicate or override registrations made by
+        //     AddGameKitHealthChecks(). Without this, IHealthProbeService resolution would throw at
+        //     runtime when the admin panel is wired before the Core health-check call (T-14-10).
+        builder.Services.AddHealthChecks();
+
         // 3. Superadmin gate hosted service (D-04 / D-05).
         builder.Services.AddHostedService<SuperadminGateHostedService>();
 

@@ -94,7 +94,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 14-02-PLAN.md — Auth + Rankings + Lobby migration readiness reporters (HLTH-02)
+- [x] 14-02-PLAN.md — Auth + Rankings + Lobby migration readiness reporters (HLTH-02)
 - [ ] 14-03-PLAN.md — Matchmaking: IMatchmakerLease.QueryLeaseAsync + leader health check (Degraded-only) + sixth reporter + self-registration (HLTH-02/03/04)
 - [ ] 14-04-PLAN.md — Admin.UI HealthProbeService delegation refactor + Admin migration reporter + delegation unit test (HLTH-02/06)
 
@@ -211,7 +211,7 @@ Plans:
 | 11. GameKit.Lobby | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 13. Observability Foundations | v2.1 | 4/4 | Complete    | 2026-06-14 |
-| 14. Health & Readiness | v2.1 | 1/5 | In Progress|  |
+| 14. Health & Readiness | v2.1 | 2/5 | In Progress|  |
 | 15. Per-Package OTel Instrumentation | v2.1 | 0/TBD | Not started | — |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |
 | 17. Backup / DR + Migration Ops | v2.1 | 0/TBD | Not started | — |

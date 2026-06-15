@@ -95,17 +95,26 @@ public sealed class RedisMatchmakerLease : IMatchmakerLease
         }
     }
 
+    /// <summary>
+    /// Single non-acquiring atomic read of the lock holder + remaining TTL. Returns the
+    /// holder value (element 0) and PTTL in milliseconds (element 1) from the same point in
+    /// time so the snapshot is never torn (WR-02). Does NOT take or modify the lock.
+    /// </summary>
+    private const string QueryLeaseScript =
+        "return { redis.call('GET', KEYS[1]), redis.call('PTTL', KEYS[1]) }";
+
     /// <inheritdoc />
     public async Task<LeaseStatus> QueryLeaseAsync(CancellationToken ct)
     {
         try
         {
             var db = _redis.GetDatabase();
-            var holder = await db.LockQueryAsync(_lockKey).ConfigureAwait(false);
-            var ttl    = await db.KeyTimeToLiveAsync(_lockKey).ConfigureAwait(false);
-            return new LeaseStatus(
-                holder.HasValue ? (string?)holder : null,
-                ttl);
+            // Single atomic eval: holder + PTTL come from the same point in time, so a torn
+            // holder/TTL snapshot (WR-02) is impossible. Non-acquiring (no LockTake).
+            var result = (RedisResult[]?)await db
+                .ScriptEvaluateAsync(QueryLeaseScript, new RedisKey[] { _lockKey })
+                .ConfigureAwait(false);
+            return ParseLeaseStatus(result);
         }
         catch (Exception ex)
         {
@@ -113,5 +122,26 @@ public sealed class RedisMatchmakerLease : IMatchmakerLease
                 "RedisMatchmakerLease: QueryLeaseAsync — Redis unavailable.");
             return new LeaseStatus(null, null);
         }
+    }
+
+    /// <summary>
+    /// Parses the <c>{ GET, PTTL }</c> Lua result into a <see cref="LeaseStatus"/>: element 0
+    /// is the holder (null/empty =&gt; no holder), element 1 is PTTL in milliseconds
+    /// (&lt;= 0 =&gt; no TTL, covering both the -1 "no expiry" and -2 "missing key" replies).
+    /// </summary>
+    private static LeaseStatus ParseLeaseStatus(RedisResult[]? result)
+    {
+        if (result is null || result.Length < 2)
+            return new LeaseStatus(null, null);
+
+        var holderRaw = (RedisValue)result[0];
+        string? holder = holderRaw.HasValue && holderRaw.Length() > 0
+            ? (string?)holderRaw
+            : null;
+
+        var pttlMs = (long)result[1];
+        TimeSpan? ttl = pttlMs > 0 ? TimeSpan.FromMilliseconds(pttlMs) : null;
+
+        return new LeaseStatus(holder, ttl);
     }
 }

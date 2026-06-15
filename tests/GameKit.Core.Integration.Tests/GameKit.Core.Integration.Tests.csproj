@@ -2,14 +2,26 @@
   <PropertyGroup>
     <RootNamespace>GameKit.Core.Integration.Tests</RootNamespace>
     <AssemblyName>GameKit.Core.Integration.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Microsoft.AspNetCore.App provides the HTTP/routing/health-check shared-framework
+         types needed by HealthTestHost (WebApplication, MapHealthChecks, HealthCheckOptions).
+         Mirrors the pattern from GameKit.Matchmaking.Integration.Tests.csproj. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Microsoft.Extensions.Hosting intentionally omitted: supplied by the
+         Microsoft.AspNetCore.App framework reference above (NU1510 precedent). -->
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
     <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Npgsql" />
-    <PackageReference Include="StackExchange.Redis" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 </Project>

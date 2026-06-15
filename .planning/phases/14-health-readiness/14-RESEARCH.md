@@ -706,21 +706,24 @@ public static IGameKitMatchmakingBuilder AddMatchmaking(
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **IConnectionMultiplexer registration order (Pitfall 1)**
    - What we know: `IConnectionMultiplexer` is registered by the consumer (before any `Add*` call) in `TicTacToeDuel/Program.cs`, not by any GameKit package builder.
    - What's unclear: Should each Redis-using package's `Add*` extension self-register the Redis health check (option 2), or should the consumer always call `AddGameKitHealthChecks()` after all packages are registered (option 1)?
+   - **RESOLVED — Core is the SINGLE owner of the conditional "redis" connectivity check (registered only when an IConnectionMultiplexer is already in the service collection at AddGameKitHealthChecks() time). Redis-using sibling packages do NOT register their own "redis" check. The operator registers the multiplexer up-front before AddGameKit*/AddGameKitHealthChecks (as the TicTacToeDuel sample does), so Core's conditional check reliably sees it.** This supersedes the earlier "option 2 (sibling self-registers)" recommendation below: a single owner removes the duplicate-name registration risk entirely while still honouring "install only what you need" — a Core-only install registers no "redis" check, and any Redis-using install gets exactly one. Matchmaking self-registers ONLY its distinct "matchmaking-leader" check (Degraded-only). See Plan 14-01 Task 3 (sole "redis" registration site) + Plan 14-03 Task 2 (Matchmaking "redis" check removed).
    - Recommendation: Use option 2 (sibling self-registers `RedisHealthCheck`). This is resilient to any consumer call order and follows the "install only what you need" principle. The planner should implement Redis check registration inside `AddMatchmaking()` / `AddPresence()` / `AddLobby()` with `TryAdd` semantics (i.e., `AddCheck` with a name check to avoid duplicate registrations). `AddHealthChecks().AddCheck<RedisHealthCheck>("redis", ...)` is idempotent only if you ensure the same name isn't added twice.
 
 2. **`IMatchmakerLease.InstanceId` exposure**
    - What we know: `RedisMatchmakerLease` exposes `public string InstanceId` but `IMatchmakerLease` does not.
    - What's unclear: Should `InstanceId` be added to `IMatchmakerLease` so `MatchmakingLeaderHealthCheck` can compare without casting?
+   - **RESOLVED — Plan 14-03 Task 1 adds `string InstanceId { get; }` to IMatchmakerLease.** The property is already on the concrete `RedisMatchmakerLease`, so the interface extension is a non-breaking addition that lets `MatchmakingLeaderHealthCheck` compare the holder without an unsafe cast.
    - Recommendation: Add `string InstanceId { get; }` to `IMatchmakerLease`. The property is already on the concrete class and the interface extension is a non-breaking addition. Avoids unsafe cast in the health check.
 
 3. **HealthReport record shape after D-15**
    - What we know: Current `HealthReport(Postgres, Redis, ErrorRate, CheckedAt)` has fixed positional tiles. After delegation, Core's `HealthCheckService` may expose additional checks (e.g., "migrations", "matchmaking-leader") not currently in the record.
    - What's unclear: Should `HealthReport` grow to include the new checks, or should `Health.razor` only show the Postgres + Redis + ErrorRate tiles it currently renders?
+   - **RESOLVED — keep the existing HealthReport(Postgres, Redis, ErrorRate, CheckedAt) / HealthTile records unchanged (Plan 14-04); only the data SOURCE changes.** Postgres + Redis tiles are projected from Core's `HealthCheckService` "postgres"/"redis" entries (delegation, D-15); the ErrorRate tile stays Admin-local (D-16). No view-layer or record edits — HLTH-06 is satisfied by re-sourcing the two delegated tiles, not by growing the record.
    - Recommendation: Keep `HealthReport` as-is for Phase 14 (Postgres tile from Core's postgres check, Redis tile from Core's redis check, ErrorRate tile from Admin-local source). The Admin health panel is not required to display migrations or leader status in Phase 14 — HLTH-06 says "Admin.UI health panel displays structured check results sourced from `HealthCheckService`", which is satisfied by delegating the Postgres + Redis tiles. Future panels can add migration/leader tiles.
 
 ---

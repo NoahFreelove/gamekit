@@ -4,7 +4,9 @@
 using System;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
+using GameKit.Core.Health;
 using GameKit.Matchmaking.Data;
+using GameKit.Matchmaking.Health;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -81,6 +83,17 @@ public static partial class MatchmakingBuilderExtensions
         // 3. Migration runner — applies __ef_migrations_matchmaking at startup under the
         //    Matchmaking advisory-lock key.
         builder.Services.AddHostedService<MatchmakingMigrationHostedService>();
+
+        // 3a. Migration readiness reporter — sixth IMigrationReadinessReporter; consumed by
+        //     Core's MigrationAggregateHealthCheck to gate /health/ready (D-05/D-06/HLTH-02).
+        builder.Services.AddSingleton<IMigrationReadinessReporter, MatchmakingMigrationReadinessReporter>();
+
+        // 3b. Matchmaking-leader readiness check — Degraded-only; surfaces holder InstanceId +
+        //     TTL for HLTH-04. The "redis" connectivity gate is owned solely by Core's
+        //     AddGameKitHealthChecks() (D-09, OQ-1 RESOLVED) — Matchmaking registers ONLY this
+        //     distinct "matchmaking-leader" check here.
+        builder.Services.AddHealthChecks()
+            .AddCheck<MatchmakingLeaderHealthCheck>("matchmaking-leader", tags: new[] { "ready" });
 
         // 4. Register the matchmaking builder as a singleton so downstream services can resolve
         //    IGameKitMatchmakingBuilder + RegisteredLadders directly from DI. Also publish the

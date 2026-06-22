@@ -117,12 +117,24 @@ Plans:
   4. Pre-built Grafana dashboard JSON for matchmaking queue depth + ticker health is importable from `samples/TicTacToeDuel/observability/dashboards/` and renders correct data against the sample stack
 
 **Plans**: 6 plans
+**Wave 1**
+
 - [ ] 15-01-PLAN.md — Core telemetry constants (Lobby/Rankings source+meter names, check.result) + reflection-test extension + Wave-0 PII/W3C test scaffolds
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 15-02-PLAN.md — Matchmaking OBS-04 metrics (ticker lag, queue-depth gauge, lease/lock/matches/budget counters) + Matchmaking PII test
-- [ ] 15-03-PLAN.md — Matchmaking OBS-06 W3C trace propagation across the Redis fan-in (enqueue write → ticker restore → MatchFormation span + fan-in links) + W3C tests
 - [ ] 15-04-PLAN.md — Rankings RankingsMeter + decay-job duration/rows + RankDecay span + Rankings PII test
 - [ ] 15-05-PLAN.md — Lobby greenfield Telemetry/ (LobbyMeter, LobbyActivitySource, connection tracker) + SignalR metrics + ready-check span + Lobby PII test
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 15-03-PLAN.md — Matchmaking OBS-06 W3C trace propagation across the Redis fan-in (enqueue write → ticker restore → MatchFormation span + fan-in links) + W3C tests
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 15-06-PLAN.md — AddGameKitObservability registration + collector namespace + matchmaking dashboard PromQL corrections + full-suite gate
+
 **UI hint**: no
 
 ### Phase 16: Multi-Replica Hardening

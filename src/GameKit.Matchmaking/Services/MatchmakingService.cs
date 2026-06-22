@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
@@ -308,17 +309,34 @@ public sealed class MatchmakingService : IMatchmakingService
         var queueKey = MatchmakingRedisKeys.Queue(ladderId, pool);
 
         var membersJson = JsonSerializer.Serialize(queuedMembers);
-        await db.HashSetAsync(ticketKey,
-            [
-                new HashEntry("status", "queued"),
-                new HashEntry("ladderId", ladderId.ToString()),
-                new HashEntry("poolName", pool),
-                new HashEntry("queuedAt", queuedAtMs),
-                new HashEntry("aggregateRating", aggregateRating.ToString("G17", CultureInfo.InvariantCulture)),
-                new HashEntry("partyId", partyId?.ToString() ?? string.Empty),
-                new HashEntry("playerId", playerId.ToString()),
-                new HashEntry("members", membersJson),
-            ])
+
+        // Build the ticket hash fields. Static fields first, then optionally append W3C
+        // traceparent + tracestate (OBS-06 / D-02). Written from Activity.Current.Id
+        // server-side so the client cannot forge the parent context (T-15-03-TRACE-INJ).
+        // The Id is written regardless of sampling flags — the downstream ticker honours the
+        // flags when it calls ActivityContext.TryParse + StartActivity (Pitfall 1).
+        var ticketFields = new List<HashEntry>
+        {
+            new HashEntry("status", "queued"),
+            new HashEntry("ladderId", ladderId.ToString()),
+            new HashEntry("poolName", pool),
+            new HashEntry("queuedAt", queuedAtMs),
+            new HashEntry("aggregateRating", aggregateRating.ToString("G17", CultureInfo.InvariantCulture)),
+            new HashEntry("partyId", partyId?.ToString() ?? string.Empty),
+            new HashEntry("playerId", playerId.ToString()),
+            new HashEntry("members", membersJson),
+        };
+
+        var current = Activity.Current;
+        if (current is not null)
+        {
+            ticketFields.Add(new HashEntry(MatchmakingRedisKeys.TicketTraceParent, current.Id!));
+            var ts = current.TraceStateString;
+            if (!string.IsNullOrEmpty(ts))
+                ticketFields.Add(new HashEntry(MatchmakingRedisKeys.TicketTraceState, ts));
+        }
+
+        await db.HashSetAsync(ticketKey, ticketFields.ToArray())
             .ConfigureAwait(false);
 
         // Pitfall §6 — score MUST be Unix milliseconds (NOT seconds — second-precision

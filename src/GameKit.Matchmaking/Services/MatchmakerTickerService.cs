@@ -559,6 +559,8 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
         double aggregateRating = 0; bool haveRating = false;
         Guid? partyId = null;
         string? membersJson = null;
+        string? traceparentStr = null;
+        string? tracestateStr = null;
 
         foreach (var e in hash)
         {
@@ -589,6 +591,12 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                 case "members":
                     membersJson = e.Value.ToString();
                     break;
+                case MatchmakingRedisKeys.TicketTraceParent:
+                    traceparentStr = e.Value.ToString();
+                    break;
+                case MatchmakingRedisKeys.TicketTraceState:
+                    tracestateStr = e.Value.ToString();
+                    break;
             }
         }
 
@@ -617,7 +625,11 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
             PoolName: poolName,
             Members: members,
             AggregateRating: aggregateRating,
-            QueuedAt: DateTimeOffset.FromUnixTimeMilliseconds(queuedAtMs));
+            QueuedAt: DateTimeOffset.FromUnixTimeMilliseconds(queuedAtMs))
+        {
+            TraceparentStr = traceparentStr,
+            TracestateStr = tracestateStr,
+        };
     }
 
     /// <summary>

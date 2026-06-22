@@ -40,7 +40,26 @@ public sealed record QueuedParty(
     string PoolName,
     IReadOnlyList<QueuedPartyMember> Members,
     double AggregateRating,
-    DateTimeOffset QueuedAt);
+    DateTimeOffset QueuedAt)
+{
+    /// <summary>
+    /// W3C <c>traceparent</c> header value captured at enqueue time from
+    /// <c>Activity.Current.Id</c> (OBS-06 / D-02 / D-03). Populated by
+    /// <c>MatchmakerTickerService.BuildQueuedPartyFromHash</c> from the
+    /// <c>otel.traceparent</c> Redis hash field. <see langword="null"/> when no ambient
+    /// activity was present at enqueue or the field is absent from the hash.
+    /// </summary>
+    public string? TraceparentStr { get; init; }
+
+    /// <summary>
+    /// W3C <c>tracestate</c> header value captured at enqueue time from
+    /// <c>Activity.Current.TraceStateString</c> (OBS-06 / D-02). Populated by
+    /// <c>MatchmakerTickerService.BuildQueuedPartyFromHash</c> from the
+    /// <c>otel.tracestate</c> Redis hash field. <see langword="null"/> or empty when
+    /// no tracestate was present or the field is absent from the hash.
+    /// </summary>
+    public string? TracestateStr { get; init; }
+}
 
 /// <summary>
 /// Per-member rating snapshot carried inside <see cref="QueuedParty"/>. Mirrors

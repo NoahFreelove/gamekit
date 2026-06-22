@@ -65,6 +65,23 @@ public static class MatchmakingRedisKeys
     /// </summary>
     public const string ProposalAcceptsSuffix = ":accepts";
 
+    /// <summary>
+    /// Ticket-hash field name for the W3C <c>traceparent</c> header captured at enqueue time
+    /// (OBS-06 / D-02). Written by <c>MatchmakingService.EnqueueAsync</c> from
+    /// <c>Activity.Current.Id</c> when an ambient span is active. The ticker reads this field
+    /// to restore the parent <see cref="System.Diagnostics.ActivityContext"/> and start the
+    /// <c>MatchFormation</c> span as a descendant of the originating enqueue trace.
+    /// </summary>
+    public const string TicketTraceParent = "otel.traceparent";
+
+    /// <summary>
+    /// Ticket-hash field name for the W3C <c>tracestate</c> header captured at enqueue time
+    /// (OBS-06 / D-02). Written alongside <see cref="TicketTraceParent"/> when
+    /// <c>Activity.Current.TraceStateString</c> is non-empty; otherwise omitted.
+    /// Carrying <c>tracestate</c> preserves vendor-specific propagation (e.g. Jaeger baggage).
+    /// </summary>
+    public const string TicketTraceState = "otel.tracestate";
+
     /// <summary>Per-pool queued-ticket sorted set key.</summary>
     /// <param name="ladderId">The ladder identifier.</param>
     /// <param name="pool">The pool name (operator-defined; required non-empty).</param>

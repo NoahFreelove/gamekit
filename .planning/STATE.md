@@ -6,14 +6,14 @@ current_phase: 15
 current_phase_name: per-package-otel-instrumentation
 status: executing
 stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-06-22T21:02:12.844Z"
+last_updated: "2026-06-22T21:14:19.980Z"
 last_activity: 2026-06-22
 last_activity_desc: Phase 15 execution started
 progress:
   total_phases: 9
   completed_phases: 2
   total_plans: 15
-  completed_plans: 12
+  completed_plans: 13
   percent: 22
 ---
 
@@ -31,7 +31,7 @@ progress:
 ## Current Position
 
 Phase: 15 (per-package-otel-instrumentation) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-06-22 — Phase 15 execution started
 
@@ -116,6 +116,7 @@ Last activity: 2026-06-22 — Phase 15 execution started
 | Phase 15 P01 | 8min | 2 tasks | 6 files |
 | Phase 15 P02 | 13min | 2 tasks | 7 files |
 | Phase 15 P04 | 6min | 2 tasks | 4 files |
+| Phase 15 P05 | 9min | 4 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -334,7 +335,7 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-06-22T21:02:07.809Z
+**Last session:** 2026-06-22T21:14:19.973Z
 **Stopped at:** Completed 15-02-PLAN.md
 **Resume file:** None
 
@@ -367,3 +368,4 @@ None.
 - [Phase ?]: QueueDepth ObservableGauge uses Redis SCAN (not ladder config) — MatchmakingLadderConfig has Name not Guid; BudgetBail name lacks ticker. segment for dashboard match; MatchmakingMeterCollection serializes MeterListener tests
 - [Phase ?]: RankingsMetrics xUnit Collection serializes PII + Metrics test classes — MeterListener cross-contamination fix (mirrors 15-02)
 - [Phase ?]: RankingsMeter.MeterName = GameKit.Rankings: Plan-01 reflection Fact GREEN
+- [Phase ?]: LobbyConnectionTracker injected via constructor into LobbyHub; ReadyCheckCompleted in LobbyService authoritative all-ready gate; ActivityContext optional param on MarkReadyAsync

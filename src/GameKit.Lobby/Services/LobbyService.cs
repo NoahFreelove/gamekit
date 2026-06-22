@@ -4,13 +4,16 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GameKit.Core;
 using GameKit.Core.Data;
 using GameKit.Core.Services;
+using GameKit.Core.Telemetry;
 using GameKit.Lobby.Hubs;
+using GameKit.Lobby.Telemetry;
 using GameKit.Matchmaking.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -161,6 +164,9 @@ internal sealed class LobbyService : ILobbyService
             lobby.UpdatedAt = DateTimeOffset.UtcNow;
             await _ctx.SaveChangesAsync(ct).ConfigureAwait(false);
 
+            // OBS-05: fire the ready_check.started counter at the Open→ReadyChecking transition.
+            LobbyMeter.ReadyCheckStarted.Add(1);
+
             await _hubContext.Clients
                 .Group($"lobby:{lobbyId}")
                 .ReceiveStateUpdateAsync(new LobbyStateUpdate(lobbyId, LobbyState.ReadyChecking))
@@ -201,8 +207,18 @@ internal sealed class LobbyService : ILobbyService
             .AnyAsync(m => m.LobbyId == lobbyId && m.PlayerId == playerId, ct);
 
     /// <inheritdoc />
-    public async Task MarkReadyAsync(Guid lobbyId, Guid playerId, CancellationToken ct = default)
+    public async Task MarkReadyAsync(
+        Guid lobbyId,
+        Guid playerId,
+        CancellationToken ct = default,
+        ActivityContext parentContext = default)
     {
+        // OBS-06: open a ReadyCheck span parented to the hub invocation's Activity context
+        // (captured server-side in LobbyHub.MarkReadyAsync — T-15-05-TRACE ensures no
+        // client-supplied trace context is used). The using block encompasses Phase 1 + 2
+        // so the span covers the full ready-check operation including matchmaking submission.
+        using var readyActivity = LobbyActivitySource.StartReadyCheckActivity(parentContext);
+
         // Phase 1: SERIALIZABLE transaction — marks the member ready and, when all members
         // are ready, transitions the lobby to InGame as an atomic gate.
         //
@@ -259,6 +275,18 @@ internal sealed class LobbyService : ILobbyService
             membersSnapshot = lobby.Members.ToList();
             ownerIdSnapshot = lobby.OwnerId;
         }, ct).ConfigureAwait(false);
+
+        // OBS-05: emit ReadyCheckCompleted counter with check.result tag when all-ready gate
+        // fires. Wrapped inside the ReadyCheck span so the counter and span are co-located
+        // in the trace for correlation. Only "all_ready" has a v1 transition site; future
+        // "timeout"/"cancelled" result values are not yet emitted (no v1 transition).
+        // TODO: add "timeout" and "cancelled" when timeout/cancel state machine lands.
+        if (allReadyTriggered)
+        {
+            LobbyMeter.ReadyCheckCompleted.Add(1,
+                new System.Collections.Generic.KeyValuePair<string, object?>(
+                    GameKitTelemetry.AttrCheckResult, "all_ready"));
+        }
 
         // Phase 2: real matchmaking submission — runs OUTSIDE the lobby tx.
         // IPartyService.CreateAsync and IMatchmakingService.EnqueueAsync each open their

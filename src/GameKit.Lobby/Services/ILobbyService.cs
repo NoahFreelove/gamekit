@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using LobbyEntity = GameKit.Lobby.Entities.Lobby;
@@ -86,7 +87,18 @@ public interface ILobbyService
     /// <param name="lobbyId">Lobby identifier.</param>
     /// <param name="playerId">Player id marking themselves ready.</param>
     /// <param name="ct">Cancellation token.</param>
-    Task MarkReadyAsync(Guid lobbyId, Guid playerId, CancellationToken ct = default);
+    /// <param name="parentContext">
+    /// Optional parent <see cref="ActivityContext"/> captured at the hub invocation site
+    /// (OBS-06). When provided, the <c>ReadyCheck</c> span opened in
+    /// <c>LobbyService.MarkReadyAsync</c> is parented to this context so the trace links the
+    /// hub call to the service operation. Defaults to <see langword="default"/> for existing
+    /// 3-argument callers (non-breaking).
+    /// </param>
+    Task MarkReadyAsync(
+        Guid lobbyId,
+        Guid playerId,
+        CancellationToken ct = default,
+        ActivityContext parentContext = default);
 
     /// <summary>
     /// Retrieves the lobby by id including its members, or <see langword="null"/> if not found.

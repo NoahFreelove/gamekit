@@ -484,9 +484,43 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                         anyMatchedInPool = true;
                         matchedInPoolCount++;
                         MatchmakingMeter.MatchesFormed.Add(1, ladderIdTag);
-                        foreach (var t in match.MatchedTickets)
-                            claimed.Add(t.TicketId);
-                        await PublishProposalEventsAsync(match, now, ct).ConfigureAwait(false);
+
+                        // OBS-06 / D-02 / D-03: restore the first ticket's parent
+                        // ActivityContext so MatchFormation is a descendant of the originating
+                        // enqueue trace. Non-primary tickets are attached as ActivityLinks.
+                        // A non-sampled parent (flags=00) causes StartMatchFormationActivity to
+                        // return null — treat null as a no-op (do not force a root span).
+                        var primary = match.MatchedTickets.Count > 0 ? match.MatchedTickets[0] : null;
+                        var hasParent = primary?.TraceparentStr is not null &&
+                                        ActivityContext.TryParse(
+                                            primary.TraceparentStr,
+                                            primary.TracestateStr,
+                                            isRemote: true,
+                                            out var restoredCtx);
+                        using (var matchActivity = hasParent
+                            ? MatchmakingActivitySource.StartMatchFormationActivity(restoredCtx)
+                            : MatchmakingActivitySource.StartMatchFormationActivity())
+                        {
+                            // Fan-in: each non-primary ticket whose traceparent parses is
+                            // attached as a span link (D-03). Preserves causal visibility
+                            // for all co-matched parties without creating a multi-parent span.
+                            foreach (var nonPrimary in match.MatchedTickets.Skip(1))
+                            {
+                                if (nonPrimary.TraceparentStr is not null &&
+                                    ActivityContext.TryParse(
+                                        nonPrimary.TraceparentStr,
+                                        nonPrimary.TracestateStr,
+                                        isRemote: true,
+                                        out var linkCtx))
+                                {
+                                    matchActivity?.AddLink(new ActivityLink(linkCtx));
+                                }
+                            }
+
+                            foreach (var t in match.MatchedTickets)
+                                claimed.Add(t.TicketId);
+                            await PublishProposalEventsAsync(match, now, ct).ConfigureAwait(false);
+                        }
                         break;
 
                     case AtomicClaimResult.LeaseLost:

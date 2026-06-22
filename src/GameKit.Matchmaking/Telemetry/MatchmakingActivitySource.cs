@@ -78,4 +78,26 @@ public static class MatchmakingActivitySource
     /// </summary>
     /// <returns>The started <see cref="Activity"/>, or <see langword="null"/> if no listener.</returns>
     public static Activity? StartProposalSweepActivity() => Source.StartActivity("ProposalSweep");
+
+    /// <summary>
+    /// Starts a span named <c>"MatchFormation"</c> on the existing
+    /// <c>GameKit.Matchmaking.Ticker</c> source (OBS-06 / D-02 / D-03).
+    /// </summary>
+    /// <param name="parentContext">
+    /// The restored W3C parent <see cref="ActivityContext"/> from the originating enqueue
+    /// trace. Pass <see langword="default"/> to start a root span (no parent). When the
+    /// parent's <c>TraceFlags</c> does not include <c>Recorded</c> (i.e. the enqueue span
+    /// was not sampled), <see cref="ActivitySource"/> will return <see langword="null"/>
+    /// from the parent-context overload — callers MUST treat <see langword="null"/> as a
+    /// no-op (Pitfall §1 — do not null-guard by forcing a new root span; propagate the
+    /// sampling decision from the originating trace).
+    /// </param>
+    /// <returns>
+    /// The started <see cref="Activity"/>, or <see langword="null"/> when no listener is
+    /// subscribed or the parent context is non-sampled.
+    /// </returns>
+    public static Activity? StartMatchFormationActivity(ActivityContext parentContext = default) =>
+        parentContext == default
+            ? Source.StartActivity("MatchFormation")
+            : Source.StartActivity("MatchFormation", ActivityKind.Internal, parentContext);
 }

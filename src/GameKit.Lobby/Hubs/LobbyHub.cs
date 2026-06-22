@@ -81,18 +81,32 @@ public sealed class LobbyHub : Hub<ILobbyClient>
         // OBS-05: track connected clients for the lobby.connected_clients ObservableGauge.
         _connectionTracker.Increment();
 
-        var playerId = GetPlayerIdOrNull();
-        if (playerId.HasValue)
+        try
         {
-            // Query all lobbies the player currently belongs to and re-add this connection.
-            var lobbyIds = await _lobby.GetPlayerLobbyIdsAsync(playerId.Value, Context.ConnectionAborted)
-                .ConfigureAwait(false);
-            var addTasks = lobbyIds.Select(id =>
-                Groups.AddToGroupAsync(Context.ConnectionId, $"lobby:{id}", Context.ConnectionAborted));
-            await Task.WhenAll(addTasks).ConfigureAwait(false);
-        }
+            var playerId = GetPlayerIdOrNull();
+            if (playerId.HasValue)
+            {
+                // Query all lobbies the player currently belongs to and re-add this connection.
+                var lobbyIds = await _lobby.GetPlayerLobbyIdsAsync(playerId.Value, Context.ConnectionAborted)
+                    .ConfigureAwait(false);
+                var addTasks = lobbyIds.Select(id =>
+                    Groups.AddToGroupAsync(Context.ConnectionId, $"lobby:{id}", Context.ConnectionAborted));
+                await Task.WhenAll(addTasks).ConfigureAwait(false);
+            }
 
-        await base.OnConnectedAsync().ConfigureAwait(false);
+            await base.OnConnectedAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+            // CR-01: SignalR does NOT invoke OnDisconnectedAsync when OnConnectedAsync throws,
+            // so the matching Decrement() would otherwise never run and the connected-clients
+            // gauge would drift permanently upward under sustained connect failures (a Postgres
+            // blip in GetPlayerLobbyIdsAsync or a backplane error in AddToGroupAsync). Decrement
+            // before rethrowing so the gauge stays balanced on the connect-failure path. On the
+            // success path OnDisconnectedAsync performs the single matching Decrement instead.
+            _connectionTracker.Decrement();
+            throw;
+        }
     }
 
     /// <summary>

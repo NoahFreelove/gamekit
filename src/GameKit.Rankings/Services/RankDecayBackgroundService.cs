@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,7 @@ using GameKit.Core.Data;
 using GameKit.Core.Entities;
 using GameKit.Core.Services;
 using GameKit.Rankings.Entities;
+using GameKit.Rankings.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -128,6 +130,11 @@ internal sealed class RankDecayBackgroundService : BackgroundService
             return;
         }
 
+        // OBS-04: start Stopwatch AFTER lease acquisition (Pitfall 5 — excludes lock-wait time).
+        // OBS-06: fresh root span (no inbound traceparent — background job, T-15-04-TRACE).
+        var decaySw = Stopwatch.StartNew();
+        using var decayActivity = RankingsActivitySource.Source.StartActivity("RankDecay");
+
         try
         {
             // Step 2: open a scope for the DB context.
@@ -174,6 +181,10 @@ internal sealed class RankDecayBackgroundService : BackgroundService
         }
         finally
         {
+            // OBS-04: record decay duration (post-lease, pre-release — Pitfall 5 compliant).
+            decaySw.Stop();
+            RankingsMeter.DecayDuration.Record(decaySw.Elapsed.TotalMilliseconds);
+
             // Always release the lock (Lua-script-verified — safe even if expired).
             await _lease.ReleaseLeaseAsync(ct).ConfigureAwait(false);
         }
@@ -228,6 +239,10 @@ internal sealed class RankDecayBackgroundService : BackgroundService
         }
 
         await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        // OBS-04: record how many player_ranks rows were updated this ladder pass.
+        // No PII tags — only the aggregate row count (T-15-04-PII mitigation).
+        RankingsMeter.DecayRowsUpdated.Add(candidates.Count);
 
         _logger.LogInformation(
             "RankDecayBackgroundService: decay persisted for {Count} candidate(s) on ladder {LadderId}.",

@@ -17,8 +17,10 @@ In scope (maps to OBS-04, OBS-05, OBS-06):
 - **OBS-05 — Lobby SignalR metrics** in `GameKit.Lobby`: connected clients, messages/sec,
   ready-check completion rate, under the `gamekit.lobby.*` namespace.
 - **OBS-06 — W3C trace-context propagation** through async paths: `traceparent` stored in the
-  Redis ticket hash at enqueue and restored at match-formation in the ticker; also propagated
-  through the rank-decay `BackgroundService` and the lobby ready-check broadcast.
+  Redis ticket hash at enqueue and restored at match-formation in the ticker. The lobby
+  ready-check span is parented to the initiating hub invocation's ambient `Activity` (server-side
+  capture). The rank-decay `BackgroundService` is timer-triggered with **no inbound context**, so
+  its span starts a **fresh root** trace (see D-03a).
 - Per-package **`MeterListener` PII tag-key assertion test** in every package (criterion #1).
 - Make the Phase-13 matchmaking dashboards (queue depth + ticker health) **render real data**
   against the sample stack (criterion #4).
@@ -56,8 +58,16 @@ shipped in Phase 13 and is **not** re-built here.
   the first/initiating ticket's restored `traceparent`; every other co-matched ticket is attached
   as an OTel **span link**. This keeps one clean parent chain (satisfies "descendant of the enqueue
   span") while preserving causal visibility to all participants — the idiomatic OTel pattern for
-  fan-in. Same store-then-restore mechanism reused for the rank-decay BackgroundService and the
-  lobby ready-check broadcast.
+  fan-in.
+- **D-03a (clarification — store-then-restore applies only where a real inbound context exists).**
+  The lobby ready-check broadcast reuses the same idea: its `ReadyCheck` span is parented to
+  `Activity.Current` captured **server-side** at the SignalR hub invocation (never from client
+  input). The rank-decay `BackgroundService`, however, fires on a timer with **no inbound client
+  request and nothing to restore**, so it correctly originates its **own fresh-root** trace —
+  idiomatic OTel: a periodic background job is a trace originator, not a continuation. Forcing a
+  synthetic parent would add no causal value. [reconciled 2026-06-22 per plan-checker Blocker #2 —
+  the earlier "same store-then-restore mechanism for the rank-decay BackgroundService" wording
+  over-generalized; a timer-triggered job has no traceparent to restore.]
 
 ### Background-job + lobby metric instrument shapes (OBS-04, OBS-05 — criterion #3)
 - **D-04: Instrument the three criteria packages; built-in HTTP for the rest.** Full GameKit

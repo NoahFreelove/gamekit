@@ -144,13 +144,13 @@
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "histogram_quantile(0.50, rate(gamekit_rankings_decay_duration_ms_bucket[5m]))",
-          "legendFormat": "p50 ms ({{ladder_id}})"
+          "legendFormat": "p50 ms"
         },
         {
           "refId": "B",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "histogram_quantile(0.99, rate(gamekit_rankings_decay_duration_ms_bucket[5m]))",
-          "legendFormat": "p99 ms ({{ladder_id}})"
+          "legendFormat": "p99 ms"
         }
       ],
       "fieldConfig": {

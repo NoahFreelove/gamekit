@@ -4,17 +4,17 @@ milestone: v2.1
 milestone_name: — Operability & Hardening
 current_phase: 15
 current_phase_name: per-package-otel-instrumentation
-status: executing
-stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-06-22T21:24:13.969Z"
+status: verifying
+stopped_at: Completed 15-06-PLAN.md
+last_updated: "2026-06-22T21:31:25.363Z"
 last_activity: 2026-06-22
 last_activity_desc: Phase 15 execution started
 progress:
   total_phases: 9
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 15
-  completed_plans: 14
-  percent: 22
+  completed_plans: 15
+  percent: 33
 ---
 
 # STATE: GameKit
@@ -32,7 +32,7 @@ progress:
 
 Phase: 15 (per-package-otel-instrumentation) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-22 — Phase 15 execution started
 
 ## Performance Metrics
@@ -118,6 +118,7 @@ Last activity: 2026-06-22 — Phase 15 execution started
 | Phase 15 P04 | 6min | 2 tasks | 4 files |
 | Phase 15 P05 | 9min | 4 tasks | 10 files |
 | Phase 15 P03 | 4min | 3 tasks | 6 files |
+| Phase 15 P06 | 3min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -336,8 +337,8 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-06-22T21:24:13.962Z
-**Stopped at:** Completed 15-02-PLAN.md
+**Last session:** 2026-06-22T21:31:25.354Z
+**Stopped at:** Completed 15-06-PLAN.md
 **Resume file:** None
 
 **Last action:** 2026-06-08 — v2.1 roadmap created. 8 phases (13–20), 47/47 requirements mapped. Architecture decisions locked: no new packages, health/obs in Core, k6 + BenchmarkDotNet + DocFX as tooling.
@@ -370,3 +371,5 @@ None.
 - [Phase ?]: RankingsMetrics xUnit Collection serializes PII + Metrics test classes — MeterListener cross-contamination fix (mirrors 15-02)
 - [Phase ?]: RankingsMeter.MeterName = GameKit.Rankings: Plan-01 reflection Fact GREEN
 - [Phase ?]: LobbyConnectionTracker injected via constructor into LobbyHub; ReadyCheckCompleted in LobbyService authoritative all-ready gate; ActivityContext optional param on MarkReadyAsync
+- [Phase ?]: Approach A (collector namespace=gamekit) confirmed: otel-collector-contrib:0.154.0 supports exporters.prometheus.namespace; all GameKit metrics appear as gamekit_* in Prometheus
+- [Phase ?]: AddGameKitObservability() extended to 3 sources + 3 meters (Matchmaking.Ticker/Rankings.Ticker/Lobby sources + Matchmaking/Rankings/Lobby meters) — Phase-15 criterion #3 scrape path complete

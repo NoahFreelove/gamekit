@@ -33,7 +33,7 @@
 
 - [x] **Phase 13: Observability Foundations** — PII lint gate + Core OTel conventions + `AddGameKitObservability()` + sample observability stack (completed 2026-06-14)
 - [x] **Phase 14: Health & Readiness** — `MapGameKitHealth()` + `IMigrationReadinessReporter` across all packages + three-probe model + Admin.UI delegation (completed 2026-06-15)
-- [ ] **Phase 15: Per-Package OTel Instrumentation** — Activity spans + RED metrics + W3C trace propagation wired into every package
+- [x] **Phase 15: Per-Package OTel Instrumentation** — Activity spans + RED metrics + W3C trace propagation wired into every package (completed 2026-06-22)
 - [ ] **Phase 16: Multi-Replica Hardening** — `ILeaderLease` abstraction + SIGTERM drain + idempotency + split-brain CI gate
 - [ ] **Phase 17: Backup / DR + Migration Ops** — CLI commands + Postgres/Redis runbooks + DR round-trip CI test + migration-ops docs
 - [ ] **Phase 18: Security Audit** — JWT/admin/GDPR/egress/rate-limit audit tests + CVE CI gate + security checklist
@@ -116,7 +116,7 @@ Plans:
   3. Lobby SignalR metrics — connected clients, messages/sec, ready-check completion rate — appear in Grafana under the `gamekit.lobby.*` namespace; background-job metrics (ticker lag, queue depth per pool, decay job duration, leader-lock acquisition failures) appear under `gamekit.matchmaking.*` and `gamekit.rankings.*`
   4. Pre-built Grafana dashboard JSON for matchmaking queue depth + ticker health is importable from `samples/TicTacToeDuel/observability/dashboards/` and renders correct data against the sample stack
 
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans complete
 **Wave 1**
 
 - [x] 15-01-PLAN.md — Core telemetry constants (Lobby/Rankings source+meter names, check.result) + reflection-test extension + Wave-0 PII/W3C test scaffolds
@@ -133,7 +133,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 15-06-PLAN.md — AddGameKitObservability registration + collector namespace + matchmaking dashboard PromQL corrections + full-suite gate
+- [x] 15-06-PLAN.md — AddGameKitObservability registration + collector namespace + matchmaking dashboard PromQL corrections + full-suite gate
 
 **UI hint**: no
 
@@ -230,7 +230,7 @@ Plans:
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 13. Observability Foundations | v2.1 | 4/4 | Complete    | 2026-06-14 |
 | 14. Health & Readiness | v2.1 | 5/5 | Complete    | 2026-06-15 |
-| 15. Per-Package OTel Instrumentation | v2.1 | 5/6 | In Progress|  |
+| 15. Per-Package OTel Instrumentation | v2.1 | 6/6 | Complete   | 2026-06-22 |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |
 | 17. Backup / DR + Migration Ops | v2.1 | 0/TBD | Not started | — |
 | 18. Security Audit | v2.1 | 0/TBD | Not started | — |

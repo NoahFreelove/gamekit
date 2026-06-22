@@ -358,6 +358,8 @@ public class GameKitTelemetryConstantsTests
         // Smoke test: AddGameKit(...).AddGameKitObservability() must not throw.
         // Verifies the method is callable on IGameKitBuilder and registers OTel
         // sources/meters without error (criterion #2 + OBS-01).
+        // As of Phase 15, registration covers: sources = Matchmaking.Ticker, Rankings.Ticker, Lobby;
+        // meters = GameKit.Matchmaking, GameKit.Rankings, GameKit.Lobby.
         var services = new ServiceCollection();
         services.AddLogging();
 

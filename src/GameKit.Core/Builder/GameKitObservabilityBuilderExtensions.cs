@@ -56,9 +56,12 @@ public sealed class GameKitObservabilityOptions
 /// builder.Services.AddOpenTelemetry()
 ///     .WithTracing(t =&gt; t
 ///         .AddSource(GameKitTelemetry.MatchmakingTickerSourceName)
-///         .AddSource(GameKitTelemetry.RankingsTickerSourceName))
+///         .AddSource(GameKitTelemetry.RankingsTickerSourceName)
+///         .AddSource(GameKitTelemetry.LobbySourceName))
 ///     .WithMetrics(m =&gt; m
-///         .AddMeter(GameKitTelemetry.MatchmakingMeterName));
+///         .AddMeter(GameKitTelemetry.MatchmakingMeterName)
+///         .AddMeter(GameKitTelemetry.RankingsMeterName)
+///         .AddMeter(GameKitTelemetry.LobbyMeterName));
 /// </code>
 /// </para>
 /// </remarks>
@@ -77,12 +80,12 @@ public static class GameKitObservabilityBuilderExtensions
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="builder"/> is <see langword="null"/>.</exception>
     /// <remarks>
     /// <para>
-    /// Sources registered (as of Plan 13): <c>"GameKit.Matchmaking.Ticker"</c> and
-    /// <c>"GameKit.Rankings.Ticker"</c>. Phase 15 will add Auth, Presence, and Lobby sources.
+    /// Sources registered: <c>"GameKit.Matchmaking.Ticker"</c>, <c>"GameKit.Rankings.Ticker"</c>,
+    /// and <c>"GameKit.Lobby"</c> (added in Phase 15 — OBS-05).
     /// </para>
     /// <para>
-    /// Meters registered (as of Plan 13): <c>"GameKit.Matchmaking"</c>. Phase 15 will add
-    /// Rankings and Lobby meters.
+    /// Meters registered: <c>"GameKit.Matchmaking"</c>, <c>"GameKit.Rankings"</c> (Phase 15 — OBS-04),
+    /// and <c>"GameKit.Lobby"</c> (Phase 15 — OBS-05).
     /// </para>
     /// </remarks>
     public static IGameKitBuilder AddGameKitObservability(
@@ -102,7 +105,8 @@ public static class GameKitObservabilityBuilderExtensions
             {
                 tracing
                     .AddSource(GameKitTelemetry.MatchmakingTickerSourceName)
-                    .AddSource(GameKitTelemetry.RankingsTickerSourceName);
+                    .AddSource(GameKitTelemetry.RankingsTickerSourceName)
+                    .AddSource(GameKitTelemetry.LobbySourceName);           // Phase 15 — OBS-05
 
                 if (otlpEndpoint is not null)
                 {
@@ -115,7 +119,10 @@ public static class GameKitObservabilityBuilderExtensions
             })
             .WithMetrics(metrics =>
             {
-                metrics.AddMeter(GameKitTelemetry.MatchmakingMeterName);
+                metrics
+                    .AddMeter(GameKitTelemetry.MatchmakingMeterName)
+                    .AddMeter(GameKitTelemetry.RankingsMeterName)           // Phase 15 — OBS-04
+                    .AddMeter(GameKitTelemetry.LobbyMeterName);             // Phase 15 — OBS-05
 
                 if (otlpEndpoint is not null)
                 {

@@ -1,10 +1,11 @@
 ---
 phase: 15-per-package-otel-instrumentation
 verified: 2026-06-22T00:00:00Z
-status: human_needed
-score: 3/4 must-haves verified
-behavior_unverified: 1
+status: passed
+score: 4/4 must-haves verified
+behavior_unverified: 0
 overrides_applied: 0
+live_verification: passed (gap closure + automated re-run — see "Live Verification Update" at end)
 human_verification:
   - test: "Start the TicTacToeDuel sample stack with docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d, drive matchmaking traffic (enqueue two tickets), then open Grafana and confirm: (a) the matchmaking-queue-depth dashboard renders gamekit_matchmaking_queue_depth and gamekit_matchmaking_budget_bail_total; (b) the ticker-health dashboard renders gamekit_matchmaking_ticker_lag_ms_bucket with real p50/p99 values."
     expected: "Both dashboards show non-zero data. Panels do not display 'No data'. The Rankings Decay Duration panel legend reads 'p50 ms ()' / 'p99 ms ()' with an empty ladder_id variable — this is the known WR-01 cosmetic defect, not a failure of criterion #4."
@@ -23,8 +24,8 @@ behavior_unverified_items:
 
 **Phase Goal:** Every HTTP handler path and background job in every GameKit package emits correctly-named, low-cardinality spans and RED metrics; W3C trace context flows from the enqueue HTTP request through the async ticker to match formation.
 **Verified:** 2026-06-22
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Status:** passed (live verification completed 2026-06-22 — see "Live Verification Update")
+**Re-verification:** Yes — live-stack items #2 and #4 verified after gap closure
 
 ## Goal Achievement
 
@@ -170,3 +171,27 @@ The code review (15-REVIEW.md) found 1 Critical + 4 Warnings. Assessment against
 
 _Verified: 2026-06-22_
 _Verifier: Claude (gsd-verifier)_
+
+---
+
+## Live Verification Update (2026-06-22 — gap closure + automated re-run)
+
+The three human/live items above were resolved during `/gsd-verify-work 15` via gap closure and an automated live-stack run (stack stood up, real 2-distinct-player match driven, Prometheus + Tempo queried over the Docker network). Final status: **all 4 criteria PASS; status upgraded human_needed → passed.**
+
+### Gap found and closed
+The live run revealed an end-to-end gap the in-code proxies could not catch: **`samples/TicTacToeDuel/Program.cs` never called `AddGameKitObservability()`**, so the running app registered no OTel SDK pipeline and exported zero OTLP (Prometheus had 0 `gamekit_*` series, Tempo 0 traces). The library instrumentation was correct throughout; only the sample's opt-in wiring was missing.
+
+Closed by:
+- **`826f751`** — sample wires `gameKitBuilder.AddGameKitObservability(o => o.OtlpEndpoint = config)` + adds the three OTel SDK package refs (Hosting, OTLP exporter, ASP.NET Core instrumentation — `PrivateAssets=all` in Core means consumers opt in themselves) + `AddOpenTelemetry().WithTracing(t => t.AddAspNetCoreInstrumentation())` so the HTTP enqueue server span (criterion #2's parent) exists. Config key `GameKit:Observability:OtlpEndpoint = http://localhost:4317` added to `appsettings.Development.json`.
+- **`a86f3be`** — dashboard PromQL corrected to the ACTUAL OTel→Prometheus names. The exporter (`add_metric_suffixes`) appends the mapped unit unless the name already contains that token: `ms`→`milliseconds` (so `..._ticker_lag_milliseconds_bucket`, `..._pool_sweep_duration_milliseconds_bucket`, `..._decay_duration_milliseconds_bucket`); counters with unit `events` get `_events` unless already present (`lease_acquired_events_total`, `lease_lost_events_total`, `budget_bail_events_total`; `analytics_dropped_events_total` keeps its form). `matches_formed_total` / `queue_depth` unchanged. The earlier 15-06 "static correctness" pass had asserted the `_ms`/`_total` names without running them against a live exporter — the in-code proxy's blind spot.
+- **`bb570fe`** (CR-01) + **`83e679f`** (WR-01) — applied earlier in the same session.
+
+### Live re-verification evidence (criteria #2 and #4)
+- **Criterion #4 — metrics/dashboards (PASS):** authoritative Prometheus `__name__` dump contained the expected `gamekit_*` series. 8/12 dashboard targets returned real values (ticker_lag p50=2.5ms/p99=4.95ms; pool_sweep p50/p99; lease_acquired 0.85/s; queue_depth=1 with `ladder_id`+`pool_name=default`; matches_formed increase=3.21, raw=5). The other 4 targets are documented-absent counters (lease_lost, rankings_decay, dropped_events, budget_bail) whose triggering events did not occur in a clean short run — their names follow the same empirically-confirmed suffix rule. **No dashboard target references a wrong or nonexistent metric name.**
+- **Criterion #2 — Tempo trace descent (PASS):** trace `d0223a6a...` shows `POST /api/mm/queue` (HTTP SERVER, scope `Microsoft.AspNetCore`) → `MatchFormation` (INTERNAL, scope `GameKit.Matchmaking.Ticker`) as a true descendant (parentSpanId chain), with the co-matched second ticket's enqueue context attached as an `ActivityLink` — the OBS-06 fan-in design, end-to-end.
+- **Criterion #3 — host isolation (re-confirmed):** host `curl http://localhost:9090` refused; Prometheus has no host port binding.
+- **CR-01 (resolved):** try/catch guard committed (`bb570fe`) + regression test `LobbyConnectionGaugeLeakTests` (2/2) proves the gauge returns to 0 when the connect path throws.
+
+### Non-blocking follow-ups (out of Phase-15 scope)
+- **Sample matchmaking-pairing doc/UX gap:** the ticker's `GetPoolNamesForLadder()` only sweeps the `default` pool (no `AllowedRegions` configured), but the README walkthrough instructs enqueuing with `poolName="tictactoe"` — tickets in that pool are never swept and never pair. Enqueuing with no poolName (→ default) pairs distinct players in ~1s. A sample-docs/matchmaking-config follow-up; not a telemetry defect.
+- **WR-02/WR-03/WR-04 and IN-* code-review items** remain as documented advisory follow-ups.

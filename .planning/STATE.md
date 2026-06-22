@@ -3,15 +3,17 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Operability & Hardening
 current_phase: 15
+current_phase_name: per-package-otel-instrumentation
 status: executing
-last_updated: "2026-06-22T18:53:18.769Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-06-22T20:34:56.750Z"
 last_activity: 2026-06-22
-last_activity_desc: Phase 15 planning complete
+last_activity_desc: Phase 15 execution started
 progress:
   total_phases: 9
   completed_phases: 2
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 15
+  completed_plans: 10
   percent: 22
 ---
 
@@ -24,14 +26,14 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 15 — per package otel instrumentation
+**Current Focus:** Phase 15 — per-package-otel-instrumentation
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
+Phase: 15 (per-package-otel-instrumentation) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-06-22 — Phase 15 planning complete
+Last activity: 2026-06-22 — Phase 15 execution started
 
 ## Performance Metrics
 
@@ -111,6 +113,7 @@ Last activity: 2026-06-22 — Phase 15 planning complete
 | Phase 14 P03 | 4min | 2 tasks | 6 files |
 | Phase 14-health-readiness P04 | 10m | 3 tasks | 4 files |
 | Phase 14-health-readiness P05 | 15 | 3 tasks | 9 files |
+| Phase 15 P01 | 8min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -329,6 +332,10 @@ None.
 
 ## Session Continuity
 
+**Last session:** 2026-06-22T20:34:56.743Z
+**Stopped at:** Completed 15-01-PLAN.md
+**Resume file:** None
+
 **Last action:** 2026-06-08 — v2.1 roadmap created. 8 phases (13–20), 47/47 requirements mapped. Architecture decisions locked: no new packages, health/obs in Core, k6 + BenchmarkDotNet + DocFX as tooling.
 
 **Next action:** `/gsd:plan-phase 13` — Phase 13: Observability Foundations. PII lint gate is the first task.
@@ -350,3 +357,8 @@ None.
 ## Operator Next Steps
 
 - Run `/gsd:plan-phase 13` to plan Phase 13: Observability Foundations
+
+## Decisions
+
+- [Phase ?]: Wave-0 reflection Facts intentionally RED in Plan 01 — serve as deterministic gate for Plans 04 and 05
+- [Phase ?]: Lobby PII test placed in GameKit.Lobby.Integration.Tests — InternalsVisibleTo grant already present in AssemblyInfo.cs

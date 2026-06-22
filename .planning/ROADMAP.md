@@ -116,10 +116,10 @@ Plans:
   3. Lobby SignalR metrics — connected clients, messages/sec, ready-check completion rate — appear in Grafana under the `gamekit.lobby.*` namespace; background-job metrics (ticker lag, queue depth per pool, decay job duration, leader-lock acquisition failures) appear under `gamekit.matchmaking.*` and `gamekit.rankings.*`
   4. Pre-built Grafana dashboard JSON for matchmaking queue depth + ticker health is importable from `samples/TicTacToeDuel/observability/dashboards/` and renders correct data against the sample stack
 
-**Plans**: 6 plans
+**Plans**: 1/6 plans executed
 **Wave 1**
 
-- [ ] 15-01-PLAN.md — Core telemetry constants (Lobby/Rankings source+meter names, check.result) + reflection-test extension + Wave-0 PII/W3C test scaffolds
+- [x] 15-01-PLAN.md — Core telemetry constants (Lobby/Rankings source+meter names, check.result) + reflection-test extension + Wave-0 PII/W3C test scaffolds
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -230,7 +230,7 @@ Plans:
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 13. Observability Foundations | v2.1 | 4/4 | Complete    | 2026-06-14 |
 | 14. Health & Readiness | v2.1 | 5/5 | Complete    | 2026-06-15 |
-| 15. Per-Package OTel Instrumentation | v2.1 | 0/TBD | Not started | — |
+| 15. Per-Package OTel Instrumentation | v2.1 | 1/6 | In Progress|  |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |
 | 17. Backup / DR + Migration Ops | v2.1 | 0/TBD | Not started | — |
 | 18. Security Audit | v2.1 | 0/TBD | Not started | — |

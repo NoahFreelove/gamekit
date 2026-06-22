@@ -16,6 +16,7 @@ namespace GameKit.Matchmaking.Tests.Telemetry;
 /// correct values and tag keys at their respective call sites.
 /// </summary>
 [Trait("Category", "Unit")]
+[Xunit.Collection("MatchmakingMeterTests")]
 public sealed class MatchmakingMetricsTests
 {
     /// <summary>

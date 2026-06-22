@@ -24,6 +24,7 @@ namespace GameKit.Matchmaking.Tests.Services;
 /// </list>
 /// </summary>
 [Trait("Category", "Unit")]
+[Collection("MatchmakingMeterTests")]
 public sealed class TicketEventChannelDropTests
 {
     [Fact]

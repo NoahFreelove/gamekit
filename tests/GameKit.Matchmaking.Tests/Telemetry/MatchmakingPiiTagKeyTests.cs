@@ -20,6 +20,7 @@ namespace GameKit.Matchmaking.Tests.Telemetry;
 /// asserts the actual emitted key values at runtime (criterion #1, Plan 02).
 /// </remarks>
 [Trait("Category", "Unit")]
+[Xunit.Collection("MatchmakingMeterTests")]
 public sealed class MatchmakingPiiTagKeyTests
 {
     private static readonly HashSet<string> ForbiddenKeys = new(System.StringComparer.OrdinalIgnoreCase)

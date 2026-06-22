@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Operability & Hardening
-current_phase: 15
-current_phase_name: per-package-otel-instrumentation
-status: verifying
-stopped_at: Completed 15-06-PLAN.md
-last_updated: "2026-06-22T21:31:25.363Z"
+current_phase: 16
+current_phase_name: Multi-Replica Hardening
+status: planning
+stopped_at: Phase 15 complete (verified — UAT + live-stack passed)
+last_updated: "2026-06-22T23:42:08.074Z"
 last_activity: 2026-06-22
-last_activity_desc: Phase 15 execution started
+last_activity_desc: Phase 15 complete + verified; next up Phase 16 (16–20 precede the Phase-21 capstone)
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 3
   total_plans: 15
   completed_plans: 15
-  percent: 33
+  percent: 30
 ---
 
 # STATE: GameKit
@@ -26,14 +26,14 @@ progress:
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 15 — per-package-otel-instrumentation
+**Current Focus:** Phase 16 — Multi-Replica Hardening (Phase 15 complete + verified)
 
 ## Current Position
 
-Phase: 15 (per-package-otel-instrumentation) — EXECUTING
-Plan: 6 of 6
-Status: Phase complete — ready for verification
-Last activity: 2026-06-22 — Phase 15 execution started
+Phase: 16 — Multi-Replica Hardening (not started)
+Plan: Not started
+Status: Phase 15 complete and verified (UAT + live-stack); Phase 16 next
+Last activity: 2026-06-22 — Phase 15 complete + verified
 
 ## Performance Metrics
 
@@ -127,6 +127,7 @@ Last activity: 2026-06-22 — Phase 15 execution started
 - 2026-04-26 — Phase 03.1 inserted after Phase 03: Admin UI redesign v2 — re-skin per Claude Design hi-fi prototype (violet-600 accent, density tokens, master-detail Players, two-column Audit, ⌘K palette, Tweaks panel, medium ban banner). Source prototype preserved at `.planning/sketches/admin-ui-redesign-v2/`. Re-skins existing UI without changing functional contract. (URGENT-INSERT)
 - 2026-06-05 — v2.0 roadmap created: 6 phases (7–12), 29/29 requirements mapped. Phase numbering continues from v1.0 (which ended at Phase 6).
 - 2026-06-08 — v2.1 roadmap created: 8 phases (13–20), 47/47 requirements mapped. Phase numbering continues from v2.0 (which ended at Phase 12).
+- 2026-06-22 — Phase 21 added (v2.1 capstone): Final Demo — 3D Multiplayer Platformer. Promoted from Backlog Phase 999.1. New constraints vs. backlog sketch: single loadable image (admin server + GameKit + fully-customized example), browser-playable 3D game (steers engine to WebGL/three.js), load-and-go. Requirements TBD — define via /gsd-spec-phase 21.
 
 ### Decisions Locked (from research)
 

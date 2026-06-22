@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 — Initial 6-Phase Build-Out** — Phases 1–6 (shipped 2026-05-30) — [archive](milestones/v1.0-ROADMAP.md)
 - ✅ **v2.0 — Expansion: Providers, Lobby & Rating-Aware Play** — Phases 7–12 (shipped 2026-06-07) — [archive](milestones/v2.0-ROADMAP.md)
-- 🔄 **v2.1 — Operability & Hardening** — Phases 13–20 (in progress)
+- 🔄 **v2.1 — Operability & Hardening** — Phases 13–21 (in progress)
 
 ## Phases
 
@@ -29,7 +29,7 @@
 
 </details>
 
-### v2.1 — Operability & Hardening (Phases 13–20)
+### v2.1 — Operability & Hardening (Phases 13–21)
 
 - [x] **Phase 13: Observability Foundations** — PII lint gate + Core OTel conventions + `AddGameKitObservability()` + sample observability stack (completed 2026-06-14)
 - [x] **Phase 14: Health & Readiness** — `MapGameKitHealth()` + `IMigrationReadinessReporter` across all packages + three-probe model + Admin.UI delegation (completed 2026-06-15)
@@ -39,6 +39,7 @@
 - [ ] **Phase 18: Security Audit** — JWT/admin/GDPR/egress/rate-limit audit tests + CVE CI gate + security checklist
 - [ ] **Phase 19: Load / Performance Testing** — BenchmarkDotNet micro-benchmarks + k6 load scenarios + CI regression gate + tuning guide
 - [ ] **Phase 20: Docs & Tutorial** — DocFX API reference + getting-started tutorial + upgrade guide + runbook library
+- [ ] **Phase 21: Final Demo — 3D Multiplayer Platformer** — single loadable image (admin server + GameKit + fully-customized example) you `docker load`/run, then play a 3D multiplayer game in the web browser
 
 ## Phase Details
 
@@ -217,6 +218,29 @@ Plans:
 **Plans**: TBD
 **UI hint**: no
 
+### Phase 21: Final Demo — 3D Multiplayer Platformer
+
+**Goal**: A single, loadable container image showcases GameKit end-to-end — someone runs the image and immediately plays a 3D multiplayer game in their web browser. The image is the GameKit-enabled admin server bundled with a *fully customized* example GameKit integration (not the bare sample), proving the library's composability and self-host story in one artifact.
+**Depends on**: Phase 20 (final v2.1 capstone — runs against the complete, audited, documented package surface)
+**Requirements**: TBD (define during /gsd-spec-phase 21 — promoted from Backlog Phase 999.1)
+**Success Criteria** (what must be TRUE):
+
+  1. **Single loadable image**: a user can obtain one image (`docker load` from a published tarball, or `docker run`/`docker compose up` against a single published image) and reach a playable game with zero manual config beyond starting the container — Postgres + Redis either embedded or brought up by the same compose file
+  2. **Play in the browser**: the 3D multiplayer client is served by the image and runs in a stock web browser (no native client install, no engine download) — points the engine choice toward WebGL/three.js or a WebGL export rather than a native Godot/Unity binary
+  3. **Admin server IS the image**: the running container is the GameKit admin server (Blazor admin console + GameKit packages) — an operator can open the admin UI and see the live players, matches, and sessions created by people playing the browser demo
+  4. **Fully customized GameKit example**: the bundled integration is a non-trivial, customized use of GameKit (custom matchmaking strategy / ranking config / lobby flow wired into the game), demonstrating the "every algorithm is a replaceable interface" value — not the unmodified TicTacToeDuel sample
+  5. **Real server↔GameKit auth**: a real game server (not a stub) authenticates to GameKit with the correct service-to-service primitive (dedicated server credential / JWT scope / mTLS — confirmed during spec) and drives matchmaking via the GameKit HTTP API
+  6. **One-command demo**: the full stack (browser client + game server + GameKit backend + Postgres + Redis) comes up from a single command and is reproducible offline with zero cloud credentials, honoring the self-hosted/GPL constraint
+
+**Notes**:
+
+  - **Promoted from Backlog Phase 999.1** (captured 2026-06-14). The browser-playable + single-loadable-image framing is the new, narrowing constraint added when promoting: the original sketch allowed any native engine and a multi-file compose; this phase requires browser play and a load-and-go image built around the admin server.
+  - GPL compatibility of any bundled engine/runtime bits must be checked before vendoring (per project license constraint).
+  - Likely the v2.1 capstone; could alternatively be split into its own demo milestone if scope (real 3D game + game server + secure auth + image packaging) proves too large for one phase — decide at /gsd-spec-phase / /gsd-discuss-phase 21.
+
+**Plans**: TBD (run /gsd-spec-phase 21 then /gsd-plan-phase 21 to break down)
+**UI hint**: yes
+
 ## Progress
 
 | Phase | Milestone | Plans | Status | Completed |
@@ -230,12 +254,13 @@ Plans:
 | 12. Admin Multi-Replica + Distribution Close-Out | v2.0 | 4/4 | Complete | 2026-06-07 |
 | 13. Observability Foundations | v2.1 | 4/4 | Complete    | 2026-06-14 |
 | 14. Health & Readiness | v2.1 | 5/5 | Complete    | 2026-06-15 |
-| 15. Per-Package OTel Instrumentation | v2.1 | 6/6 | Complete   | 2026-06-22 |
+| 15. Per-Package OTel Instrumentation | v2.1 | 6/6 | Complete    | 2026-06-22 |
 | 16. Multi-Replica Hardening | v2.1 | 0/TBD | Not started | — |
 | 17. Backup / DR + Migration Ops | v2.1 | 0/TBD | Not started | — |
 | 18. Security Audit | v2.1 | 0/TBD | Not started | — |
 | 19. Load / Performance Testing | v2.1 | 0/TBD | Not started | — |
 | 20. Docs & Tutorial | v2.1 | 0/TBD | Not started | — |
+| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 0/TBD | Not started | — |
 
 ---
 
@@ -243,7 +268,9 @@ Plans:
 
 Candidate work not yet promoted into an active phase. Promote via `/gsd:review-backlog`.
 
-### Phase 999.1: Final Demo — 3D Multiplayer Platformer (BACKLOG)
+### Phase 999.1: Final Demo — 3D Multiplayer Platformer (✅ PROMOTED → Phase 21 on 2026-06-22)
+
+> **Promoted to active roadmap as Phase 21** (v2.1 capstone) on 2026-06-22. See the Phase 21 detail entry above. Kept here for provenance.
 
 **Goal:** A small 3D multiplayer platformer that showcases GameKit end-to-end as a live demo — GameKit hosts matchmaking; a real, containerized game server establishes secure server↔GameKit communication; the whole thing runs with a simple `docker compose up` so it can be demoed easily.
 

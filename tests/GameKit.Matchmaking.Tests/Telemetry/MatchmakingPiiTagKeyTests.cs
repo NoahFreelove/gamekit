@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
+using GameKit.Core.Telemetry;
 using GameKit.Matchmaking.Telemetry;
 using Xunit;
 
@@ -13,13 +14,10 @@ namespace GameKit.Matchmaking.Tests.Telemetry;
 /// carries a PII-bearing tag key.
 /// </summary>
 /// <remarks>
-/// Wave-0 stub: currently exercises the already-existing
-/// <see cref="MatchmakingMeter.DroppedEvents"/> counter so the test compiles and passes today.
-/// <para>
-/// TODO(15-02): add new instrument Add/Record calls once Plan 02 ships the new
-/// MatchmakingMeter instruments (TickerLag, PoolSweepDuration, QueueDepth,
-/// LockAcquisitionFailures, MatchesFormed, BudgetBail, LeaseAcquired, LeaseLost).
-/// </para>
+/// Exercises EVERY matchmaking instrument with its allowed tags — verifies that no emitted
+/// tag key is in the forbidden PII set. This test is the runtime complement to the GK0001
+/// build-time analyzer: the analyzer catches string literals at build time; this test
+/// asserts the actual emitted key values at runtime (criterion #1, Plan 02).
 /// </remarks>
 [Trait("Category", "Unit")]
 public sealed class MatchmakingPiiTagKeyTests
@@ -64,10 +62,39 @@ public sealed class MatchmakingPiiTagKeyTests
         // MUST call Start() BEFORE exercising instruments (TicketEventChannelDropTests pattern)
         listener.Start();
 
-        // Exercise existing instrument with allowed tag key (reason=channel_full)
-        MatchmakingMeter.DroppedEvents.Add(1,
-            new System.Collections.Generic.KeyValuePair<string, object?>("reason", "channel_full"));
+        // Exercise all instruments with their allowed tag keys:
 
+        // DroppedEvents counter — allowed tag: reason
+        MatchmakingMeter.DroppedEvents.Add(1,
+            new KeyValuePair<string, object?>("reason", "channel_full"));
+
+        // TickerLag histogram — no tags
+        MatchmakingMeter.TickerLag.Record(42.5);
+
+        // PoolSweepDuration histogram — allowed tag: ladder.id
+        MatchmakingMeter.PoolSweepDuration.Record(12.3,
+            new KeyValuePair<string, object?>(GameKitTelemetry.AttrLadderId, "some-ladder-id"));
+
+        // LockAcquisitionFailures counter — no tags
+        MatchmakingMeter.LockAcquisitionFailures.Add(1);
+
+        // MatchesFormed counter — allowed tag: ladder.id
+        MatchmakingMeter.MatchesFormed.Add(1,
+            new KeyValuePair<string, object?>(GameKitTelemetry.AttrLadderId, "some-ladder-id"));
+
+        // BudgetBail counter — allowed tag: ladder.id
+        MatchmakingMeter.BudgetBail.Add(1,
+            new KeyValuePair<string, object?>(GameKitTelemetry.AttrLadderId, "some-ladder-id"));
+
+        // LeaseAcquired counter — no tags
+        MatchmakingMeter.LeaseAcquired.Add(1);
+
+        // LeaseLost counter — no tags
+        MatchmakingMeter.LeaseLost.Add(1);
+
+        // Fire QueueDepth ObservableGauge callback (_db is null at unit-test time so yields
+        // no measurements, but the callback must not throw and RecordObservableInstruments
+        // must complete without error).
         listener.RecordObservableInstruments();
 
         Assert.DoesNotContain(emittedTagKeys, k => ForbiddenKeys.Contains(k));

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
@@ -10,6 +11,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using GameKit.Core.Services;
+using GameKit.Core.Telemetry;
 using GameKit.Matchmaking.Builder;
 using GameKit.Matchmaking.Entities;
 using GameKit.Matchmaking.Redis;
@@ -177,9 +179,14 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
         var acquired = await _lease.TryAcquireLeaseAsync(ct).ConfigureAwait(false);
         if (!acquired)
         {
+            MatchmakingMeter.LockAcquisitionFailures.Add(1);
             _logger.LogDebug("MatchmakerTickerService: lock not acquired — another replica is leader.");
             return MatcherTickResult.LockNotAcquired;
         }
+
+        MatchmakingMeter.LeaseAcquired.Add(1);
+        // OBS-04: measure tick duration from lease acquisition to before lease release.
+        var tickSw = Stopwatch.StartNew();
 
         using var tickActivity = MatchmakingActivitySource.StartTickActivity();
         var anyMatch = false;
@@ -229,6 +236,7 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                             _logger.LogWarning(
                                 "MatchmakerTickerService: lease lost mid-tick before pool '{Pool}'. " +
                                 "Bailing with LeaseLost.", poolName);
+                            MatchmakingMeter.LeaseLost.Add(1);
                             return MatcherTickResult.LeaseLost;
                         }
 
@@ -253,6 +261,7 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                 {
                     _logger.LogWarning(
                         "MatchmakerTickerService: lease lost before proposal-sweep. Bailing with LeaseLost.");
+                    MatchmakingMeter.LeaseLost.Add(1);
                     return MatcherTickResult.LeaseLost;
                 }
                 try
@@ -277,6 +286,8 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
         }
         finally
         {
+            // OBS-04: record ticker-lag histogram before releasing the lease.
+            MatchmakingMeter.TickerLag.Record(tickSw.Elapsed.TotalMilliseconds);
             // Always release the lock (Lua-script-verified — safe even if expired).
             await _lease.ReleaseLeaseAsync(ct).ConfigureAwait(false);
         }
@@ -353,6 +364,10 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
 
             using var poolActivity = MatchmakingActivitySource.StartPoolActivity(
                 ladderIdForKey, poolName);
+
+            // OBS-04: measure pool-sweep duration from candidate fetch to end of match loop.
+            var poolSweepSw = Stopwatch.StartNew();
+            var ladderIdTag = new KeyValuePair<string, object?>(GameKitTelemetry.AttrLadderId, ladderIdForKey.ToString());
 
             // Pull up to CandidatesPerTick candidate ticket ids (Unix-ms scored, oldest first).
             var entries = await db.SortedSetRangeByScoreAsync(
@@ -432,6 +447,7 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                 if (budgetSw.ElapsedMilliseconds >= budgetMs)
                 {
                     poolActivity?.SetTag("budget.bail", true);
+                    MatchmakingMeter.BudgetBail.Add(1, ladderIdTag);
                     break;
                 }
                 if (matchedInPoolCount >= MaxMatchesPerTick)
@@ -467,6 +483,7 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                     case AtomicClaimResult.Success:
                         anyMatchedInPool = true;
                         matchedInPoolCount++;
+                        MatchmakingMeter.MatchesFormed.Add(1, ladderIdTag);
                         foreach (var t in match.MatchedTickets)
                             claimed.Add(t.TicketId);
                         await PublishProposalEventsAsync(match, now, ct).ConfigureAwait(false);
@@ -475,6 +492,7 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                     case AtomicClaimResult.LeaseLost:
                         _logger.LogWarning(
                             "MatchmakerTickerService: atomic-claim returned LEASE_LOST — bailing with LeaseLost.");
+                        MatchmakingMeter.LeaseLost.Add(1);
                         return MatcherTickResult.LeaseLost;
 
                     case AtomicClaimResult.TicketGone:
@@ -496,6 +514,9 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
             poolActivity?.SetTag("matches.formed", matchedInPoolCount);
             poolActivity?.SetTag("phase.match_loop_ms", budgetSw.ElapsedMilliseconds);
             poolActivity?.SetTag("phase.total_ms", phaseSw.ElapsedMilliseconds);
+
+            // OBS-04: record pool-sweep duration with ladder.id tag.
+            MatchmakingMeter.PoolSweepDuration.Record(poolSweepSw.Elapsed.TotalMilliseconds, ladderIdTag);
         }
 
         return anyMatchedInPool ? MatcherTickResult.Matched : MatcherTickResult.NoMatch;

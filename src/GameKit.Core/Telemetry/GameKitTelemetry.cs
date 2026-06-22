@@ -122,4 +122,50 @@ public static class GameKitTelemetry
     /// <c>"error.type"</c>. Use for exception type names or short error codes.
     /// </summary>
     public const string AttrErrorType = "error.type";
+
+    // ── Phase 15 additions ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <c>ActivitySource</c> name for GameKit.Lobby SignalR hub instrumentation (OBS-05).
+    /// Operators MUST call <c>AddSource("GameKit.Lobby")</c> to subscribe.
+    /// </summary>
+    /// <remarks>
+    /// Equals <c>LobbyActivitySource.SourceName</c> in <c>GameKit.Lobby</c>.
+    /// The reflection enforcement test in <c>GameKitTelemetryConstantsTests</c> asserts
+    /// value-equality between these two constants at runtime, catching drift.
+    /// </remarks>
+    public const string LobbySourceName = "GameKit.Lobby";
+
+    /// <summary>
+    /// <c>Meter</c> name for <c>GameKit.Rankings</c> diagnostics (decay duration, rows updated).
+    /// Operators MUST call <c>AddMeter("GameKit.Rankings")</c> to subscribe.
+    /// </summary>
+    /// <remarks>
+    /// Equals <c>RankingsMeter.MeterName</c> in <c>GameKit.Rankings</c>.
+    /// The reflection enforcement test in <c>GameKitTelemetryConstantsTests</c> asserts
+    /// value-equality at runtime, catching drift.
+    /// </remarks>
+    public const string RankingsMeterName = "GameKit.Rankings";
+
+    /// <summary>
+    /// <c>Meter</c> name for <c>GameKit.Lobby</c> diagnostics (connected clients, messages,
+    /// ready-checks). Operators MUST call <c>AddMeter("GameKit.Lobby")</c> to subscribe.
+    /// </summary>
+    /// <remarks>
+    /// Equals <c>LobbyMeter.MeterName</c> in <c>GameKit.Lobby</c>.
+    /// The reflection enforcement test in <c>GameKitTelemetryConstantsTests</c> asserts
+    /// value-equality at runtime, catching drift.
+    /// </remarks>
+    public const string LobbyMeterName = "GameKit.Lobby";
+
+    /// <summary>
+    /// Span/metric attribute key for the result of a ready-check operation.
+    /// Low-cardinality values: <c>"all_ready"</c>, <c>"timeout"</c>, <c>"cancelled"</c>.
+    /// </summary>
+    /// <remarks>
+    /// Operator action required: this attribute is emitted by <c>LobbyHub.MarkReadyAsync</c>
+    /// on the <c>lobby.ready_check.completed</c> counter (OBS-05). The GK0001 PII analyzer
+    /// confirms this key carries only low-cardinality enum results, not player identifiers.
+    /// </remarks>
+    public const string AttrCheckResult = "check.result";
 }

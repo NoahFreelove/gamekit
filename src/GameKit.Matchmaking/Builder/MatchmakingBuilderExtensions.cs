@@ -2,14 +2,19 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
 using GameKit.Core.Health;
 using GameKit.Matchmaking.Data;
 using GameKit.Matchmaking.Health;
+using GameKit.Matchmaking.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 namespace GameKit.Matchmaking.Builder;
 
@@ -141,6 +146,48 @@ public static partial class MatchmakingBuilderExtensions
         //    MatchmakingApplicationBuilderExtensions.MapMatchmaking.
         builder.Services.AddHttpServices();
 
+        // OBS-04: wire the QueueDepth ObservableGauge Redis reference. Register a short
+        // IHostedService that resolves IConnectionMultiplexer from DI after the container
+        // is built (avoids eagerly resolving the multiplexer during ConfigureServices) and
+        // calls MatchmakingMeter.Init(multiplexer) once at StartAsync. The service is a
+        // singleton, starts before the matchmaker ticker, and completes in ~0 ms.
+        builder.Services.AddHostedService<MatchmakingMeterInitService>();
+
         return matchmakingBuilder;
     }
+}
+
+/// <summary>
+/// Minimal <see cref="IHostedService"/> that calls <see cref="MatchmakingMeter.Init"/> once
+/// at host startup so the <c>QueueDepth</c> <see cref="System.Diagnostics.Metrics.ObservableGauge{T}"/>
+/// callback has a live Redis reference before the first scrape (OBS-04).
+/// </summary>
+/// <remarks>
+/// Registered by <see cref="MatchmakingBuilderExtensions.AddMatchmaking"/> as a hosted service.
+/// The service resolves <see cref="IConnectionMultiplexer"/> lazily from DI (avoids eagerly
+/// constructing Redis connections during <c>ConfigureServices</c>) and calls
+/// <c>MatchmakingMeter.Init</c> once at <see cref="StartAsync"/>. StopAsync is a no-op.
+/// </remarks>
+internal sealed class MatchmakingMeterInitService : IHostedService
+{
+    private readonly IConnectionMultiplexer _multiplexer;
+
+    /// <summary>Constructs the init service.</summary>
+    /// <param name="multiplexer">The Redis connection multiplexer.</param>
+    public MatchmakingMeterInitService(IConnectionMultiplexer multiplexer)
+    {
+        ArgumentNullException.ThrowIfNull(multiplexer);
+        _multiplexer = multiplexer;
+    }
+
+    /// <inheritdoc />
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        // OBS-04: wires the QueueDepth ObservableGauge Redis reference.
+        MatchmakingMeter.Init(_multiplexer);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

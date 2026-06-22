@@ -2,11 +2,13 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using GameKit.Lobby.Services;
+using GameKit.Lobby.Telemetry;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
@@ -49,29 +51,36 @@ public sealed class LobbyHub : Hub<ILobbyClient>
     private readonly ILobbyService _lobby;
     private readonly ILobbyMessageHandler _messageHandler;
     private readonly GameKitLobbyOptions _options;
+    private readonly LobbyConnectionTracker _connectionTracker;
 
     /// <summary>Constructs the hub with its required dependencies.</summary>
     public LobbyHub(
         ILobbyService lobby,
         ILobbyMessageHandler messageHandler,
-        IOptions<GameKitLobbyOptions> options)
+        IOptions<GameKitLobbyOptions> options,
+        LobbyConnectionTracker connectionTracker)
     {
         ArgumentNullException.ThrowIfNull(lobby);
         ArgumentNullException.ThrowIfNull(messageHandler);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(connectionTracker);
         _lobby = lobby;
         _messageHandler = messageHandler;
         _options = options.Value;
+        _connectionTracker = connectionTracker;
     }
 
     /// <summary>
     /// Re-adds the new <see cref="HubCallerContext.ConnectionId"/> to all lobby groups the
     /// player currently belongs to. SignalR group membership is per-connection and is lost on
     /// reconnect — this override restores it from the durable <c>lobby_members</c> rows in
-    /// Postgres (RESEARCH Pitfall 2).
+    /// Postgres (RESEARCH Pitfall 2). Also increments the connected-clients counter (OBS-05).
     /// </summary>
     public override async Task OnConnectedAsync()
     {
+        // OBS-05: track connected clients for the lobby.connected_clients ObservableGauge.
+        _connectionTracker.Increment();
+
         var playerId = GetPlayerIdOrNull();
         if (playerId.HasValue)
         {
@@ -84,6 +93,19 @@ public sealed class LobbyHub : Hub<ILobbyClient>
         }
 
         await base.OnConnectedAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Decrements the connected-clients counter when a SignalR connection is torn down
+    /// (OBS-05).
+    /// </summary>
+    /// <param name="exception">The exception that caused the disconnection, or
+    /// <see langword="null"/> for a clean close.</param>
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        // OBS-05: decrement the connected-clients counter on clean or exception disconnect.
+        _connectionTracker.Decrement();
+        await base.OnDisconnectedAsync(exception).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -154,6 +176,8 @@ public sealed class LobbyHub : Hub<ILobbyClient>
                 .Group($"lobby:{lobbyId}")
                 .ReceiveChatMessageAsync(playerId, message)
                 .ConfigureAwait(false);
+            // OBS-05: count relayed messages (only after the relay succeeds, inside the if-relay block).
+            LobbyMeter.MessagesSent.Add(1);
         }
     }
 
@@ -183,7 +207,12 @@ public sealed class LobbyHub : Hub<ILobbyClient>
             throw new HubException("Player is not a member of this lobby.");
         }
 
-        await _lobby.MarkReadyAsync(lobbyId, playerId, Context.ConnectionAborted)
+        // OBS-06: capture Activity.Current SERVER-SIDE at the hub invocation, not from client
+        // input — the SignalR HTTP span is the parent. Passed as an optional param so the
+        // service can parent the ReadyCheck span to this hub invocation (T-15-05-TRACE).
+        var callerContext = Activity.Current?.Context ?? default;
+
+        await _lobby.MarkReadyAsync(lobbyId, playerId, Context.ConnectionAborted, callerContext)
             .ConfigureAwait(false);
     }
 

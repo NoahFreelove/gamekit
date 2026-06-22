@@ -27,7 +27,17 @@ namespace GameKit.Rankings.Tests.Telemetry;
 /// (T-15-04-PII mitigation).
 /// </para>
 /// </remarks>
+/// <summary>
+/// xUnit collection definition: serializes all Rankings meter test classes so that
+/// MeterListener callbacks fired by static-instrument <c>Record</c>/<c>Add</c> calls
+/// cannot land in the wrong listener when classes run concurrently (xUnit runs test
+/// classes in parallel by default; MeterListener callbacks fire on the calling thread).
+/// </summary>
+[CollectionDefinition("RankingsMetrics", DisableParallelization = true)]
+public sealed class RankingsMetricsCollection { }
+
 [Trait("Category", "Unit")]
+[Collection("RankingsMetrics")]
 public sealed class RankingsPiiTagKeyTests
 {
     private static readonly HashSet<string> ForbiddenKeys = new(System.StringComparer.OrdinalIgnoreCase)

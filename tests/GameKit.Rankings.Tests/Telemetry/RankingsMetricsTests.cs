@@ -28,6 +28,7 @@ namespace GameKit.Rankings.Tests.Telemetry;
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
+[Collection("RankingsMetrics")]
 public sealed class RankingsMetricsTests
 {
     [Fact]

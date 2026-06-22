@@ -123,7 +123,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "increase(gamekit_matchmaking_budget_bail_total[5m])",
+          "expr": "increase(gamekit_matchmaking_budget_bail_events_total[5m])",
           "legendFormat": "budget bails"
         }
       ],

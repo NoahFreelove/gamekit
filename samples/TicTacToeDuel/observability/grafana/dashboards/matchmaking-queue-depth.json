@@ -27,7 +27,7 @@
         {
           "refId": "A",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "rate(matchmaking_analytics_dropped_events_total[5m])",
+          "expr": "rate(gamekit_matchmaking_analytics_dropped_events_total[5m])",
           "legendFormat": "dropped/s ({{reason}})"
         }
       ],

@@ -14,6 +14,7 @@ receivers:
 exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"   # Prometheus scrapes this — internal network only (not published to host)
+    namespace: gamekit          # OBS-04/criterion #4: gamekit_ prefix so dashboards match emitted instrument names
   otlp/tempo:
     endpoint: "tempo:4317"
     tls:

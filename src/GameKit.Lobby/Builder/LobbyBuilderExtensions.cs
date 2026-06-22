@@ -2,6 +2,8 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using FluentValidation;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
@@ -10,10 +12,12 @@ using GameKit.Lobby.Data;
 using GameKit.Lobby.Health;
 using GameKit.Lobby.Http.Contracts;
 using GameKit.Lobby.Services;
+using GameKit.Lobby.Telemetry;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.SignalR.StackExchangeRedis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -110,6 +114,49 @@ public static class LobbyBuilderExtensions
         builder.Services.AddScoped<IValidator<CreateLobbyRequest>, CreateLobbyRequestValidator>();
         builder.Services.AddScoped<IValidator<JoinLobbyRequest>, JoinLobbyRequestValidator>();
 
+        // 9. OBS-05: register the LobbyConnectionTracker singleton + wire the ConnectedClients
+        //    ObservableGauge. The tracker is injected into LobbyHub; a startup IHostedService
+        //    resolves it from DI and calls LobbyMeter.Init(tracker) once at StartAsync.
+        //    This mirrors the MatchmakingMeterInitService pattern (Plan 15-02).
+        builder.Services.AddSingleton<LobbyConnectionTracker>();
+        builder.Services.AddHostedService<LobbyMeterInitService>();
+
         return builder;
     }
+}
+
+/// <summary>
+/// Minimal <see cref="IHostedService"/> that calls <see cref="LobbyMeter.Init"/> once at host
+/// startup so the <c>lobby.connected_clients</c>
+/// <see cref="System.Diagnostics.Metrics.ObservableGauge{T}"/> callback has a reference to the
+/// singleton <see cref="LobbyConnectionTracker"/> before the first OTel scrape (OBS-05).
+/// </summary>
+/// <remarks>
+/// Registered by <see cref="LobbyBuilderExtensions.AddLobby"/> as a hosted service. The service
+/// resolves <see cref="LobbyConnectionTracker"/> lazily from DI (avoids eagerly constructing the
+/// singleton during <c>ConfigureServices</c>) and calls <c>LobbyMeter.Init</c> once at
+/// <see cref="StartAsync"/>. <see cref="StopAsync"/> is a no-op.
+/// </remarks>
+internal sealed class LobbyMeterInitService : IHostedService
+{
+    private readonly LobbyConnectionTracker _tracker;
+
+    /// <summary>Constructs the init service.</summary>
+    /// <param name="tracker">The singleton connection tracker.</param>
+    public LobbyMeterInitService(LobbyConnectionTracker tracker)
+    {
+        ArgumentNullException.ThrowIfNull(tracker);
+        _tracker = tracker;
+    }
+
+    /// <inheritdoc />
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        // OBS-05: wires the ConnectedClients ObservableGauge to the singleton tracker.
+        LobbyMeter.Init(_tracker);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using GameKit.Core.Telemetry;
+using GameKit.Lobby.Telemetry;
 using Xunit;
 
 namespace GameKit.Lobby.Integration.Tests.Telemetry;
@@ -13,25 +14,23 @@ namespace GameKit.Lobby.Integration.Tests.Telemetry;
 /// carries a PII-bearing tag key.
 /// </summary>
 /// <remarks>
-/// Wave-0 stub: <c>LobbyMeter</c> does not yet exist (ships in Plan 05).
-/// The MeterListener is filtered on the meter name string literal
-/// <c>"GameKit.Lobby"</c> (== <see cref="GameKitTelemetry.LobbyMeterName"/>) and
-/// exercises no instruments — the empty-set assertion passes trivially.
+/// <para>
+/// Exercises every <see cref="LobbyMeter"/> instrument — <c>MessagesSent</c>,
+/// <c>ReadyCheckStarted</c>, <c>ReadyCheckCompleted</c> (with <c>check.result</c> tag), and
+/// the <c>ConnectedClients</c> ObservableGauge via <c>LobbyMeter.Init</c> +
+/// <c>RecordObservableInstruments()</c> — and asserts that no emitted tag key is in the
+/// forbidden PII set. The only expected tag key is <c>check.result</c>.
+/// </para>
 /// <para>
 /// Placed in <c>GameKit.Lobby.Integration.Tests</c> (NOT a new GameKit.Lobby.Tests project)
 /// because the Integration.Tests project already holds the
 /// <c>[assembly: InternalsVisibleTo("GameKit.Lobby.Integration.Tests")]</c> grant in
-/// <c>GameKit.Lobby/AssemblyInfo.cs</c>, giving test access to internal Lobby types
-/// including the future <c>LobbyMeter</c> class.
-/// </para>
-/// <para>
-/// TODO(15-05): reference <c>LobbyMeter</c> and add
-/// <c>MessagesSent.Add(...)</c> + <c>ReadyCheckStarted.Add(...)</c> +
-/// <c>ReadyCheckCompleted.Add(...)</c> calls once Plan 05 ships
-/// <c>GameKit.Lobby.Telemetry.LobbyMeter</c>.
+/// <c>GameKit.Lobby/AssemblyInfo.cs</c>, giving test access to the internal
+/// <see cref="LobbyMeter"/> class.
 /// </para>
 /// </remarks>
 [Trait("Category", "Unit")]
+[Collection("LobbyMeterTests")]
 public sealed class LobbyPiiTagKeyTests
 {
     private static readonly HashSet<string> ForbiddenKeys = new(System.StringComparer.OrdinalIgnoreCase)
@@ -46,6 +45,11 @@ public sealed class LobbyPiiTagKeyTests
         "fingerprint",
     };
 
+    /// <summary>
+    /// Asserts that every lobby instrument emits only permitted tag keys.
+    /// The only allowed tag key is <c>check.result</c> (==
+    /// <see cref="GameKitTelemetry.AttrCheckResult"/>).
+    /// </summary>
     [Fact]
     public void NoInstrument_EmitsTagKey_MatchingForbiddenSet()
     {
@@ -55,13 +59,17 @@ public sealed class LobbyPiiTagKeyTests
         {
             InstrumentPublished = (instr, l) =>
             {
-                // Filter on string literal — LobbyMeter does not yet exist (Plan 05)
-                if (instr.Meter.Name == GameKitTelemetry.LobbyMeterName)
+                if (instr.Meter.Name == LobbyMeter.MeterName)
                     l.EnableMeasurementEvents(instr);
             },
         };
 
         listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+        {
+            foreach (var tag in tags)
+                emittedTagKeys.Add(tag.Key);
+        });
+        listener.SetMeasurementEventCallback<int>((_, _, tags, _) =>
         {
             foreach (var tag in tags)
                 emittedTagKeys.Add(tag.Key);
@@ -75,11 +83,18 @@ public sealed class LobbyPiiTagKeyTests
         // MUST call Start() BEFORE exercising instruments
         listener.Start();
 
-        // TODO(15-05): add LobbyMeter.MessagesSent.Add(...) + LobbyMeter.ReadyCheckStarted.Add(...)
-        // + LobbyMeter.ReadyCheckCompleted.Add(...) + LobbyMeter.ConnectedClients gauge
-        // once Plan 05 ships GameKit.Lobby.Telemetry.LobbyMeter.
+        // Exercise all lobby counters with their allowed tag keys (OBS-05 criterion #1):
+        LobbyMeter.MessagesSent.Add(1);
+        LobbyMeter.ReadyCheckStarted.Add(1);
+        LobbyMeter.ReadyCheckCompleted.Add(1,
+            new System.Collections.Generic.KeyValuePair<string, object?>(
+                GameKitTelemetry.AttrCheckResult, "all_ready"));
+
+        // Wire the tracker and trigger the ConnectedClients ObservableGauge callback.
+        LobbyMeter.Init(new LobbyConnectionTracker());
         listener.RecordObservableInstruments();
 
+        // Only check.result is a permitted tag key; PII keys must never appear.
         Assert.DoesNotContain(emittedTagKeys, k => ForbiddenKeys.Contains(k));
     }
 }

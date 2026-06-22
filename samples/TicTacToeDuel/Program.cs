@@ -11,6 +11,8 @@ using GameKit.OpenApi.Builder;
 using GameKit.Presence.Builder;
 using GameKit.Rankings.Builder;
 using GameKit.Rankings.Entities;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 using TicTacToeDuel.Http;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -128,6 +130,27 @@ gameKitBuilder.AddPresence();
 // override needed — defaults are production-safe. The Lobby EF migration hosted service creates
 // gamekit.lobbies + gamekit.lobby_members at startup (AutoMigrate is on).
 gameKitBuilder.AddLobby();
+
+// Phase 15 (OBS-04/05/06) — opt-in OpenTelemetry. AddGameKitObservability() registers every
+// GameKit ActivitySource + Meter (Matchmaking/Rankings/Lobby) with the OTel SDK and, when an
+// OTLP endpoint is configured, wires the gRPC exporter to the sample's OTel Collector
+// (docker-compose.observability.yml publishes its OTLP listener on localhost:4317; the collector
+// re-exports to Prometheus under the `gamekit` namespace + to Tempo). Without this call the in-box
+// instruments are no-ops (OBS-01) and the Grafana dashboards render "No data". The endpoint is
+// config-driven (GameKit:Observability:OtlpEndpoint) — leave it unset in environments without the
+// stack and AddGameKitObservability registers sources/meters only, with no exporter.
+gameKitBuilder.AddGameKitObservability(otel =>
+{
+    otel.OtlpEndpoint = builder.Configuration["GameKit:Observability:OtlpEndpoint"];
+});
+
+// Add ASP.NET Core HTTP server-span instrumentation to the SAME tracer provider so the matchmaking
+// enqueue request (POST /api/mm/queue) emits the parent span that the later MatchFormation span
+// descends from (OBS-06 / W3C trace propagation — criterion #2). The GameKit library deliberately
+// does NOT force HTTP instrumentation on consumers; that is a host decision, so the sample (the host)
+// opts in here. AddOpenTelemetry() is idempotent — this composes onto the provider configured above.
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation());
 
 // Phase 14 — Health & Readiness. Registered AFTER all Add* extensions that consume
 // IConnectionMultiplexer (Matchmaking/Presence/Lobby above) so the conditional Redis

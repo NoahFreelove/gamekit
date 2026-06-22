@@ -19,4 +19,13 @@
     <ProjectReference Include="..\..\src\GameKit.OpenApi\GameKit.OpenApi.csproj" />
     <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
   </ItemGroup>
+  <!-- Phase 15 (OBS-04/05/06) — OpenTelemetry SDK. GameKit.Core declares these PrivateAssets="all"
+       (OBS-01), so a consumer that wants observability opts in by referencing the SDK itself. The
+       Hosting + OTLP-exporter packages back AddGameKitObservability(); the AspNetCore instrumentation
+       produces the HTTP server span that the matchmaking MatchFormation span descends from (OBS-06). -->
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+  </ItemGroup>
 </Project>

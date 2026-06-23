@@ -4,7 +4,9 @@
     <AssemblyName>GameKit.Tutorial.SmokeTests</AssemblyName>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <!-- CS1591: XML doc warnings suppressed for test projects — mirroring all other integration test projects. -->
+    <!-- Suppress CS1591 (missing XML docs) for test code; WarningsAsErrors clears the
+         inherited CS1591 error from Directory.Build.props for this test project only.
+         TreatWarningsAsErrors remains the blanket gate — only CS1591 is exempted here. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <WarningsAsErrors />
   </PropertyGroup>

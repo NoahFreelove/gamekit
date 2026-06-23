@@ -16,26 +16,40 @@ namespace GameKit.Core.Data;
 /// <remarks>
 /// <para>
 /// The default EF Core relational model cache key is keyed only by
-/// <c>(contextType, modelCustomizerType, designTime)</c>. Because every
-/// <c>GameKitDbContext</c> instance — whether a Core-only migration context or a
-/// full-runtime context that includes Auth, Rankings, Matchmaking, and Lobby entities —
-/// uses the same context type and model customizer type, the first-built model (typically
-/// Core-only, built during the migration step) is incorrectly reused for the full-runtime
-/// context, which causes <c>InvalidOperationException: Cannot create a DbSet for 'Ladder'</c>
-/// (and any other sibling-package entity type).
+/// <c>(contextType, modelCustomizerType, designTime)</c>. When integration tests run both
+/// migration contexts and the full-runtime context in the same process, a Core-only migration
+/// context can build a model first and have it incorrectly reused for the full-runtime context
+/// (which includes Auth, Rankings, Matchmaking, and Lobby entities), causing
+/// <c>InvalidOperationException: Cannot create a DbSet for 'Ladder'</c> and similar errors.
 /// </para>
 /// <para>
-/// This factory reads the registered <see cref="IModelBuilderExtension"/> types from
-/// <c>CoreOptionsExtension.ApplicationServiceProvider</c> (set by <c>UseApplicationServiceProvider</c>)
-/// and appends them to the cache key. Core-only migration contexts have no app provider or an
-/// app provider with no extensions → empty extension list. Full-runtime contexts have all
-/// sibling-package extensions registered → non-empty list. The resulting cache keys are distinct,
-/// so EF builds a correct, fully-populated model for each configuration.
+/// This factory appends the registered <see cref="IModelBuilderExtension"/> types to the cache
+/// key, making migration-context and runtime-context cache entries distinct. Core-only migration
+/// contexts have no app provider (or an app provider with no extensions) → empty extension list.
+/// Full-runtime contexts have all sibling-package extensions registered → non-empty list.
 /// </para>
 /// <para>
-/// Registered via <c>dbOpts.ReplaceService&lt;IModelCacheKeyFactory, GameKitModelCacheKeyFactory&gt;()</c>
-/// inside <c>AddGameKit</c>'s <c>AddDbContext</c> call — this is the correct EF Core mechanism
-/// for replacing infrastructure-level services on a per-context-options basis.
+/// <b>Registration — test fixtures only:</b> This factory is registered in integration-test
+/// fixtures (e.g., <c>GdprDeleteCoverageTests</c>) via:
+/// <code>
+/// dbOpts.ReplaceService&lt;IModelCacheKeyFactory, GameKitModelCacheKeyFactory&gt;()
+/// </code>
+/// It is <b>NOT</b> registered by <c>AddGameKit()</c> in production.
+/// </para>
+/// <para>
+/// <b>Why production does not need it:</b> In a production deployment each migration context
+/// uses a distinct <see cref="Microsoft.EntityFrameworkCore.Infrastructure.IModelCustomizer"/>
+/// implementation (<c>AuthMigrationModelCustomizer</c>, <c>MatchmakingMigrationModelCustomizer</c>,
+/// etc.), which is already part of the default EF cache key tuple
+/// <c>(contextType, modelCustomizerType, designTime)</c>. The runtime context uses
+/// <c>(GameKitDbContext, RelationalModelCustomizer, false)</c>; migration contexts use
+/// <c>(GameKitDbContext, AuthMigrationModelCustomizer, false)</c> etc. These keys are already
+/// distinct — no collision occurs and no custom factory is required.
+/// </para>
+/// <para>
+/// Consumers who write their own integration tests that share an in-process EF model cache
+/// across migration and runtime contexts can register this factory in their test
+/// <c>AddDbContext</c> call to prevent model-cache collisions.
 /// </para>
 /// </remarks>
 public sealed class GameKitModelCacheKeyFactory : IModelCacheKeyFactory

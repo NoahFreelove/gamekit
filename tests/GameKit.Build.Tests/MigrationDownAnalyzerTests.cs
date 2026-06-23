@@ -137,6 +137,52 @@ class ModelSnapshotStyle
     }
 
     // -----------------------------------------------------------------------
+    // IN-01: expression-bodied Down() — relaxed policy
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// IN-01 conforming: an expression-bodied <c>Down()</c> whose expression is exactly
+    /// <c>throw new NotSupportedException(...)</c> must NOT emit GK0003.
+    /// This is the idiomatic single-line form of the same policy.
+    /// </summary>
+    [Fact]
+    public async Task ExpressionBodied_ThrowNotSupportedException_NoDiagnostic()
+    {
+        var source = @"
+using Microsoft.EntityFrameworkCore.Migrations;
+using System;
+
+class MyMigration : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder) { }
+    protected override void Down(MigrationBuilder migrationBuilder) => throw new NotSupportedException(""Rollback disabled."");
+}
+" + EfStubs;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// IN-01 non-conforming: an expression-bodied <c>Down()</c> whose expression is a
+    /// destructive call (not <c>throw new NotSupportedException(...)</c>) must still emit GK0003.
+    /// </summary>
+    [Fact]
+    public async Task ExpressionBodied_DestructiveCall_ReportsGK0003()
+    {
+        var source = @"
+using Microsoft.EntityFrameworkCore.Migrations;
+
+class MyMigration : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder) { }
+    protected override void {|GK0003:Down|}(MigrationBuilder migrationBuilder) => migrationBuilder.DropTable(name: ""players"");
+}
+" + EfStubs;
+
+        await CreateTest(source).RunAsync(CancellationToken.None);
+    }
+
+    // -----------------------------------------------------------------------
     // NON-CONFORMING cases — GK0003 must fire at the Down identifier
     // -----------------------------------------------------------------------
 

@@ -31,7 +31,7 @@ namespace GameKit.Build;
 /// <item>Body containing destructive calls such as <c>migrationBuilder.DropTable(...)</c></item>
 /// <item>Body throwing a different exception (e.g. <c>InvalidOperationException</c>)</item>
 /// <item>Body with two or more real statements</item>
-/// <item>Expression-bodied form (not block-bodied)</item>
+/// <item>Expression-bodied form whose expression is anything other than <c>throw new NotSupportedException(...)</c></item>
 /// </list>
 /// </para>
 /// <para>
@@ -39,6 +39,7 @@ namespace GameKit.Build;
 /// <list type="bullet">
 /// <item><c>Up()</c> method bodies — only <c>Down()</c> is gated</item>
 /// <item>Types that do NOT inherit from <c>Migration</c> (e.g. <c>ModelSnapshot</c>, Designer-generated classes)</item>
+/// <item>Expression-bodied <c>Down() => throw new NotSupportedException(...)</c> — idiomatic conforming form (IN-01)</item>
 /// </list>
 /// </para>
 /// <para>
@@ -125,10 +126,19 @@ public sealed class MigrationDownMethodAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        // Step 3: Check the method body. Expression-bodied Down() is non-conforming.
+        // Step 3: Check the method body.
         if (method.Body == null)
         {
-            // Expression-bodied member (=>). Non-conforming — only block bodies with a single throw are accepted.
+            // Expression-bodied member (=> expression).
+            // Conforming exception: => throw new NotSupportedException(...)
+            // Any other expression body (e.g. => migrationBuilder.DropTable(...)) is non-conforming.
+            if (method.ExpressionBody != null &&
+                IsThrowNotSupportedExceptionExpression(method.ExpressionBody.Expression))
+            {
+                // Expression-bodied throw new NotSupportedException(...) — accepted (IN-01).
+                return;
+            }
+
             context.ReportDiagnostic(Diagnostic.Create(
                 Rule,
                 method.Identifier.GetLocation(),
@@ -187,6 +197,23 @@ public sealed class MigrationDownMethodAnalyzer : DiagnosticAnalyzer
             }
 
             current = current.BaseType;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> if <paramref name="expression"/> is a
+    /// <c>throw new NotSupportedException(...)</c> expression — i.e. a
+    /// <see cref="ThrowExpressionSyntax"/> whose operand is a
+    /// <c>new NotSupportedException(...)</c> creation. Used to accept the expression-bodied
+    /// form <c>Down(MigrationBuilder mb) => throw new NotSupportedException(...);</c> (IN-01).
+    /// </summary>
+    private static bool IsThrowNotSupportedExceptionExpression(ExpressionSyntax? expression)
+    {
+        if (expression is ThrowExpressionSyntax throwExpression)
+        {
+            return IsNotSupportedExceptionCreation(throwExpression.Expression);
         }
 
         return false;

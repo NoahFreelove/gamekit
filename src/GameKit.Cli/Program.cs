@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using GameKit.Cli.Commands;
+using GameKit.Cli.Commands.Migrations;
 using Spectre.Console.Cli;
 
 var app = new CommandApp();
@@ -9,7 +10,7 @@ app.Configure(config =>
 {
     config.SetApplicationName("gamekit");
     config.AddCommand<MigrateCommand>("migrate")
-        .WithDescription("Apply GameKit migrations (Core + Auth + Admin) against the configured Postgres.");
+        .WithDescription("Apply GameKit Core migrations against the configured Postgres (backwards-compatible shorthand; for all packages use 'gamekit migrations apply').");
 
     config.AddBranch("admin", admin =>
     {
@@ -27,6 +28,17 @@ app.Configure(config =>
             .WithDescription("Revoke a service-account bearer token by name.");
         st.AddCommand<ServiceTokenListCommand>("list")
             .WithDescription("List all service-account bearer tokens (names, dates, status — never the hash).");
+    });
+
+    // Plan 17-03: DR-04 / DR-05 — unified migrations branch covering all 6 GameKit packages.
+    // The legacy top-level 'migrate' command is left untouched for backwards compatibility.
+    config.AddBranch("migrations", migrations =>
+    {
+        migrations.SetDescription("Multi-package migration status and apply tooling (DR-04/DR-05). Covers all 6 GameKit packages in canonical order: Core, Auth, Admin, Rankings, Matchmaking, Lobby.");
+        migrations.AddCommand<MigrationsListCommand>("list")
+            .WithDescription("List applied and pending migration counts per package in recommended application order.");
+        migrations.AddCommand<MigrationsApplyCommand>("apply")
+            .WithDescription("Apply pending migrations across all packages. Use --dry-run to print idempotent SQL without executing any DDL.");
     });
 });
 return await app.RunAsync(args);

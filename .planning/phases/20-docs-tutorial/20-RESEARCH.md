@@ -272,24 +272,28 @@ Sample app listens on `http://localhost:5000`.
 
 ### Tutorial Smoke Test Architecture
 
-The CI smoke test for DOCS-02 should be an xUnit integration test in a new project `tests/GameKit.Tutorial.SmokeTests/`. It follows the **existing Testcontainers pattern** from `tests/GameKit.Auth.Integration.Tests/AuthEndpointsE2ETests.cs` and `tests/GameKit.Matchmaking.Integration.Tests/MatchmakingHappyPathTests.cs`.
+> **Resolved decisions (supersede the sketch below):** Open Question 2 is RESOLVED — the smoke test uses a **hand-rolled in-process host mirroring `OpenApiTestApp`, NOT `WebApplicationFactory<Program>`**. Also, the poll target is **`status == "proposed"`** (where `TicketStatusResponse.ProposalId` is populated), not `"matched"` — the test extracts the non-null `ProposalId` from the proposed state and drives it through both accept calls; `"matched"` carries `SessionId`, not `ProposalId`. Plan 20-03 is authoritative; the C# sketch below is illustrative and predates these resolutions.
 
-**Smoke test shape:**
+The CI smoke test for DOCS-02 is an xUnit integration test in a new project `tests/GameKit.Tutorial.SmokeTests/`. It follows the **existing Testcontainers pattern** from `tests/GameKit.Auth.Integration.Tests/AuthEndpointsE2ETests.cs` and `tests/GameKit.Matchmaking.Integration.Tests/MatchmakingHappyPathTests.cs`, and the host-construction pattern from `tests/GameKit.OpenApi.Integration.Tests/OpenApiTestApp.cs`.
+
+**Smoke test shape (illustrative — see Plan 20-03 for the authoritative spec):**
 ```csharp
-// Full tutorial path: guest login → enqueue two tickets (no poolName) → poll for match → /health/ready 200
+// Full tutorial path: guest login → enqueue two tickets (poolName null) → poll for proposal → accept x2 → /health/ready 200
 [Collection("TutorialSmoke")]
 [Trait("Category", "Integration")]
 public sealed class TutorialSmokeTests : IAsyncLifetime
 {
     // Uses PostgresFixture + RedisFixture from GameKit.TestFixtures
-    // Boots the full TicTacToeDuel program via WebApplicationFactory<Program>
-    //   (or a minimal equivalent that wires all Add*+Map* calls)
+    // Boots a hand-rolled in-process host (TutorialSmokeTestApp, mirroring OpenApiTestApp) —
+    //   NOT WebApplicationFactory<Program>. The host wires all Add*+Map* calls AND runs the
+    //   in-process matchmaking ticker so a proposal actually forms.
     //
     // Steps:
-    // 1. POST /auth/login/guest x2 (two players) → get access tokens
-    // 2. POST /api/mm/queue x2 (ladderId from /demo/ladder-id/tictactoe, poolName: null) 
-    // 3. Poll GET /api/mm/queue/{ticketId}/status until status = "matched" (timeout 10s)
-    // 4. POST /api/mm/proposal/{proposalId}/accept x2
+    // 1. POST /auth/login/guest x2 (two players, distinct X-GameKit-Device) → get access tokens
+    // 2. POST /api/mm/queue x2 (resolved tictactoe ladder Guid, poolName: null)
+    // 3. Poll GET /api/mm/queue/{ticketId}/status until status == "proposed" (deadline ≤10s, Assert.Fail if not)
+    //    → extract non-null TicketStatusResponse.ProposalId
+    // 4. POST /api/mm/proposal/{ProposalId}/accept x2 — second accept confirms all-accepted / match-formed
     // 5. GET /health/ready → 200
 }
 ```
@@ -688,20 +692,20 @@ All material technical claims (docfx warnings, pool names, template short-name, 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **appsettings.Development.json Port 5432 vs docker-compose port 5433**
-   - What we know: `appsettings.Development.json` hardcodes `Port=5432`; docker-compose maps Postgres to `5433` on the host.
-   - What's unclear: Is the intended tutorial flow "run the app on the host" (needs port override) or "run everything in Docker" (would need a docker-compose app service)?
-   - Recommendation: Tutorial uses env var overrides (simplest for the dev); optionally add `appsettings.DockerCompose.json` to make it one-command.
+> All three open questions are resolved for Phase 20 planning. Resolutions are inline below and are reflected in the plans (20-01, 20-03).
 
-2. **Tutorial smoke test: WebApplicationFactory vs separate docker-compose**
-   - What we know: Existing integration tests use WebApplicationFactory + Testcontainers; no docker-compose-in-CI harness exists.
-   - What's unclear: Whether the smoke test should boot the full `TicTacToeDuel` `Program.cs` (including static files, Blazor, lobby SignalR) or a slimmed-down minimal host.
-   - Recommendation: Use WebApplicationFactory against `TicTacToeDuel.Program` — it boots the real app with full middleware. The DR test (`DrRoundTripTests.cs`) uses a similar full-stack pattern. This gives the most realistic "tutorial path" test.
+1. **appsettings.Development.json Port 5432 vs docker-compose port 5433** — **RESOLVED: env-var port override.**
+   - What we knew: `appsettings.Development.json` hardcodes `Port=5432`; docker-compose maps Postgres to `5433` on the host.
+   - Resolution: The tutorial flow is "run the app on the host" against the docker-compose Postgres/Redis, using an explicit `Port=5433` environment-variable override (the host's local Postgres owns 5432). The getting-started tutorial (Plan 20-03, Task 4) calls this out explicitly. We do NOT add an `appsettings.DockerCompose.json` or a docker-compose app service in this phase. (The CI smoke test sidesteps the port entirely — it uses Testcontainers with auto-assigned ports, never 5432/5433.)
 
-3. **Where to put the tutorial docs: `docs/tutorial/` vs repo root `TUTORIAL.md` vs `README.md`**
-   - Recommendation: `docs/tutorial/getting-started.md` with a link from root `README.md`. Consistent with the ops/ and concepts/ subdirectory pattern already in `docs/`.
+2. **Tutorial smoke test: WebApplicationFactory vs separate docker-compose** — **RESOLVED: hand-rolled in-process host (NOT WebApplicationFactory, NOT docker-compose).**
+   - What we knew: existing integration tests boot an in-process host; Testcontainers is the established fixture; no docker-compose-in-CI harness exists.
+   - Resolution: The smoke test mirrors the proven `tests/GameKit.OpenApi.Integration.Tests/OpenApiTestApp.cs` pattern — a hand-rolled in-process host (ephemeral RSA keypair, fresh per-host DB, full Add*+Map* chain, in-process matchmaking ticker) against Testcontainers Postgres + Redis. `WebApplicationFactory<Program>` is NOT used: the sample's Program is internal-by-default and standing up the real sample needs on-disk JWT keys + appsettings, which the hand-rolled host avoids. (Plan 20-01 still adds a `public partial class Program` to the sample, but that is a forward-looking affordance for future WAF-based tests and is NOT consumed by the 20-03 host.) See Plan 20-03 §objective + Task 1.
+
+3. **Where to put the tutorial docs: `docs/tutorial/` vs repo root `TUTORIAL.md` vs `README.md`** — **RESOLVED: `docs/tutorial/getting-started.md`.**
+   - Resolution: `docs/tutorial/getting-started.md`, linked from root `README.md` only if a "Getting started" link is missing. Consistent with the `ops/` and `concepts/` subdirectory pattern already in `docs/`. Implemented in Plan 20-03, Task 4.
 
 ---
 

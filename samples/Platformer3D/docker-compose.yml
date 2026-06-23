@@ -31,7 +31,11 @@ services:
     environment:
       # ASP.NET Core listen address
       ASPNETCORE_URLS: "http://+:8080"
-      ASPNETCORE_ENVIRONMENT: "Production"
+      # Staging: relaxes the SuperadminGateHostedService from a hard crash to a warning,
+      # allowing the demo stack to boot without a pre-seeded admin user. The Admin UI will
+      # display a placeholder until an operator runs `dotnet gamekit admin create`.
+      # To harden to Production, pre-seed an admin user in a 02-seed.sql init script.
+      ASPNETCORE_ENVIRONMENT: "Staging"
 
       # GameKit database connection strings.
       # gamekit_owner is the migration user (DDL).

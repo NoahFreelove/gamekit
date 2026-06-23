@@ -15,7 +15,15 @@
 --
 -- After this script runs, the app calls EF Core's AutoMigrate on startup
 -- (using the gamekit_owner connection string), which creates all GameKit
--- schema tables. Subsequent restarts skip migration if the DB is already current.
+-- schema tables in the `gamekit` schema. Subsequent restarts skip migration
+-- if the DB is already current.
+--
+-- App-role grants (added to fix 42501 permission denied on gamekit schema):
+--   gamekit_app receives USAGE on the gamekit schema, DML on all current
+--   tables/sequences, and ALTER DEFAULT PRIVILEGES ensures every future
+--   table/sequence that gamekit_owner creates is automatically accessible
+--   to gamekit_app — solving the EF Core chicken-and-egg where tables are
+--   created after this script runs.
 
 -- Owner / migration user (has CREATE, ALTER, DROP for GameKit schema objects)
 DO $$
@@ -45,3 +53,21 @@ CREATE DATABASE gamekit
 
 -- Grant connection privilege to the app user
 GRANT CONNECT ON DATABASE gamekit TO gamekit_app;
+
+\connect gamekit
+
+-- Pre-create the GameKit schema owned by the migration role so the default
+-- privileges below apply to every table the EF migrations create in it.
+-- EF's EnsureSchema uses CREATE SCHEMA IF NOT EXISTS, so this does not conflict.
+CREATE SCHEMA IF NOT EXISTS gamekit AUTHORIZATION gamekit_owner;
+
+-- Runtime app role: enter the schema and read/write its objects.
+GRANT USAGE ON SCHEMA gamekit TO gamekit_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA gamekit TO gamekit_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA gamekit TO gamekit_app;
+
+-- Future migration-created objects (owned by gamekit_owner) auto-grant DML to the app role.
+ALTER DEFAULT PRIVILEGES FOR ROLE gamekit_owner IN SCHEMA gamekit
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO gamekit_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE gamekit_owner IN SCHEMA gamekit
+  GRANT USAGE, SELECT ON SEQUENCES TO gamekit_app;

@@ -14,6 +14,7 @@ let _conn        = null;    // SignalR HubConnection
 let _lobbyId     = null;    // current lobby guid
 let _ticketId    = null;    // matchmaking ticket guid
 let _getToken    = null;    // () => string — access token factory
+let _inGameMode  = false;   // true when controls are wired to in-game -mp panel
 
 // ─── UI element refs (resolved once on initLobbyControls) ────────────────────
 let _btnCreate   = null;
@@ -115,7 +116,7 @@ async function startMatchPoll() {
       const sessionId = body.sessionId;
       setLobbyStatus(`Matched! Session ${sessionId.slice(0, 8)}… — starting game…`);
       disconnectHub();
-      // Start the 3D game
+      // Start the 3D competitive game (replaces the current solo run)
       if (typeof window.startGame === 'function') {
         window.startGame(sessionId);
       } else {
@@ -261,17 +262,33 @@ async function joinLobby(inviteCode) {
 }
 
 // ─── Public init — called by game.js after sign-in ───────────────────────────
+//
+// inGameMode=true: wire to the -mp suffixed elements inside #game-section
+// inGameMode=false (default): wire to the original auth-screen elements
 
-export function initLobbyControls(getToken) {
-  _getToken = getToken;
+export function initLobbyControls(getToken, inGameMode = false) {
+  _getToken    = getToken;
+  _inGameMode  = inGameMode;
 
-  _btnCreate   = document.getElementById('btn-create-lobby');
-  _btnJoin     = document.getElementById('btn-join-lobby');
-  _btnReady    = document.getElementById('btn-ready');
-  _codeInput   = document.getElementById('invite-code-input');
-  _codeDisplay = document.getElementById('lobby-code-display');
-  _statusText  = document.getElementById('lobby-status-text');
-  _lbArea      = document.getElementById('leaderboard-area');
+  if (inGameMode) {
+    // In-game multiplayer panel (inside #game-section, toggled by Multiplayer button)
+    _btnCreate   = document.getElementById('btn-create-lobby-mp');
+    _btnJoin     = document.getElementById('btn-join-lobby-mp');
+    _btnReady    = document.getElementById('btn-ready-mp');
+    _codeInput   = document.getElementById('invite-code-input-mp');
+    _codeDisplay = document.getElementById('lobby-code-display-mp');
+    _statusText  = document.getElementById('mp-status');
+    _lbArea      = document.getElementById('mp-lb-area');
+  } else {
+    // Original auth-screen panel
+    _btnCreate   = document.getElementById('btn-create-lobby');
+    _btnJoin     = document.getElementById('btn-join-lobby');
+    _btnReady    = document.getElementById('btn-ready');
+    _codeInput   = document.getElementById('invite-code-input');
+    _codeDisplay = document.getElementById('lobby-code-display');
+    _statusText  = document.getElementById('lobby-status-text');
+    _lbArea      = document.getElementById('leaderboard-area');
+  }
 
   // Enable create/join buttons (they were disabled until sign-in)
   if (_btnCreate) _btnCreate.disabled = false;

@@ -92,10 +92,14 @@
 
     /* --- game screen --- */
     #game-section {
-      position: relative;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
       width: 100%;
-      height: 100vh;
+      height: 100%;
     }
+    /* While game is active, suppress body scrollbar */
+    body.game-active { overflow: hidden; }
     #game-canvas {
       display: block;
       width: 100%;
@@ -135,6 +139,74 @@
       color: #e0e0e0;
     }
     #game-status { display: inline; }
+
+    /* Multiplayer toggle button (top-right HUD corner) */
+    #btn-multiplayer-toggle {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.8rem;
+      z-index: 110;
+      padding: 0.35rem 0.7rem;
+      background: rgba(26,35,126,0.85);
+      border: 1px solid #3949ab;
+      border-radius: 5px;
+      color: #e0e0e0;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    #btn-multiplayer-toggle:hover { background: rgba(40,53,147,0.9); }
+
+    /* Multiplayer slide-out panel */
+    #multiplayer-panel {
+      position: absolute;
+      top: 2.5rem;
+      right: 0.8rem;
+      z-index: 110;
+      width: 280px;
+      background: rgba(18,18,42,0.95);
+      border: 1px solid #2a2a5a;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.82rem;
+    }
+    #multiplayer-panel h4 { color: #90caf9; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    #multiplayer-panel .lobby-row { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
+    #multiplayer-panel .lobby-row input {
+      flex: 1;
+      background: #1a1a3a;
+      border: 1px solid #3a3a6a;
+      border-radius: 4px;
+      color: #e0e0e0;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.82rem;
+    }
+    #multiplayer-panel .lobby-row button {
+      padding: 0.3rem 0.6rem;
+      background: #1a237e;
+      border: 1px solid #3949ab;
+      border-radius: 4px;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 0.78rem;
+    }
+    #multiplayer-panel .lobby-row button:hover:not(:disabled) { background: #283593; }
+    #multiplayer-panel .lobby-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #mp-status { color: #bbb; font-size: 0.78rem; margin-top: 0.3rem; }
+    #mp-lb-area { display: none; font-size: 0.75rem; color: #ccc; margin-top: 0.5rem; }
+
+    /* Replay button (shown after finish) */
+    #btn-replay {
+      display: none;
+      padding: 0.5rem 1.2rem;
+      background: #1b5e20;
+      border: 1px solid #388e3c;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 0.9rem;
+      cursor: pointer;
+      pointer-events: all;
+    }
+    #btn-replay:hover { background: #2e7d32; }
 
     /* Crosshair */
     #crosshair {
@@ -218,12 +290,34 @@
     <!-- Pointer-lock overlay (visible when NOT locked) -->
     <div id="game-overlay">
       <span class="overlay-title">Platformer3D</span>
-      <span class="overlay-hint">Click to capture mouse and start</span>
+      <span class="overlay-hint" id="overlay-hint-primary">Click to capture mouse and start</span>
       <span class="overlay-hint">WASD = move &nbsp;|&nbsp; Space = jump &nbsp;|&nbsp; Esc = release mouse</span>
+      <button id="btn-replay">Play Again (R)</button>
     </div>
 
     <!-- Crosshair (visible only when locked) -->
     <div id="crosshair"></div>
+
+    <!-- Multiplayer toggle -->
+    <button id="btn-multiplayer-toggle">Multiplayer / Party</button>
+
+    <!-- Multiplayer slide-out panel -->
+    <div id="multiplayer-panel" class="hidden">
+      <h4>Party &amp; Match</h4>
+      <div class="lobby-row">
+        <button id="btn-create-lobby-mp" disabled>Create Party</button>
+        <span id="lobby-code-display-mp" class="muted" style="display:none;word-break:break-all;flex:1;font-size:0.75rem"></span>
+      </div>
+      <div class="lobby-row">
+        <input id="invite-code-input-mp" type="text" placeholder="Paste invite code to join" />
+        <button id="btn-join-lobby-mp" disabled>Join</button>
+      </div>
+      <div class="lobby-row">
+        <button id="btn-ready-mp" disabled>Ready</button>
+      </div>
+      <div id="mp-status">Sign in then open the party controls.</div>
+      <div id="mp-lb-area"></div>
+    </div>
 
     <!-- Status bar -->
     <div id="game-status-bar">

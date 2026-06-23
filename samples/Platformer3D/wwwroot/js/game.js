@@ -89,7 +89,11 @@ function nowMs() { return Math.trunc(performance.now() + performance.timeOrigin)
 // -------------------------------------------------------------------------
 async function submitRunSummary(matchId, finishMs) {
   if (!matchId) {
-    updateStatus('Run complete (no active match — no run-summary sent).');
+    // Solo run: show time prominently in the overlay/status
+    const totalMs = finishMs - _runStartMs;
+    const secs    = (totalMs / 1000).toFixed(2);
+    updateStatus(`Run complete! Your time: ${secs}s`);
+    showFinishOverlay(`Solo practice complete! Your time: ${secs}s`);
     return;
   }
 
@@ -124,10 +128,18 @@ async function submitRunSummary(matchId, finishMs) {
       ws.send(JSON.stringify({ type: 'pong' }));
     } else if (msg.type === 'validated') {
       const secs = ((msg.completionMs ?? 0) / 1000).toFixed(2);
-      updateStatus(`Run validated! Completion time: ${secs}s (session ${msg.sessionId ?? '?'})`);
+      const txt = `Run validated! Completion time: ${secs}s (session ${msg.sessionId ?? '?'})`;
+      updateStatus(txt);
+      showFinishOverlay(txt);
       ws.close(1000, 'run complete');
+      // Show leaderboard after validated match run
+      if (typeof window.showLeaderboard === 'function') {
+        window.showLeaderboard().catch(() => {});
+      }
     } else if (msg.type === 'rejected') {
-      updateStatus(`Run rejected by server: ${msg.reason ?? 'unknown reason'}`);
+      const txt = `Run rejected by server: ${msg.reason ?? 'unknown reason'}`;
+      updateStatus(txt);
+      showFinishOverlay(txt);
       ws.close(1000, 'run rejected');
     }
   });
@@ -207,10 +219,40 @@ function updateStatus(msg) {
   if (el) el.textContent = msg;
 }
 
+// Show the pointer-lock overlay with a finish message + replay button
+function showFinishOverlay(msg) {
+  const hint = document.getElementById('overlay-hint-primary');
+  if (hint) hint.textContent = msg;
+  const btnReplay = document.getElementById('btn-replay');
+  if (btnReplay) btnReplay.style.display = 'inline-block';
+}
+
+// Reset overlay back to "click to start" state
+function resetOverlay() {
+  const hint = document.getElementById('overlay-hint-primary');
+  if (hint) hint.textContent = 'Click to capture mouse and start';
+  const btnReplay = document.getElementById('btn-replay');
+  if (btnReplay) btnReplay.style.display = 'none';
+}
+
 // -------------------------------------------------------------------------
-// Main init
+// Full-screen game activation helper
+// -------------------------------------------------------------------------
+function activateGameSection() {
+  const authScreen  = document.getElementById('auth-screen');
+  const gameSection = document.getElementById('game-section');
+  if (authScreen)  authScreen.classList.add('hidden');
+  if (gameSection) gameSection.classList.remove('hidden');
+  document.body.classList.add('game-active');
+}
+
+// -------------------------------------------------------------------------
+// Main init — supports both solo (matchId=null) and competitive runs
 // -------------------------------------------------------------------------
 export async function initGame(matchId) {
+  // Ensure full-screen game section is visible
+  activateGameSection();
+
   const canvas  = document.getElementById('game-canvas');
   const overlay = document.getElementById('game-overlay');
 
@@ -256,7 +298,7 @@ export async function initGame(matchId) {
 
   // Build checkpoint markers
   const cpMarkers = [];
-  const cpState   = (level.checkpoints ?? []).map(() => false);
+  let   cpState   = (level.checkpoints ?? []).map(() => false);
   let   nextCpIdx = 0;
   for (const cp of level.checkpoints ?? []) {
     const m = buildCheckpointMarker(cp);
@@ -295,6 +337,10 @@ export async function initGame(matchId) {
     if (k === 'KeyA' || k === 'ArrowLeft')  keys.a = true;
     if (k === 'KeyD' || k === 'ArrowRight') keys.d = true;
     if (k === 'Space') { e.preventDefault(); keys.space = true; }
+    // R key: replay (when run is finished and pointer is not locked)
+    if (k === 'KeyR' && _runFinished && !controls.isLocked) {
+      resetRun();
+    }
   });
   document.addEventListener('keyup', (e) => {
     const k = e.code;
@@ -305,9 +351,9 @@ export async function initGame(matchId) {
     if (k === 'Space') keys.space = false;
   });
 
-  // Lock on canvas click
+  // Lock on canvas click — always re-enabled after finish (replay support)
   canvas.addEventListener('click', () => {
-    if (!_runFinished) controls.lock();
+    controls.lock();
   });
 
   controls.addEventListener('lock',   () => { if (overlay) overlay.classList.add('hidden'); });
@@ -316,11 +362,66 @@ export async function initGame(matchId) {
   // Position camera
   camera.position.copy(playerPos);
 
-  // Run state
+  // Run state — module-level vars reset per run
   _runStartMs  = 0;
   _checkpoints = [];
   _runFinished = false;
   let runStarted = false;
+
+  // Track the current matchId so replay can fall back to solo
+  let _currentMatchId = matchId;
+
+  // -------------------------------------------------------------------------
+  // Reset run — clears state, re-enables pointer lock, resets checkpoints
+  // -------------------------------------------------------------------------
+  function resetRun() {
+    // After a match run, subsequent replays are always solo practice
+    _currentMatchId = null;
+
+    _runStartMs  = 0;
+    _checkpoints = [];
+    _runFinished = false;
+    runStarted   = false;
+
+    // Reset checkpoint markers to un-collected state
+    for (let i = 0; i < cpMarkers.length; i++) {
+      const origCp = (level.checkpoints ?? [])[i];
+      if (origCp) {
+        cpMarkers[i].material.color.set(origCp.color);
+        cpMarkers[i].material.opacity = 0.8;
+      }
+      cpState[i] = false;
+    }
+    nextCpIdx = 0;
+
+    // Respawn player
+    playerPos.set(spawn.x, spawn.y, spawn.z);
+    velocity.set(0, 0, 0);
+    camera.position.copy(playerPos);
+
+    // Reset overlay and re-enable pointer lock
+    resetOverlay();
+    updateStatus('Click the game canvas to lock pointer and start. WASD to move, Space to jump.');
+  }
+
+  // Wire replay button
+  const btnReplay = document.getElementById('btn-replay');
+  if (btnReplay) {
+    btnReplay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resetRun();
+    });
+  }
+
+  // Multiplayer toggle wiring (panel is inside game-section)
+  const btnMpToggle = document.getElementById('btn-multiplayer-toggle');
+  const mpPanel     = document.getElementById('multiplayer-panel');
+  if (btnMpToggle && mpPanel) {
+    btnMpToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      mpPanel.classList.toggle('hidden');
+    });
+  }
 
   // Game loop
   const clock = new THREE.Clock();
@@ -417,7 +518,7 @@ export async function initGame(matchId) {
         const secs     = (totalMs / 1000).toFixed(2);
         controls.unlock();
         updateStatus(`Finish! Time: ${secs}s — submitting run-summary…`);
-        submitRunSummary(matchId, finishMs);
+        submitRunSummary(_currentMatchId, finishMs);
       }
 
       camera.position.copy(playerPos);
@@ -440,7 +541,7 @@ export async function initGame(matchId) {
 // -------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
   const btnGuest    = document.getElementById('btn-guest');
-  const authScreen  = document.getElementById('auth-screen');   // Bug A fix: hide the whole screen
+  const authScreen  = document.getElementById('auth-screen');
   const gameSection = document.getElementById('game-section');
   const authError   = document.getElementById('auth-error');
 
@@ -452,26 +553,21 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await guestSignIn();
 
-      // Bug A fix: hide #auth-screen (the full overlay), not just #auth-panel.
-      // Hiding only #auth-panel left the screen background visible, blocking the canvas.
-      if (authScreen) authScreen.classList.add('hidden');
-      if (gameSection) gameSection.classList.remove('hidden');
+      // Show game section full-screen immediately (solo practice run)
+      activateGameSection();
 
-      // Trigger lobby flow after sign-in (lobby.js hooks into lobby panel buttons).
-      // lobby.js fires initLobbyControls() which will call window.startGame(sessionId)
-      // when a match is formed. The match-id-input bypass for direct WS testing is
-      // handled inside lobby.js (it checks the field on Create/Join).
+      // Wire lobby controls so the multiplayer panel in game-section works.
+      // Pass in-game element IDs to lobby.js (it will use the -mp suffixed IDs).
       if (typeof window.initLobbyControls === 'function') {
-        window.initLobbyControls(() => _accessToken);
+        window.initLobbyControls(() => _accessToken, true /* inGameMode */);
       }
 
       // Direct match-id bypass: if a UUID is typed in the test input, start immediately.
       const matchIdEl = document.getElementById('match-id-input');
       const matchId   = matchIdEl?.value?.trim() || null;
-      if (matchId) {
-        await initGame(matchId);
-      }
-      // Otherwise game starts when lobby.js resolves the match and calls window.startGame().
+
+      // Start solo practice run immediately (matchId=null), unless a direct UUID provided.
+      await initGame(matchId);
     } catch (err) {
       authError.textContent = err.message ?? 'Guest sign-in failed.';
       btnGuest.disabled = false;
@@ -479,5 +575,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Expose initGame as window.startGame so lobby.js can call it after match is found.
-  window.startGame = initGame;
+  // When startGame is called from lobby (competitive match), we also ensure the game
+  // section is visible (may already be from solo, but be safe).
+  window.startGame = async (sessionId) => {
+    activateGameSection();
+    await initGame(sessionId);
+  };
 });
+
+// Expose activateGameSection for external callers (lobby.js competitive flow)
+window._activateGameSection = function () {
+  const authScreen  = document.getElementById('auth-screen');
+  const gameSection = document.getElementById('game-section');
+  if (authScreen)  authScreen.classList.add('hidden');
+  if (gameSection) gameSection.classList.remove('hidden');
+  document.body.classList.add('game-active');
+};

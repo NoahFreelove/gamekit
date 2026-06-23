@@ -228,7 +228,7 @@ Plans:
 
 **Goal**: A single, loadable container image showcases GameKit end-to-end — someone runs the image and immediately plays a 3D multiplayer game in their web browser. The image is the GameKit-enabled admin server bundled with a *fully customized* example GameKit integration (not the bare sample), proving the library's composability and self-host story in one artifact.
 **Depends on**: Phase 20 (final v2.1 capstone — runs against the complete, audited, documented package surface)
-**Requirements**: TBD (define during /gsd-spec-phase 21 — promoted from Backlog Phase 999.1)
+**Requirements**: R1–R11 (locked in 21-SPEC.md, ambiguity 0.14)
 **Success Criteria** (what must be TRUE):
 
   1. **Single loadable image**: a user can obtain one image (`docker load` from a published tarball, or `docker run`/`docker compose up` against a single published image) and reach a playable game with zero manual config beyond starting the container — Postgres + Redis either embedded or brought up by the same compose file
@@ -244,7 +244,15 @@ Plans:
   - GPL compatibility of any bundled engine/runtime bits must be checked before vendoring (per project license constraint).
   - Likely the v2.1 capstone; could alternatively be split into its own demo milestone if scope (real 3D game + game server + secure auth + image packaging) proves too large for one phase — decide at /gsd-spec-phase / /gsd-discuss-phase 21.
 
-**Plans**: TBD (run /gsd-spec-phase 21 then /gsd-plan-phase 21 to break down)
+**Plans**: 6 plans
+
+Plans:
+- [ ] 21-01-PLAN.md — Foundation: two sample project shells + two test projects + Testcontainers fixture + reuse CLI + sln wiring (R1)
+- [ ] 21-02-PLAN.md — Custom IMatchmakingStrategy (best-time) + custom IRankingAlgorithm (fixed-delta, D-09 amended) + unit tests (R5, R6)
+- [ ] 21-03-PLAN.md — three.js browser client (vendored, no CDN) + guest onboarding + level + REUSE/notices (R2, R8, R11)
+- [ ] 21-04-PLAN.md — Host composition (custom seams resolved, admin, WebSocket) + embedded GameServer IHostedService + run-summary validation (R4, R5, R6, R7, R8, R9)
+- [ ] 21-05-PLAN.md — Multi-stage Dockerfile + single compose (only app port) + offline docker save tarball (R3, R11)
+- [ ] 21-06-PLAN.md — Integration/smoke: resolution, guest, player-JWT-401/403, idempotency, lobby→1v1+abort, full-loop+concurrent, compose-port, human-verify (R5, R7, R8, R9, R10)
 **UI hint**: yes
 
 ## Progress

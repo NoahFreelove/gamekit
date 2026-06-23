@@ -30,9 +30,20 @@ export const RECORD_SEP = String.fromCharCode(0x1e);
 /**
  * Negotiate a SignalR connection.
  *
- * Performs an HTTP POST to `<baseUrl>/hubs/lobby/negotiate?negotiateVersion=1&access_token=<jwt>`.
+ * Performs an HTTP POST to `<baseUrl>/hubs/lobby/negotiate?negotiateVersion=1`.
  * The `?negotiateVersion=1` query param is REQUIRED for ASP.NET Core SignalR 8+ — omitting it
  * causes a 400 or malformed negotiate response (see 19-RESEARCH.md Pitfall §5).
+ *
+ * WR-02 fix: the JWT is sent in the `Authorization: Bearer` header rather than as an
+ * `access_token` query parameter.  Query parameters are logged verbatim by every layer
+ * (server access logs, reverse proxies, k6 summary artifacts) and can expose the token in
+ * CI upload artifacts.  The negotiate POST is a plain HTTP request and supports headers;
+ * using the header keeps the token out of URLs and logs.
+ *
+ * NOTE on the WebSocket URL: the `access_token` query parameter IS kept in the WebSocket
+ * upgrade URL (see connectSignalR below) because the WebSocket upgrade HTTP request cannot
+ * carry custom headers — ASP.NET Core SignalR requires this for WS auth and it is the
+ * documented protocol.  This is an unavoidable protocol constraint, not a choice.
  *
  * @param {string} baseUrl - HTTP base URL of the target host (e.g. "http://localhost:5000").
  * @param {string} jwt     - Bearer JWT (short-lived; from LOCAL stack; never production).
@@ -42,9 +53,13 @@ export const RECORD_SEP = String.fromCharCode(0x1e);
  */
 export function negotiateSignalR(baseUrl, jwt, hubPath) {
   hubPath = hubPath || '/hubs/lobby';
-  const url = `${baseUrl}${hubPath}/negotiate?negotiateVersion=1&access_token=${jwt}`;
+  // negotiateVersion=1 only — JWT goes in the Authorization header, not the URL.
+  const url = `${baseUrl}${hubPath}/negotiate?negotiateVersion=1`;
   const res = http.post(url, null, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${jwt}`,
+    },
   });
   if (res.status !== 200) {
     throw new Error(`SignalR negotiate failed: HTTP ${res.status} from ${url} — body: ${res.body}`);
@@ -80,6 +95,11 @@ export function negotiateSignalR(baseUrl, jwt, hubPath) {
  */
 export function connectSignalR(wsUrl, jwt, connectionToken, onMessage, hubPath) {
   hubPath = hubPath || '/hubs/lobby';
+  // The access_token query parameter is required here: the WebSocket upgrade HTTP request
+  // cannot carry custom headers (browsers and the WebSocket protocol do not allow it), so
+  // ASP.NET Core SignalR accepts the bearer token via this query param for WS connections.
+  // This is documented SignalR behaviour and is NOT the same issue as WR-02 (negotiate POST),
+  // where headers ARE available and the token no longer appears in the URL.
   const fullUrl = `${wsUrl}${hubPath}?id=${connectionToken}&access_token=${jwt}`;
 
   const ws = new WebSocket(fullUrl);

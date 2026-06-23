@@ -21,7 +21,15 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Core is always required. Auth/Matchmaking/Lobby/Rankings are added so the
+         GdprDeleteCoverageTests (SEC-04) can register all IModelBuilderExtension +
+         IGdprDeleteExtension implementations and apply all package migrations against
+         a fresh Testcontainers Postgres, seeding rows across every FK table. -->
     <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Lobby\GameKit.Lobby.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
     <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
   </ItemGroup>
 </Project>

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Reflection;
@@ -27,7 +28,7 @@ public class GdprDeleteServiceTests
         var ids = new Mock<IIdGenerator>();
         ids.Setup(i => i.NewId()).Returns(Guid.NewGuid());
 
-        var svc = new GdprDeleteService(ctx, clock.Object, ids.Object);
+        var svc = new GdprDeleteService(ctx, clock.Object, ids.Object, Array.Empty<IGdprDeleteExtension>());
 
         await Assert.ThrowsAsync<PlayerNotFoundException>(
             () => svc.DeletePlayerAsync(Guid.NewGuid(), null, "test", CancellationToken.None));
@@ -87,7 +88,7 @@ public class GdprDeleteServiceTests
         var ids = new Mock<IIdGenerator>();
         ids.Setup(i => i.NewId()).Returns(auditId);
 
-        var svc = new GdprDeleteService(ctx, clock.Object, ids.Object);
+        var svc = new GdprDeleteService(ctx, clock.Object, ids.Object, Array.Empty<IGdprDeleteExtension>());
 
         // ExecuteDeleteAsync throws InvalidOperationException on InMemory.
         // The audit row is written BEFORE ExecuteDeleteAsync, so it should exist
@@ -131,7 +132,7 @@ public class GdprDeleteServiceTests
         var ids = new Mock<IIdGenerator>();
         ids.Setup(i => i.NewId()).Returns(Guid.NewGuid());
 
-        var svc = new GdprDeleteService(ctx, clock.Object, ids.Object);
+        var svc = new GdprDeleteService(ctx, clock.Object, ids.Object, Array.Empty<IGdprDeleteExtension>());
 
         try
         {

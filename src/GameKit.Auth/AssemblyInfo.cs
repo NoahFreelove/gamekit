@@ -39,6 +39,10 @@ using System.Runtime.CompilerServices;
 // etc.) and AuthMigrationModelCustomizer are needed by the test-local runtime query customizer
 // to build a hybrid host that exercises the full four-package merge service code path.
 [assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]
+// Plan 21-06: Platformer3D integration tests compose the full five-package stack in one
+// PlatformerTestApp runtime host. The runtime DbContext customizer applies
+// AuthModelBuilderExtension directly. Mirrors Presence + OpenApi grants above.
+[assembly: InternalsVisibleTo("GameKit.Platformer3D.Integration.Tests")]
 
 namespace GameKit.Auth;
 

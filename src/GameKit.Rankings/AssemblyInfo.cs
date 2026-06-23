@@ -44,3 +44,7 @@ using System.Runtime.CompilerServices;
 // Core+Auth+Admin+Rankings test host and prove SC#3: IRankAdjustService.AdjustAsync
 // writes an admin_audit_log row with action "admin.player.rank_adjust".
 [assembly: InternalsVisibleTo("GameKit.Admin.Integration.Tests")]
+// Plan 21-06: Platformer3D integration tests compose the full five-package stack and apply
+// RankingsModelBuilderExtension in PlatformerTestModelCustomizer. Mirrors the
+// Matchmaking.Integration.Tests + Lobby.Integration.Tests grants above.
+[assembly: InternalsVisibleTo("GameKit.Platformer3D.Integration.Tests")]

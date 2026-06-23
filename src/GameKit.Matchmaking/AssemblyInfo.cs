@@ -27,3 +27,7 @@ using System.Runtime.CompilerServices;
 // MatchmakingModelBuilderExtension directly so the runtime DbContext sees matchmaking entities
 // (parties, matchmaking_tickets, etc.) needed for the two-TestServer integration harness.
 [assembly: InternalsVisibleTo("GameKit.Lobby.Integration.Tests")]
+// Plan 21-06: Platformer3D integration tests apply MatchmakingModelBuilderExtension in
+// PlatformerTestModelCustomizer to build the full five-package runtime DbContext.
+// Mirrors the Matchmaking.Integration.Tests + Lobby.Integration.Tests grants above.
+[assembly: InternalsVisibleTo("GameKit.Platformer3D.Integration.Tests")]

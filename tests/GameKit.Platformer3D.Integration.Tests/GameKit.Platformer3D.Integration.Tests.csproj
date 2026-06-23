@@ -17,6 +17,8 @@
     <PackageReference Include="Npgsql" />
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <!-- SignalR test client for HubConnectionBuilder (Lobby / LobbyToMatch tests) -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
     <PackageReference Include="Testcontainers.PostgreSql" />
     <PackageReference Include="Testcontainers.Redis" />
   </ItemGroup>

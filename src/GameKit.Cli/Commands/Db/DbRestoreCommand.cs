@@ -62,7 +62,9 @@ internal sealed class DbRestoreCommand : AsyncCommand<DbRestoreCommand.Settings>
 
     /// <summary>
     /// Builds <see cref="ProcessStartInfo"/> for <c>pg_restore</c> from parsed connection-string components.
-    /// This internal method is a seam for unit testing.
+    /// This internal method is a seam for unit testing: callers can assert that
+    /// <c>PGPASSWORD</c> is in <see cref="ProcessStartInfo.Environment"/> and absent from
+    /// <see cref="ProcessStartInfo.ArgumentList"/> without running the binary.
     /// </summary>
     internal static ProcessStartInfo BuildPgRestoreStartInfo(
         string host, int port, string database, string username, string? password, string filePath)
@@ -70,13 +72,22 @@ internal sealed class DbRestoreCommand : AsyncCommand<DbRestoreCommand.Settings>
         var psi = new ProcessStartInfo
         {
             FileName = "pg_restore",
-            // Password intentionally OMITTED from arguments (T-17-04-02)
-            Arguments = $"--host={host} --port={port} --username={username} " +
-                        $"--dbname={database} --no-owner --no-privileges {filePath}",
+            // Password intentionally OMITTED from arguments (T-17-04-02).
+            // ArgumentList is used instead of Arguments so paths containing spaces are
+            // passed verbatim to the child process without shell word-splitting (WR-01).
             RedirectStandardError = true,
             RedirectStandardOutput = false,
             UseShellExecute = false,
         };
+
+        // Each flag/value is added as a separate entry — no quoting or escaping required.
+        psi.ArgumentList.Add($"--host={host}");
+        psi.ArgumentList.Add($"--port={port}");
+        psi.ArgumentList.Add($"--username={username}");
+        psi.ArgumentList.Add($"--dbname={database}");
+        psi.ArgumentList.Add("--no-owner");
+        psi.ArgumentList.Add("--no-privileges");
+        psi.ArgumentList.Add(filePath);
 
         // T-17-04-02 mitigation: pass password via environment variable, not CLI arg
         if (!string.IsNullOrEmpty(password))

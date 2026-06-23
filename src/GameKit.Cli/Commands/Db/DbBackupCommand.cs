@@ -61,7 +61,7 @@ internal sealed class DbBackupCommand : AsyncCommand<DbBackupCommand.Settings>
     /// Builds <see cref="ProcessStartInfo"/> for <c>pg_dump</c> from parsed connection-string components.
     /// This internal method is a seam for unit testing: callers can assert that
     /// <c>PGPASSWORD</c> is in <see cref="ProcessStartInfo.Environment"/> and absent from
-    /// <see cref="ProcessStartInfo.Arguments"/> without running the binary.
+    /// <see cref="ProcessStartInfo.ArgumentList"/> without running the binary.
     /// </summary>
     /// <param name="host">Postgres host.</param>
     /// <param name="port">Postgres port.</param>
@@ -76,13 +76,21 @@ internal sealed class DbBackupCommand : AsyncCommand<DbBackupCommand.Settings>
         var psi = new ProcessStartInfo
         {
             FileName = "pg_dump",
-            // Password intentionally OMITTED from arguments (T-17-04-02)
-            Arguments = $"--host={host} --port={port} --username={username} " +
-                        $"--format=custom --file={outputPath} {database}",
+            // Password intentionally OMITTED from arguments (T-17-04-02).
+            // ArgumentList is used instead of Arguments so paths containing spaces are
+            // passed verbatim to the child process without shell word-splitting (WR-01).
             RedirectStandardError = true,
             RedirectStandardOutput = false,
             UseShellExecute = false,
         };
+
+        // Each flag/value is added as a separate entry — no quoting or escaping required.
+        psi.ArgumentList.Add($"--host={host}");
+        psi.ArgumentList.Add($"--port={port}");
+        psi.ArgumentList.Add($"--username={username}");
+        psi.ArgumentList.Add("--format=custom");
+        psi.ArgumentList.Add($"--file={outputPath}");
+        psi.ArgumentList.Add(database);
 
         // T-17-04-02 mitigation: pass password via environment variable, not CLI arg
         if (!string.IsNullOrEmpty(password))
@@ -190,11 +198,18 @@ internal sealed class DbBackupCommand : AsyncCommand<DbBackupCommand.Settings>
         try
         {
             await using var mux = await ConnectionMultiplexer.ConnectAsync(redisConnection).ConfigureAwait(false);
+
+            // WR-03: track whether at least one primary (non-replica) endpoint was found.
+            // If none is found the BGSAVE never ran and returning 0 would mislead the operator
+            // into believing a snapshot was taken (data-loss risk in a DR context).
+            var primaryFound = false;
+
             foreach (var endPoint in mux.GetEndPoints())
             {
                 var server = mux.GetServer(endPoint);
                 if (!server.IsReplica)
                 {
+                    primaryFound = true;
                     await server.SaveAsync(SaveType.BackgroundSave).ConfigureAwait(false);
                     var dirConfig = await server.ConfigGetAsync("dir").ConfigureAwait(false);
                     var rdbDir = dirConfig?.Length > 0 ? dirConfig[0].Value : "(unknown)";
@@ -207,6 +222,15 @@ internal sealed class DbBackupCommand : AsyncCommand<DbBackupCommand.Settings>
                         "Copy it manually to your backup destination. " +
                         "See docs/runbooks/redis-backup-restore.md for the full procedure.");
                 }
+            }
+
+            if (!primaryFound)
+            {
+                AnsiConsole.MarkupLine(
+                    "[red]ERROR:[/] No writable (primary) Redis endpoint found. " +
+                    "All endpoints are replicas or the endpoint list is empty — BGSAVE was NOT issued. " +
+                    "Ensure the connection string targets a primary Redis node.");
+                return 1;
             }
         }
         catch (Exception ex)

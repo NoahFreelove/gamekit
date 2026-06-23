@@ -79,9 +79,9 @@ public class DbBackupCommandTests
     // ─── DbBackupCommand.BuildPgDumpStartInfo (internal seam) ──────────────
 
     [Fact]
-    public void BuildPgDumpStartInfo_PGPASSWORD_IsInEnvironment_NotInArguments()
+    public void BuildPgDumpStartInfo_PGPASSWORD_IsInEnvironment_NotInArgumentList()
     {
-        // T-17-04-02: PGPASSWORD must be in Environment, never in Arguments
+        // T-17-04-02: PGPASSWORD must be in Environment, never in ArgumentList (WR-01)
         const string secret = "s3cr3t!";
         var psi = DbBackupCommand.BuildPgDumpStartInfo(
             host: "db.example.com",
@@ -97,10 +97,12 @@ public class DbBackupCommandTests
             "PGPASSWORD must be set in ProcessStartInfo.Environment (T-17-04-02).");
         Assert.Equal(secret, psi.Environment["PGPASSWORD"]);
 
-        // PGPASSWORD must NOT appear anywhere in the arguments string
-        Assert.DoesNotContain(secret, psi.Arguments);
-        Assert.DoesNotContain("PGPASSWORD", psi.Arguments,
-            StringComparison.OrdinalIgnoreCase);
+        // PGPASSWORD must NOT appear in any argument list entry
+        foreach (var arg in psi.ArgumentList)
+        {
+            Assert.DoesNotContain(secret, arg);
+            Assert.DoesNotContain("PGPASSWORD", arg, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
@@ -120,8 +122,9 @@ public class DbBackupCommandTests
     }
 
     [Fact]
-    public void BuildPgDumpStartInfo_ArgumentsContainExpectedFlags()
+    public void BuildPgDumpStartInfo_ArgumentListContainsExpectedFlags()
     {
+        // WR-01: uses ArgumentList so paths with spaces survive verbatim
         var psi = DbBackupCommand.BuildPgDumpStartInfo(
             host: "pghost",
             port: 5433,
@@ -131,23 +134,43 @@ public class DbBackupCommandTests
             outputPath: "/backups/out.pgdump");
 
         Assert.Equal("pg_dump", psi.FileName);
-        Assert.Contains("--host=pghost",      psi.Arguments);
-        Assert.Contains("--port=5433",        psi.Arguments);
-        Assert.Contains("--username=owner",   psi.Arguments);
-        Assert.Contains("--format=custom",    psi.Arguments);
-        Assert.Contains("--file=/backups/out.pgdump", psi.Arguments);
-        Assert.Contains("gamekit_db",         psi.Arguments);
+        Assert.Contains("--host=pghost",              psi.ArgumentList);
+        Assert.Contains("--port=5433",                psi.ArgumentList);
+        Assert.Contains("--username=owner",           psi.ArgumentList);
+        Assert.Contains("--format=custom",            psi.ArgumentList);
+        Assert.Contains("--file=/backups/out.pgdump", psi.ArgumentList);
+        Assert.Contains("gamekit_db",                 psi.ArgumentList);
 
         // Shell execute must be false so redirection works and PGPASSWORD doesn't leak
         Assert.False(psi.UseShellExecute);
+
+        // Arguments string must remain empty — only ArgumentList is populated (WR-01)
+        Assert.True(string.IsNullOrEmpty(psi.Arguments),
+            "Arguments string must be empty when ArgumentList is used.");
+    }
+
+    [Fact]
+    public void BuildPgDumpStartInfo_PathWithSpaces_SurvivesVerbatimInArgumentList()
+    {
+        // WR-01 regression: a path containing spaces must appear as a single entry, not split
+        const string spaceyPath = "/srv/my backups/game db.pgdump";
+        var psi = DbBackupCommand.BuildPgDumpStartInfo(
+            host: "localhost",
+            port: 5432,
+            database: "gamekit",
+            username: "postgres",
+            password: null,
+            outputPath: spaceyPath);
+
+        Assert.Contains($"--file={spaceyPath}", psi.ArgumentList);
     }
 
     // ─── DbRestoreCommand.BuildPgRestoreStartInfo (internal seam) ──────────
 
     [Fact]
-    public void BuildPgRestoreStartInfo_PGPASSWORD_IsInEnvironment_NotInArguments()
+    public void BuildPgRestoreStartInfo_PGPASSWORD_IsInEnvironment_NotInArgumentList()
     {
-        // T-17-04-02 applies to restore as well
+        // T-17-04-02 applies to restore as well (WR-01)
         const string secret = "r3st0r3pw!";
         var psi = DbRestoreCommand.BuildPgRestoreStartInfo(
             host: "db.example.com",
@@ -162,14 +185,17 @@ public class DbBackupCommandTests
             "PGPASSWORD must be set in ProcessStartInfo.Environment for pg_restore (T-17-04-02).");
         Assert.Equal(secret, psi.Environment["PGPASSWORD"]);
 
-        Assert.DoesNotContain(secret, psi.Arguments);
-        Assert.DoesNotContain("PGPASSWORD", psi.Arguments,
-            StringComparison.OrdinalIgnoreCase);
+        foreach (var arg in psi.ArgumentList)
+        {
+            Assert.DoesNotContain(secret, arg);
+            Assert.DoesNotContain("PGPASSWORD", arg, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
-    public void BuildPgRestoreStartInfo_ArgumentsContainExpectedFlags()
+    public void BuildPgRestoreStartInfo_ArgumentListContainsExpectedFlags()
     {
+        // WR-01: uses ArgumentList so paths with spaces survive verbatim
         var psi = DbRestoreCommand.BuildPgRestoreStartInfo(
             host: "pghost",
             port: 5433,
@@ -179,13 +205,33 @@ public class DbBackupCommandTests
             filePath: "/backups/restore.pgdump");
 
         Assert.Equal("pg_restore", psi.FileName);
-        Assert.Contains("--host=pghost",            psi.Arguments);
-        Assert.Contains("--port=5433",              psi.Arguments);
-        Assert.Contains("--username=owner",         psi.Arguments);
-        Assert.Contains("--dbname=target_db",       psi.Arguments);
-        Assert.Contains("--no-owner",               psi.Arguments);
-        Assert.Contains("--no-privileges",          psi.Arguments);
-        Assert.Contains("/backups/restore.pgdump",  psi.Arguments);
+        Assert.Contains("--host=pghost",           psi.ArgumentList);
+        Assert.Contains("--port=5433",             psi.ArgumentList);
+        Assert.Contains("--username=owner",        psi.ArgumentList);
+        Assert.Contains("--dbname=target_db",      psi.ArgumentList);
+        Assert.Contains("--no-owner",              psi.ArgumentList);
+        Assert.Contains("--no-privileges",         psi.ArgumentList);
+        Assert.Contains("/backups/restore.pgdump", psi.ArgumentList);
         Assert.False(psi.UseShellExecute);
+
+        // Arguments string must remain empty — only ArgumentList is populated (WR-01)
+        Assert.True(string.IsNullOrEmpty(psi.Arguments),
+            "Arguments string must be empty when ArgumentList is used.");
+    }
+
+    [Fact]
+    public void BuildPgRestoreStartInfo_PathWithSpaces_SurvivesVerbatimInArgumentList()
+    {
+        // WR-01 regression: a file path containing spaces must appear as a single argument entry
+        const string spaceyPath = "/srv/my backups/restore file.pgdump";
+        var psi = DbRestoreCommand.BuildPgRestoreStartInfo(
+            host: "localhost",
+            port: 5432,
+            database: "target_db",
+            username: "postgres",
+            password: null,
+            filePath: spaceyPath);
+
+        Assert.Contains(spaceyPath, psi.ArgumentList);
     }
 }

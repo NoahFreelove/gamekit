@@ -1,3 +1,4 @@
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -29,16 +30,10 @@ namespace GameKit.Auth.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<string>(
-                name: "PasswordHash",
-                schema: "gamekit",
-                table: "player_credentials",
-                type: "character varying(72)",
-                maxLength: 72,
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "character varying(512)",
-                oldMaxLength: 512);
+            // DR-04: Destructive rollback is not supported. Restore from backup — see docs/runbooks/postgres-backup-restore.md.
+            throw new NotSupportedException(
+                "Migration rollback via Down() is disabled in GameKit. Restore from a Postgres backup instead. " +
+                "See docs/runbooks/postgres-backup-restore.md.");
         }
     }
 }

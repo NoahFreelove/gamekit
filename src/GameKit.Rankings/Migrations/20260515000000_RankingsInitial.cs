@@ -301,36 +301,10 @@ namespace GameKit.Rankings.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // Drop cross-package FK before dropping the ladders table.
-            migrationBuilder.Sql(@"ALTER TABLE gamekit.game_sessions DROP CONSTRAINT IF EXISTS fk_game_sessions_ladders;");
-
-            migrationBuilder.DropTable(
-                name: "season_rank_archive",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "session_complete_idempotency",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "player_ranks",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "pending_rating_updates",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "ladder_seasons",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "service_tokens",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "ladders",
-                schema: "gamekit");
+            // DR-04: Destructive rollback is not supported. Restore from backup — see docs/runbooks/postgres-backup-restore.md.
+            throw new NotSupportedException(
+                "Migration rollback via Down() is disabled in GameKit. Restore from a Postgres backup instead. " +
+                "See docs/runbooks/postgres-backup-restore.md.");
         }
     }
 }

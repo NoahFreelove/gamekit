@@ -152,21 +152,10 @@ namespace GameKit.Core.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "admin_audit_log",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "session_participants",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "game_sessions",
-                schema: "gamekit");
-
-            migrationBuilder.DropTable(
-                name: "players",
-                schema: "gamekit");
+            // DR-04: Destructive rollback is not supported. Restore from backup — see docs/runbooks/postgres-backup-restore.md.
+            throw new NotSupportedException(
+                "Migration rollback via Down() is disabled in GameKit. Restore from a Postgres backup instead. " +
+                "See docs/runbooks/postgres-backup-restore.md.");
         }
     }
 }

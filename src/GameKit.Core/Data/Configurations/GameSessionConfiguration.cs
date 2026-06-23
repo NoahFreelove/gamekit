@@ -32,6 +32,15 @@ internal sealed class GameSessionConfiguration : IEntityTypeConfiguration<GameSe
         b.Property(s => s.CompletedAt);
         b.Property(s => s.Metadata).HasColumnType("jsonb");
 
+        // SCALE-03: idempotency key set at match-formation to the proposal id.
+        // A partial unique index (WHERE "IdempotencyKey" IS NOT NULL) prevents split-brain
+        // duplicate rows while allowing null for non-matchmaking sessions.
+        b.Property(s => s.IdempotencyKey).HasMaxLength(128);
+        b.HasIndex(s => s.IdempotencyKey)
+            .IsUnique()
+            .HasDatabaseName("uq_game_sessions_idempotency_key")
+            .HasFilter("\"IdempotencyKey\" IS NOT NULL");
+
         // Useful for admin match history + leaderboard recency queries.
         b.HasIndex(s => s.CreatedAt);
         b.HasIndex(s => new { s.LadderId, s.CreatedAt });

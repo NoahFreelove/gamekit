@@ -33,6 +33,14 @@ public sealed class GameSession
     /// <summary>Sparse JSONB metadata per CORE-17 constraints. Do not query on it.</summary>
     public JsonDocument? Metadata { get; set; }
 
+    /// <summary>
+    /// Idempotency key set at match-formation time to the proposal id (SCALE-03).
+    /// A partial unique index on this column prevents duplicate <c>game_sessions</c> rows
+    /// when split-brain replicas both attempt to create the same session.
+    /// Null for sessions created outside the matchmaking path (manual API calls).
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
     /// <summary>Transition from <see cref="GameSessionState.Pending"/> to <see cref="GameSessionState.Active"/>.</summary>
     /// <param name="now">Authoritative UTC clock reading (typically from <c>IClock</c>).</param>
     /// <exception cref="InvalidGameSessionTransitionException">Thrown when the current state is not <see cref="GameSessionState.Pending"/>.</exception>

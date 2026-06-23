@@ -49,6 +49,10 @@ GameKit's Postgres schema is `gamekit`. FK direction discipline: **only `public`
 | `gamekit_app` | Runtime DML — GameKit HTTP API backend |
 | `gamekit_reader` | Game server reads — SELECT-only on `gamekit.*` |
 
+## Getting Started
+
+New to GameKit? Follow the **[15-minute getting-started tutorial](docs/tutorial/getting-started.md)**: `dotnet new gamekit` → docker-compose up → first authenticated player + first completed match against the TicTacToeDuel sample, with zero cloud credentials.
+
 ## Quick Start
 
 ```bash

@@ -102,6 +102,41 @@ public sealed class GracefulDrainTests : IAsyncLifetime
         foreach (var pid in playerIds)
             _app.EnsurePlayerRow(pid);
 
+        // --- Pre-stop: confirm the ticker actually held the lock -----------------
+        // The "lock absent after stop" assertion (Assert 2 below) is vacuous if the
+        // ticker never acquired the lock before shutdown (e.g. host stopped before the
+        // 500 ms first-tick delay elapsed). To make the assertion non-vacuous, we poll
+        // Redis until the matcher lock key is present, confirming the ticker ran at
+        // least one tick and genuinely held the lock. Then we stop the host — the
+        // subsequent absence of the key proves proactive release via CancellationToken.None,
+        // not just "the lock was never held".
+        await using var pollMux = await ConnectionMultiplexer.ConnectAsync(_redis.ConnectionString);
+        var pollDb = pollMux.GetDatabase();
+
+        const int lockPollTimeoutMs = 10_000; // 10 s: well above the 500 ms first-tick delay
+        const int lockPollIntervalMs = 50;
+        var lockHeld = false;
+        var pollSw = System.Diagnostics.Stopwatch.StartNew();
+
+        while (pollSw.ElapsedMilliseconds < lockPollTimeoutMs)
+        {
+            var lockVal = await pollDb.StringGetAsync(_app.MatcherLockKey);
+            if (!lockVal.IsNullOrEmpty)
+            {
+                lockHeld = true;
+                break;
+            }
+            await Task.Delay(lockPollIntervalMs);
+        }
+
+        Assert.True(lockHeld,
+            $"SCALE-05 PRECONDITION FAIL: the matchmaker ticker never acquired the leader lock " +
+            $"(key '{_app.MatcherLockKey}' remained absent for {lockPollTimeoutMs} ms). " +
+            "Cannot meaningfully assert lock absence after stop — the stop-without-lock scenario " +
+            "proves nothing about the CancellationToken.None release fix (SCALE-02). " +
+            "Check that the ticker background service started and that the first-tick delay is " +
+            "shorter than the poll timeout.");
+
         // --- Act: kick off 100 concurrent requests, then stop the host ----------
         // Build all tasks WITHOUT awaiting — they start immediately. Use the shared
         // _app.Client (thread-safe HttpClient) rather than creating 100 clients to

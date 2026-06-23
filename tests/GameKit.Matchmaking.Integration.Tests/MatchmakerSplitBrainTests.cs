@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using GameKit.Matchmaking;
 using GameKit.Matchmaking.Integration.Tests.TestDoubles;
 using GameKit.Matchmaking.Redis;
 using GameKit.Matchmaking.Services;
@@ -71,6 +72,12 @@ public sealed class MatchmakerSplitBrainTests : IAsyncLifetime
         //
         // AppA gets a DelayingChaosInterceptor on BeforeLuaClaim so its ticker pauses for
         // 3 000 ms > 2 s TTL, allowing AppB to acquire the leader lease and form the match.
+        //
+        // IMPORTANT: both apps set TickIntervalMs to a very long value (1 hour) so the
+        // background PeriodicTimer never fires spontaneously during the test. The test
+        // drives explicit RunOnceAsync calls instead. Without this, the background tickers
+        // compete for the lock and may process tickets before the staged explicit ticks,
+        // making the split-brain scenario non-deterministic (WR-01 fix).
         _appA = new MatchmakingTestApp(lockTtlSeconds: 2);
         await _appA.StartAsync(_pg, _redis, serviceOverrides: services =>
         {
@@ -78,11 +85,18 @@ public sealed class MatchmakerSplitBrainTests : IAsyncLifetime
             // 3 000 ms delay > 2 s TTL → Redis lock expires while AppA holds BeforeLuaClaim.
             services.AddSingleton<IChaosInterceptor>(
                 new DelayingChaosInterceptor(delayMs: 3000, delayLuaClaim: true));
+            // Suppress background periodic ticks so only explicit RunOnceAsync calls run.
+            services.PostConfigure<GameKitMatchmakingOptions>(o => o.Ticker.TickIntervalMs = 3_600_000);
         });
 
         // AppB shares AppA's connection string — same DB, no second migration run.
         _appB = new MatchmakingTestApp(lockTtlSeconds: 2);
-        await _appB.StartAsync(_pg, _redis, connectionString: _appA.ConnectionString);
+        await _appB.StartAsync(_pg, _redis, connectionString: _appA.ConnectionString,
+            serviceOverrides: services =>
+            {
+                // Same long interval for AppB's background ticker.
+                services.PostConfigure<GameKitMatchmakingOptions>(o => o.Ticker.TickIntervalMs = 3_600_000);
+            });
     }
 
     /// <inheritdoc />
@@ -97,23 +111,29 @@ public sealed class MatchmakerSplitBrainTests : IAsyncLifetime
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// SCALE-04 CI gate. Two replicas share one Redis and one Postgres. Replica A's ticker
-    /// acquires the leader lock (TTL = 2 s) then stalls for 3 000 ms in
+    /// SCALE-04 CI gate. Two replicas share one Redis and one Postgres. Replica A acquires
+    /// the leader lock (TTL = 2 s), then stalls for 3 000 ms in
     /// <see cref="IChaosInterceptor.BeforeLuaClaim"/> via <see cref="DelayingChaosInterceptor"/>.
-    /// During the stall the 2 s lock TTL expires; Replica B acquires the lock, forms the match,
-    /// and writes one <c>game_sessions</c> row. Replica A's Lua atomic-claim returns
-    /// <c>LEASE_LOST</c> — no duplicate row. Asserts: <c>COUNT(game_sessions WHERE
-    /// LadderId = ladderId) &lt;= 1</c> and at most one replica returned
-    /// <see cref="MatcherTickResult.Matched"/>.
+    /// After waiting <c>lockTtlSeconds + 500 ms</c> (2 500 ms) for AppA to hold the lock and
+    /// the TTL to expire, Replica B's tick is staged — so B is GUARANTEED to win the lock
+    /// rather than vacuously returning <see cref="MatcherTickResult.LockNotAcquired"/>.
+    /// B forms the match and writes one <c>game_sessions</c> row. A's Lua atomic-claim then
+    /// returns <c>LEASE_LOST</c> — no duplicate row.
+    /// <para>
+    /// Non-vacuous precondition: asserts <c>matchedCount &gt;= 1</c> (at least one replica
+    /// formed a match). Primary assertion: <c>sessionCount &lt;= 1</c> (no duplicates).
+    /// </para>
     /// </summary>
     [Fact(DisplayName = "SCALE-04: zero duplicate game_sessions rows under leader churn")]
     public async Task SplitBrain_NoDuplicateSessions()
     {
-        // AppA was started in InitializeAsync with a DelayingChaosInterceptor(delayMs:3000)
-        // on BeforeLuaClaim. When AppA acquires the leader lock (TTL=2s), it stalls for 3s
-        // at the BeforeLuaClaim seam. The 2 s TTL expires; AppB acquires the lock, runs its
-        // tick, forms the match, and writes one game_sessions row. AppA's AtomicClaimScript
-        // then returns LEASE_LOST (lock value != AppA.InstanceId) — no duplicate.
+        // The lock TTL is 2 s (set in InitializeAsync). AppA stalls 3 s at BeforeLuaClaim.
+        // Staging: start AppA's tick first so it acquires the lock. After lockTtlSeconds +
+        // 500 ms buffer the TTL has expired and AppB can acquire the lock and form the match.
+        // This removes the vacuous-pass scenario where AppB returned LockNotAcquired before
+        // AppA's TTL expired (sessionCount=0, matchedCount=0 both ≤ 1 but prove nothing).
+        const int lockTtlSeconds = 2;
+        const int stagingDelayMs = lockTtlSeconds * 1000 + 500; // 2 500 ms
 
         // --- Arrange: seed tickets in Redis -------------------------------------
         var muxOpts = ConfigurationOptions.Parse(_redis.ConnectionString);
@@ -147,30 +167,52 @@ public sealed class MatchmakerSplitBrainTests : IAsyncLifetime
         await db.SortedSetAddAsync(queueKey, ticket1.ToString(), queuedAtMs);
         await db.SortedSetAddAsync(queueKey, ticket2.ToString(), queuedAtMs + 1);
 
-        // --- Act: race both tickers concurrently --------------------------------
-        // AppA stalls 3 s at BeforeLuaClaim (from InitializeAsync serviceOverrides).
-        // AppB acquires the lock when the TTL expires and runs normally.
+        // --- Act: staged execution — A first, then B after the TTL expires -----
+        // 1. Start AppA's tick. Because AppA has DelayingChaosInterceptor(delayMs:3000,
+        //    delayLuaClaim:true), AppA will acquire the lock and immediately stall 3 s
+        //    at BeforeLuaClaim. The 2 s TTL will expire during the stall.
+        // 2. Wait stagingDelayMs (2 500 ms) — enough for AppA to hold the lock AND for
+        //    the 2 s TTL to expire, but not long enough for AppA to finish its 3 s delay.
+        // 3. Start AppB's tick. The lock is now expired; AppB acquires it, forms the match,
+        //    and writes one game_sessions row.
+        // 4. Await both tasks together.
         var tickerA = _appA.GetTicker();
         var tickerB = _appB.GetTicker();
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        // Start AppA's tick; do NOT await — it is intentionally stalling for 3 s.
         var taskA = tickerA.RunOnceAsync(cts.Token);
+
+        // Wait for the lock TTL to expire while AppA holds the lock but is stalled.
+        await Task.Delay(stagingDelayMs, cts.Token);
+
+        // AppA's TTL has expired. Start AppB's tick now — it will acquire the free lock.
         var taskB = tickerB.RunOnceAsync(cts.Token);
-        var (resultA, resultB) = (await taskA, await taskB);
 
-        // --- Assert: no duplicate game_sessions rows in the shared DB -----------
-        // Count sessions created for this ladder. At most 1 should exist.
+        var resultA = await taskA;
+        var resultB = await taskB;
+
+        // --- Assert: the race was non-vacuous AND produced no duplicates ---------
         var sessionCount = await CountGameSessionsAsync(_appA.ConnectionString, ladderId);
+        var matchedCount = new[] { resultA, resultB }.Count(r => r == MatcherTickResult.Matched);
 
-        // Primary SCALE-04 assertion: zero duplicate rows.
+        // Non-vacuous precondition: at least one replica must have formed a match.
+        // If matchedCount == 0, the test setup is broken (tickets not visible to either
+        // ticker, or the staging delay was insufficient for the TTL to expire).
+        Assert.True(matchedCount >= 1,
+            $"SCALE-04 PRECONDITION FAIL: no replica formed a match (matchedCount=0). " +
+            $"TickerA={resultA}, TickerB={resultB}. " +
+            "Ensure the staging delay ({stagingDelayMs} ms) exceeds lockTtlSeconds ({lockTtlSeconds} s) " +
+            "so AppB can acquire the lock after AppA's TTL expires.");
+
+        // Primary SCALE-04 assertion: zero duplicate game_sessions rows.
         Assert.True(sessionCount <= 1,
             $"SCALE-04 FAIL: {sessionCount} game_sessions row(s) found for ladderId={ladderId} — " +
             "expected at most 1. ON CONFLICT DO NOTHING + LEASE_LOST guard should prevent duplicates. " +
             $"TickerA={resultA}, TickerB={resultB}");
 
-        // Secondary assertion: at most one ticker returned Matched — split-brain never
-        // allows both replicas to claim a successful match formation simultaneously.
-        var matchedCount = new[] { resultA, resultB }.Count(r => r == MatcherTickResult.Matched);
+        // Secondary assertion: the split-brain guard allows at most one successful match.
         Assert.True(matchedCount <= 1,
             $"SCALE-04 FAIL: both replicas returned Matched (matchedCount={matchedCount}). " +
             $"TickerA={resultA}, TickerB={resultB}");

@@ -298,6 +298,17 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
         _host!.Services.GetRequiredService<IMatchmakerTicker>();
 
     /// <summary>
+    /// Initiates a graceful shutdown of the underlying <see cref="IHost"/>.
+    /// Triggers ASP.NET Core's in-flight request drain and the
+    /// <c>BackgroundService.StopAsync</c> sequence (including the
+    /// <c>CancellationToken.None</c> lease release on the matcher ticker's
+    /// <c>finally</c> path). Used by <c>GracefulDrainTests</c> to verify
+    /// SCALE-02 + SCALE-05 end-to-end.
+    /// </summary>
+    /// <returns>A task that completes when the host has fully stopped.</returns>
+    public Task StopHostAsync() => _host!.StopAsync();
+
+    /// <summary>
     /// Mints a valid player JWT signed with the host's RSA private key. The
     /// <c>sub</c>/<c>NameIdentifier</c> claim is set to <paramref name="playerId"/>; the
     /// resulting token validates against the host's JwtBearer middleware without further

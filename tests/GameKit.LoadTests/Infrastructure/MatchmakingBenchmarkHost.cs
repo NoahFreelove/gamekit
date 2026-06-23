@@ -57,6 +57,10 @@ public sealed class MatchmakingBenchmarkHost : IAsyncDisposable
     private RedisContainer? _redis;
     private IHost? _host;
     private string? _keyDir;
+    // WR-03 fix: store the benchmark scope so it can be disposed in DisposeAsync.
+    // The original code called CreateScope() in a fluent chain and immediately dropped the
+    // IServiceScope reference, preventing disposal of scoped services until GC finalisation.
+    private IServiceScope? _benchmarkScope;
 
     /// <summary>The benchmark's target ladder id — seeded once during setup.</summary>
     public Guid TestLadderId { get; private set; }
@@ -217,15 +221,24 @@ public sealed class MatchmakingBenchmarkHost : IAsyncDisposable
 
         // Create a scope for the benchmark — IMatchmakingService is Scoped.
         // We create one persistent scope so iterations don't pay scope-creation overhead.
-        MatchmakingService = _host.Services
-            .CreateScope()
-            .ServiceProvider
+        // WR-03 fix: store the scope in _benchmarkScope so DisposeAsync can dispose it.
+        _benchmarkScope = _host.Services.CreateScope();
+        MatchmakingService = _benchmarkScope.ServiceProvider
             .GetRequiredService<IMatchmakingService>();
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        // WR-03 fix: dispose the benchmark scope before stopping the host so that scoped
+        // services (IMatchmakingService and any IDisposable/IAsyncDisposable it holds) are
+        // released before the DI container itself shuts down.
+        if (_benchmarkScope is not null)
+        {
+            _benchmarkScope.Dispose();
+            _benchmarkScope = null;
+        }
+
         if (_host is not null)
         {
             try { await _host.StopAsync(); } catch { /* best-effort */ }

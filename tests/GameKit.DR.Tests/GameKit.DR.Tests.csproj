@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.DR.Tests</RootNamespace>
+    <AssemblyName>GameKit.DR.Tests</AssemblyName>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+    <!-- DR round-trip test spins two sequential Postgres containers + pg_dump/pg_restore.
+         The default per-test timeout is generous to accommodate image pull + migration
+         apply + dump/restore (~300 s). -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ASP.NET Core shared framework provides WebApplication, TestServer, etc.
+         Required by DrHealthTestHost used in DrRoundTripTests (mirrors Core.Integration.Tests). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- All 6 GameKit packages required to apply their migrations in canonical order
+         (Core → Auth → Admin.UI → Rankings → Matchmaking → Lobby).
+         The *MigrationModelCustomizer classes are public sealed — no InternalsVisibleTo needed. -->
+    <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Lobby\GameKit.Lobby.csproj" />
+    <!-- TestFixtures: GitRootLocator + PostgresFixture -->
+    <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
+    <!-- NOTE: HealthTestHost is NOT referenced from GameKit.Core.Integration.Tests to avoid
+         cross-test-project reference issues. A local copy (DrHealthTestHost) is included
+         in this project instead — see DrHealthTestHost.cs. -->
+  </ItemGroup>
+</Project>

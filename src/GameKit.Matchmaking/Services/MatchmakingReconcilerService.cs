@@ -177,7 +177,9 @@ internal sealed class MatchmakingReconcilerService : BackgroundService, IMatchma
         finally
         {
             if (_opts.Reconciler.LeaderOnly)
-                await _lease.ReleaseLeaseAsync(ct).ConfigureAwait(false);
+                // CancellationToken.None — not the stopping token — so the release survives SIGTERM
+                // (SCALE-02: the stopping token is already cancelled in finally paths on shutdown).
+                await _lease.ReleaseLeaseAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }
 

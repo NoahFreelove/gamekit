@@ -2,14 +2,14 @@
 // Copyright (c) 2026 GameKit contributors
 //
 // BenchmarkDotNet regression gate (PERF-06).
-// Reads a new BDN -report-full.json and a committed baseline JSON, computes
-// (newMean - baseMean) / baseMean per matched benchmark method, and exits 1
-// if any method regresses beyond the threshold.
+// Reads a new BDN -report-full.json (or a merged combined report) and a committed baseline JSON,
+// computes (newMean - baseMean) / baseMean per matched benchmark method, and exits 1 if any
+// method regresses beyond the threshold.
 //
 // Usage:
 //   dotnet run --project benchmarks/CompareBaseline -c Release -- <new-report.json> <baseline.json>
 //
-// Exit codes: 0 = no regression; 1 = regression detected.
+// Exit codes: 0 = no regression; 1 = regression detected (fail-closed).
 
 using System.Text.Json;
 
@@ -29,7 +29,7 @@ namespace CompareBaseline
         double NewMeanNs,
         double Delta,          // (new - base) / base
         bool IsRegression,
-        bool IsWarning,        // missing from one of the reports
+        bool IsWarning,        // new method has no baseline entry (added, not yet baselined)
         string Message);
 
     /// <summary>Aggregate comparison result returned by <see cref="Comparator.CompareReports"/>.</summary>
@@ -45,13 +45,31 @@ namespace CompareBaseline
     {
         /// <summary>
         /// Parses <paramref name="newReportJson"/> and <paramref name="baselineJson"/> and
-        /// computes per-method regression deltas.  Methods present in one report but absent
-        /// from the other produce warning entries (not failures).
+        /// computes per-method regression deltas.
         /// </summary>
-        /// <param name="newReportJson">Full text of the new BDN <c>-report-full.json</c>.</param>
+        /// <remarks>
+        /// <para>
+        /// Fail-closed policy (CR-01 / CR-02):
+        /// <list type="bullet">
+        ///   <item>If the new report contains zero benchmarks while the baseline has some, the
+        ///     gate FAILS (<c>HasRegression=true</c>) — this indicates a crashed or empty BDN
+        ///     run, not a legitimate benchmark removal.</item>
+        ///   <item>If a baseline method is absent from the new report (but the report has other
+        ///     methods), the gate FAILS — a missing benchmark means it crashed or was removed
+        ///     without updating the baseline.  To legitimately remove a benchmark, regenerate
+        ///     the baseline (which also drops the method from it) so the gate will not see it
+        ///     as missing on the next run.</item>
+        ///   <item>New methods absent from the baseline produce a WARNING (not a failure) so
+        ///     newly-added benchmarks do not block the gate until they are baselined.</item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        /// <param name="newReportJson">Full text of the new BDN <c>-report-full.json</c>
+        /// (may be a merged combined report produced by the CI step).</param>
         /// <param name="baselineJson">Full text of the committed baseline JSON.</param>
         /// <returns>A <see cref="CompareResult"/> with <c>HasRegression=true</c> when any method
-        /// exceeds <see cref="Threshold.Regression"/>.</returns>
+        /// exceeds <see cref="Threshold.Regression"/>, when a baseline method is absent from the
+        /// new report, or when the new report contains zero benchmarks.</returns>
         public static CompareResult CompareReports(string newReportJson, string baselineJson)
         {
             var newDoc      = JsonDocument.Parse(newReportJson);
@@ -75,6 +93,23 @@ namespace CompareBaseline
                 newMap[method] = mean;
             }
 
+            // CR-02: an empty new report while the baseline has methods is a hard failure.
+            // A crashed BDN run emits {"Benchmarks":[]} — silently treating that as "pass"
+            // defeats the entire gate.  The operator must investigate and re-run.
+            if (newMap.Count == 0 && baselineMap.Count > 0)
+            {
+                return new CompareResult(
+                    HasRegression: true,
+                    Results: [new MethodResult(
+                        "<all-benchmarks>",
+                        double.NaN, double.NaN, double.NaN,
+                        IsRegression: true,
+                        IsWarning:    false,
+                        $"ERROR: new report contains 0 benchmarks but baseline has " +
+                        $"{baselineMap.Count}. Benchmark run likely crashed or all methods " +
+                        "were removed. Re-run benchmarks or regenerate the baseline.")]);
+            }
+
             var results     = new List<MethodResult>();
             bool hasRegression = false;
 
@@ -83,15 +118,21 @@ namespace CompareBaseline
             {
                 if (!newMap.TryGetValue(method, out var newMean))
                 {
-                    // Baseline method missing from new report — warn, do not fail
+                    // CR-01 (fail-closed): a baseline method absent from the new report is a
+                    // FAILURE, not a warning.  A missing method means the benchmark crashed or
+                    // was removed without updating the baseline.  To legitimately remove a
+                    // benchmark, regenerate the baseline (which also drops the method from it).
+                    hasRegression = true;
                     results.Add(new MethodResult(
                         method,
                         baseMean,
                         double.NaN,
                         double.NaN,
-                        IsRegression: false,
-                        IsWarning:    true,
-                        $"WARNING: baseline method '{method}' is missing from the new report"));
+                        IsRegression: true,
+                        IsWarning:    false,
+                        $"ERROR: baseline method '{method}' is missing from the new report. " +
+                        "Benchmark may have crashed or been removed without updating the baseline. " +
+                        "Re-run benchmarks or regenerate the baseline."));
                     continue;
                 }
 
@@ -113,7 +154,8 @@ namespace CompareBaseline
                         : $"  OK: {method}: {newMean / 1e6:F3} ms vs baseline {baseMean / 1e6:F3} ms ({sign}{delta:P1})"));
             }
 
-            // Warn about new methods absent from the baseline
+            // Warn about new methods absent from the baseline — these are not failures because
+            // newly-added benchmarks should not block the gate until they are baselined.
             foreach (var method in newMap.Keys)
             {
                 if (!baselineMap.ContainsKey(method))
@@ -178,7 +220,7 @@ namespace CompareBaseline
             if (result.HasRegression)
             {
                 Console.Error.WriteLine(
-                    $"\nBenchmark regression gate FAILED — one or more benchmarks exceeded the {Threshold.Regression:P0} threshold.");
+                    $"\nBenchmark regression gate FAILED — one or more benchmarks exceeded the {Threshold.Regression:P0} threshold or had missing methods.");
                 return 1;
             }
 

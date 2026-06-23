@@ -192,14 +192,19 @@ jobs:
             --artifacts BenchmarkRun
 
       - name: Benchmark regression gate (PERF-06)
-        # Compares the emitted -report-full.json against the committed baseline.
-        # CompareBaseline exits 1 on any benchmark that regresses >20%, failing
-        # the job.  If the baseline file is not yet committed (before Plan 19-04
-        # lands), the step prints a clear message and skips gracefully.
+        # CR-01 fix: BDN emits one *-report-full.json per benchmark CLASS, not one combined
+        # file (four classes → four files).  The original step fed only the alphabetically-first
+        # file to CompareBaseline; the other three classes were never checked.  This step now
+        # merges all per-class JSON files into a single combined report before comparing, so
+        # all 7 baseline methods are regression-checked on every push.
+        #
+        # CR-02 fix: an empty Benchmarks array (crashed BDN run) is now a FAILURE in
+        # CompareBaseline (see benchmarks/CompareBaseline/Program.cs), not a warning.
         run: |
-          REPORT=$(ls BenchmarkRun/results/*-report-full.json 2>/dev/null | head -1)
-          if [ -z "$REPORT" ]; then
-            echo "WARNING: No benchmark report emitted — benchmark run may have failed."
+          REPORT_DIR="BenchmarkRun/results"
+          REPORTS=$(ls "${REPORT_DIR}"/*-report-full.json 2>/dev/null || true)
+          if [ -z "$REPORTS" ]; then
+            echo "ERROR: No benchmark report emitted — benchmark run may have failed."
             exit 1
           fi
 
@@ -210,8 +215,26 @@ jobs:
             exit 0
           fi
 
-          dotnet run --project benchmarks/CompareBaseline -c Release -- "$REPORT" "$BASELINE"
-          # Exit code from CompareBaseline propagates: 0 = pass, 1 = regression.
+          # Merge all per-class report files into a single combined report by concatenating
+          # their Benchmarks arrays.  python3 is always available on ubuntu-24.04 runners.
+          COMBINED="${REPORT_DIR}/combined-report-full.json"
+          python3 - $REPORTS "$COMBINED" <<'MERGE_SCRIPT'
+import sys, json
+files, out = sys.argv[1:-1], sys.argv[-1]
+benchmarks = []
+for f in files:
+    with open(f) as fh:
+        doc = json.load(fh)
+    benchmarks.extend(doc.get("Benchmarks", []))
+with open(out, "w") as fh:
+    json.dump({"Benchmarks": benchmarks}, fh, indent=2)
+MERGE_SCRIPT
+
+          COUNT=$(echo $REPORTS | wc -w)
+          echo "Merged ${COUNT} report file(s) into ${COMBINED}"
+
+          dotnet run --project benchmarks/CompareBaseline -c Release -- "$COMBINED" "$BASELINE"
+          # Exit code from CompareBaseline propagates: 0 = pass, 1 = regression (fail-closed).
 
       - name: Upload benchmark results
         if: always()

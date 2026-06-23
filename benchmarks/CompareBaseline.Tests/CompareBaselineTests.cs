@@ -9,6 +9,11 @@
 // Test strategy:
 //   * Call Comparator.CompareReports() directly (no process spawn) for result assertions.
 //   * Call Program.Main(string[]) with fixture file paths for exit-code assertions.
+//
+// CR-01 / CR-02 behaviour (fail-closed):
+//   * A baseline method absent from the new report → HasRegression=true, exit 1.
+//   * An empty Benchmarks array in the new report → HasRegression=true, exit 1.
+//   * A new method absent from the baseline → IsWarning=true, HasRegression=false (not a fail).
 
 using System.Reflection;
 using CompareBaseline;
@@ -106,15 +111,20 @@ public sealed class CompareBaselineTests
     }
 
     // ---------------------------------------------------------------------------
-    // Test 3: missing/added methods produce warnings, not failures
+    // Test 3: missing baseline methods — fail-closed (CR-01 fix)
+    //
+    // INVERTED from original: a baseline method absent from the new report MUST
+    // cause HasRegression=true (exit 1), not just a warning.  A missing benchmark
+    // means it crashed or was removed without updating the baseline.
     // ---------------------------------------------------------------------------
 
     /// <summary>
-    /// A baseline method absent from the new report must produce a warning entry
-    /// (IsWarning=true) but must NOT cause HasRegression=true.
+    /// A baseline method absent from the new report must cause HasRegression=true (exit 1).
+    /// This is the CR-01 fail-closed requirement: a vanished benchmark cannot silently pass
+    /// the gate and mask a regression.
     /// </summary>
     [Fact]
-    public void CompareReports_BaselineMethodMissingFromNew_WarnsDoesNotFail()
+    public void CompareReports_BaselineMethodMissingFromNew_HasRegressionTrue()
     {
         // New report with only ValidateToken — BCryptVerify and Glicko2Apply are gone.
         const string newReportMissingMethod = """
@@ -130,20 +140,187 @@ public sealed class CompareBaselineTests
 
         var result = Comparator.CompareReports(newReportMissingMethod, ReadFixture(BaselinePath));
 
-        Assert.False(result.HasRegression,
-            "A missing baseline method must warn, not fail the gate.");
+        Assert.True(result.HasRegression,
+            "A missing baseline method must FAIL the gate (CR-01 fail-closed policy).");
 
-        var warnings = result.Results.Where(r => r.IsWarning).ToList();
-        Assert.True(warnings.Count >= 1,
-            "Expected at least one WARNING for each baseline method absent from the new report.");
+        // The missing methods must appear as IsRegression=true entries (not warnings).
+        var missingErrors = result.Results
+            .Where(r => r.IsRegression && double.IsNaN(r.NewMeanNs))
+            .ToList();
+        Assert.True(missingErrors.Count >= 1,
+            "Expected at least one ERROR entry for each baseline method absent from the new report.");
 
-        // Every warning message must contain the word "WARNING"
-        Assert.All(warnings, w => Assert.Contains("WARNING", w.Message, StringComparison.Ordinal));
+        // No IsWarning entries for missing baseline methods — they are hard failures now.
+        Assert.DoesNotContain(result.Results,
+            r => r.IsWarning && double.IsNaN(r.BaselineMeanNs) == false && double.IsNaN(r.NewMeanNs));
     }
+
+    /// <summary>
+    /// <see cref="Program.Main"/> must return exit code 1 when a baseline method is absent
+    /// from the new report (CR-01 fail-closed requirement).
+    /// </summary>
+    [Fact]
+    public void Main_BaselineMethodMissingFromNew_Returns1()
+    {
+        // Write a temp file with only ValidateToken (missing BCryptVerify and Glicko2Apply).
+        const string newReportMissingMethod = """
+            {
+              "Benchmarks": [
+                {
+                  "Method": "ValidateToken",
+                  "Statistics": { "Mean": 5000.0 }
+                }
+              ]
+            }
+            """;
+
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tempFile, newReportMissingMethod);
+            int exitCode = Program.Main(new[] { tempFile, BaselinePath });
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Test 3b: empty new report — fail-closed (CR-02 fix)
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// An empty Benchmarks array in the new report must cause HasRegression=true.
+    /// A crashed BDN run produces {"Benchmarks":[]}; the gate must fail, not pass.
+    /// </summary>
+    [Fact]
+    public void CompareReports_EmptyNewReport_HasRegressionTrue()
+    {
+        const string emptyReport = """{ "Benchmarks": [] }""";
+
+        var result = Comparator.CompareReports(emptyReport, ReadFixture(BaselinePath));
+
+        Assert.True(result.HasRegression,
+            "An empty Benchmarks array must FAIL the gate (CR-02 fail-closed policy).");
+
+        Assert.Single(result.Results);
+        var errorResult = result.Results[0];
+        Assert.True(errorResult.IsRegression, "The single result must be IsRegression=true.");
+        Assert.Contains("0 benchmarks", errorResult.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// <see cref="Program.Main"/> must return exit code 1 for an empty Benchmarks array (CR-02).
+    /// </summary>
+    [Fact]
+    public void Main_EmptyNewReport_Returns1()
+    {
+        const string emptyReport = """{ "Benchmarks": [] }""";
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tempFile, emptyReport);
+            int exitCode = Program.Main(new[] { tempFile, BaselinePath });
+            Assert.Equal(1, exitCode);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Test 3c: merged multi-file input — all methods present, within threshold → exit 0
+    //
+    // Proves that the CI merge step's combined output compares correctly.
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// A merged combined report (simulating what the CI python3 merge produces from four
+    /// per-class BDN files) with all baseline methods present and within threshold must
+    /// return HasRegression=false and exit 0.
+    /// </summary>
+    [Fact]
+    public void CompareReports_MergedMultiFileReport_AllPresent_HasRegressionFalse()
+    {
+        // Simulates a merged combined-report-full.json that would be produced by the CI
+        // python3 merge step from four per-class BDN files.  All three baseline methods
+        // are present at baseline-identical values (0 % delta).
+        const string mergedReport = """
+            {
+              "Benchmarks": [
+                {
+                  "Method": "BCryptVerify",
+                  "Statistics": { "Mean": 100000000.0 }
+                },
+                {
+                  "Method": "ValidateToken",
+                  "Statistics": { "Mean": 5000.0 }
+                },
+                {
+                  "Method": "Glicko2Apply",
+                  "Statistics": { "Mean": 250000.0 }
+                }
+              ]
+            }
+            """;
+
+        var result = Comparator.CompareReports(mergedReport, ReadFixture(BaselinePath));
+
+        Assert.False(result.HasRegression,
+            "A merged combined report with all methods present at baseline values must pass the gate.");
+        Assert.DoesNotContain(result.Results, r => r.IsRegression);
+    }
+
+    /// <summary>
+    /// <see cref="Program.Main"/> returns 0 for a merged combined report with all methods
+    /// present and within threshold (CR-01 gate-passes-correctly proof).
+    /// </summary>
+    [Fact]
+    public void Main_MergedMultiFileReport_AllPresent_Returns0()
+    {
+        const string mergedReport = """
+            {
+              "Benchmarks": [
+                {
+                  "Method": "BCryptVerify",
+                  "Statistics": { "Mean": 100000000.0 }
+                },
+                {
+                  "Method": "ValidateToken",
+                  "Statistics": { "Mean": 5000.0 }
+                },
+                {
+                  "Method": "Glicko2Apply",
+                  "Statistics": { "Mean": 250000.0 }
+                }
+              ]
+            }
+            """;
+
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tempFile, mergedReport);
+            int exitCode = Program.Main(new[] { tempFile, BaselinePath });
+            Assert.Equal(0, exitCode);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Test 4: new methods absent from baseline produce warnings, not failures
+    // ---------------------------------------------------------------------------
 
     /// <summary>
     /// A new method absent from the baseline must produce a warning entry
     /// (IsWarning=true) but must NOT cause HasRegression=true.
+    /// Newly-added benchmarks should not block the gate until they are baselined.
     /// </summary>
     [Fact]
     public void CompareReports_NewMethodAbsentFromBaseline_WarnsDoesNotFail()
@@ -187,7 +364,7 @@ public sealed class CompareBaselineTests
     }
 
     // ---------------------------------------------------------------------------
-    // Test 4: Threshold constant is 0.20
+    // Test 5: Threshold constant is 0.20
     // ---------------------------------------------------------------------------
 
     /// <summary>

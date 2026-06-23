@@ -151,7 +151,13 @@ Plans:
   4. Concurrent `SessionCompleteAsync` calls for the same idempotency key produce exactly one `game_sessions` row (`INSERT … ON CONFLICT DO NOTHING` proven by a dedicated Testcontainers test)
   5. A SignalR multi-replica integration test with real Testcontainers Redis backplane confirms all connected lobby clients receive hub events regardless of which replica sends them under replica restart and Redis reconnect
 
-**Plans**: TBD
+**Plans**: 6 plans
+- [ ] 16-01-PLAN.md — Extract `ILeaderLease` + `LeaseStatus` into `GameKit.Core`; adapt all four lease helpers (SCALE-01) [Wave 1]
+- [ ] 16-02-PLAN.md — Core migration + `game_sessions.IdempotencyKey` + idempotent match-formation write (SCALE-03 impl) [Wave 1]
+- [ ] 16-03-PLAN.md — Fix 5 finally-path lease releases to `CancellationToken.None` + static grep gate (SCALE-02) [Wave 1]
+- [ ] 16-04-PLAN.md — Extend `MatchmakingTestApp` + `MatchmakerSplitBrainTests` split-brain CI gate + idempotency proof (SCALE-04, SCALE-03) [Wave 2]
+- [ ] 16-05-PLAN.md — `GracefulDrainTests` — 100 concurrent requests + SIGTERM → zero 5xx, lock released (SCALE-05) [Wave 3]
+- [ ] 16-06-PLAN.md — `SignalRReplicaTests` multi-replica restart/reconnect + sticky-session operator doc (SCALE-06) [Wave 1]
 **UI hint**: no
 
 ### Phase 17: Backup / DR + Migration Ops

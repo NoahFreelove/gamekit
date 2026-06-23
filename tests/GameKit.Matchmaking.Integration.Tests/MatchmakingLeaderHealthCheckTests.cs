@@ -5,6 +5,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GameKit.Core.Services;
 using GameKit.Matchmaking.Health;
 using GameKit.Matchmaking.Redis;
 using GameKit.Matchmaking.Services;
@@ -220,6 +221,9 @@ public sealed class MatchmakingLeaderHealthCheckTests : IAsyncLifetime
         public string InstanceId { get; }
 
         public Task<bool> TryAcquireLeaseAsync(CancellationToken ct) => throw new NotSupportedException();
+
+        /// <remarks>This stub does not support renewal; throws unconditionally.</remarks>
+        public Task<bool> RenewLeaseAsync(CancellationToken ct) => throw new NotSupportedException();
 
         public Task ReleaseLeaseAsync(CancellationToken ct) => throw new NotSupportedException();
 

@@ -268,6 +268,10 @@ internal sealed class StubMatchmakerLease : IMatchmakerLease
     public Task<bool> TryAcquireLeaseAsync(CancellationToken ct) => Task.FromResult(_isLeader);
 
     /// <inheritdoc />
+    /// <remarks>This stub does not support renewal; returns <c>false</c> unconditionally.</remarks>
+    public Task<bool> RenewLeaseAsync(CancellationToken ct) => Task.FromResult(false);
+
+    /// <inheritdoc />
     public Task ReleaseLeaseAsync(CancellationToken ct) => Task.CompletedTask;
 
     /// <inheritdoc />

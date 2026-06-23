@@ -18,6 +18,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using StackExchange.Redis;
 
 namespace GameKit.Matchmaking.Services;
@@ -160,7 +161,7 @@ public sealed class ProposalService : IProposalService
 
             case "COMPLETE":
                 // All accepted — create the GameSession + participants and PUBLISH "matched".
-                var sessionId = await CreateSessionAsync(fields, ct).ConfigureAwait(false);
+                var sessionId = await CreateSessionAsync(proposalId, fields, ct).ConfigureAwait(false);
                 // Update each ticket hash to status=matched (+ sessionId) BEFORE publishing.
                 // Without this, a long-poll that arrives via the snapshot fast-path after the
                 // matched PUBLISH was already sent reads status="proposed" forever — pub/sub
@@ -276,19 +277,23 @@ public sealed class ProposalService : IProposalService
     /// all-accept path. Uses a fresh scoped <see cref="GameKitDbContext"/> so the write is
     /// independent of any caller-scoped transaction.
     /// </summary>
-    private async Task<Guid> CreateSessionAsync(ProposalFields fields, CancellationToken ct)
+    /// <param name="proposalId">
+    /// The proposal id used as the <c>IdempotencyKey</c> on the <c>game_sessions</c> row
+    /// (SCALE-03). The INSERT uses <c>ON CONFLICT ("IdempotencyKey") DO NOTHING</c> so that
+    /// a split-brain second replica attempting the same formation produces zero extra rows.
+    /// On conflict (rows-affected == 0), the existing session id is resolved by a follow-up
+    /// query and returned without inserting participants again.
+    /// </param>
+    /// <param name="fields">Proposal fields (tickets, ladder id, queue key).</param>
+    /// <param name="ct">Cancellation token.</param>
+    private async Task<Guid> CreateSessionAsync(Guid proposalId, ProposalFields fields, CancellationToken ct)
     {
         using var scope = _scopeFactory.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<GameKitDbContext>();
         var now = _clock.UtcNow;
 
-        var session = new GameSession
-        {
-            Id = _ids.NewId(),
-            LadderId = fields.LadderId,
-            CreatedAt = now,
-        };
-        session.Start(now); // Pending → Active
+        var sessionId = _ids.NewId();
+        var idempotencyKey = proposalId.ToString();
 
         // Re-build QueuedParty inputs from the proposal fields so the TeamAssignment service
         // can drive its CSPRNG split. The strategy + ticker carry the full members list in
@@ -314,7 +319,7 @@ public sealed class ProposalService : IProposalService
             participants.Add(new SessionParticipant
             {
                 Id = _ids.NewId(),
-                SessionId = session.Id,
+                SessionId = sessionId,
                 PlayerId = playerId,
                 Team = team,
             });
@@ -325,13 +330,53 @@ public sealed class ProposalService : IProposalService
         // Lua complete-script flipped the proposal to state=complete but BEFORE the durable
         // GameSession row exists — the reconciler's orphan-session sweep must eventually
         // mark such a session as Cancelled (NOT a duplicate of any subsequently-created session).
+        // Plan 16-04 split-brain test also uses this seam to pause Replica A past the TTL.
         await _chaos.BeforeSessionInsert(ct).ConfigureAwait(false);
 
-        ctx.Set<GameSession>().Add(session);
+        // SCALE-03: Insert the game_sessions row idempotently via ON CONFLICT DO NOTHING.
+        // The session starts in "Active" state (Pending → Active via Start(now) transition
+        // is reflected here as the literal state value 'Active').
+        // NpgsqlParameter bindings prevent any SQL injection from proposal / ladder ids.
+        // CancellationToken is passed via the IEnumerable overload to prevent ct from being
+        // interpreted as a SQL parameter by the params object[] overload.
+        var sqlParams = new object[]
+        {
+            new NpgsqlParameter("id", sessionId),
+            new NpgsqlParameter("ladderId", fields.LadderId),
+            new NpgsqlParameter("idempotencyKey", idempotencyKey),
+            new NpgsqlParameter("createdAt", now),
+            new NpgsqlParameter("startedAt", now),
+        };
+        var rowsInserted = await ctx.Database.ExecuteSqlRawAsync(
+            @"INSERT INTO gamekit.game_sessions
+                  (""Id"", ""State"", ""LadderId"", ""IdempotencyKey"", ""CreatedAt"", ""StartedAt"")
+              VALUES (@id, 'Active', @ladderId, @idempotencyKey, @createdAt, @startedAt)
+              ON CONFLICT (""IdempotencyKey"") WHERE ""IdempotencyKey"" IS NOT NULL DO NOTHING",
+            sqlParams,
+            ct).ConfigureAwait(false);
+
+        if (rowsInserted == 0)
+        {
+            // ON CONFLICT DO NOTHING fired — a concurrent replica already created this session.
+            // Resolve and return the canonical session id; do NOT insert participants again.
+            _logger?.LogInformation(
+                "ProposalService.CreateSessionAsync: duplicate formation for proposal {ProposalId} — returning existing session.",
+                proposalId);
+
+            var existing = await ctx.Set<GameSession>()
+                .Where(s => s.IdempotencyKey == idempotencyKey)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync(ct)
+                .ConfigureAwait(false);
+
+            return existing == Guid.Empty ? sessionId : existing;
+        }
+
+        // Primary path: we created the row — now insert participants.
         ctx.Set<SessionParticipant>().AddRange(participants);
         await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
 
-        return session.Id;
+        return sessionId;
     }
 
     /// <summary>

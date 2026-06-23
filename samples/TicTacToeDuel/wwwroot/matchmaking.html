@@ -237,7 +237,7 @@
       const resp = await gkFetch("/api/mm/queue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ladderId, poolName: "tictactoe", partyId: null }),
+        body: JSON.stringify({ ladderId, poolName: null, partyId: null }),
       });
       if (resp.status === 429) {
         setStatus("Rate limited (5/min/player). Wait a minute and try again.", "error");

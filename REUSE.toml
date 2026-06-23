@@ -44,3 +44,20 @@ path = ["src/GameKit.Rankings/Glicko2/*.cs"]
 precedence = "override"
 SPDX-FileCopyrightText = "2015 Maarten Staa"
 SPDX-License-Identifier = "BSD-3-Clause AND GPL-3.0-or-later"
+
+# three.js r184 (vendored MIT) — keep in sync with THIRD-PARTY-NOTICES.md
+[[annotations]]
+path = [
+  "samples/Platformer3D/wwwroot/js/three.module.js",
+  "samples/Platformer3D/wwwroot/js/three.core.js",
+  "samples/Platformer3D/wwwroot/js/addons/**"
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2010-2026 Three.js Authors"
+SPDX-License-Identifier = "MIT AND GPL-3.0-or-later"
+
+[[annotations]]
+path = ["samples/Platformer3D/**", "samples/Platformer3D.GameServer/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"

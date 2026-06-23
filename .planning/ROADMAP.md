@@ -246,12 +246,12 @@ Plans:
   - GPL compatibility of any bundled engine/runtime bits must be checked before vendoring (per project license constraint).
   - Likely the v2.1 capstone; could alternatively be split into its own demo milestone if scope (real 3D game + game server + secure auth + image packaging) proves too large for one phase — decide at /gsd-spec-phase / /gsd-discuss-phase 21.
 
-**Plans**: 6 plans
+**Plans**: 1/6 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 21-01-PLAN.md — Foundation: two sample project shells + two test projects + Testcontainers fixture + reuse CLI + sln wiring (R1)
+- [x] 21-01-PLAN.md — Foundation: two sample project shells + two test projects + Testcontainers fixture + reuse CLI + sln wiring (R1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -291,7 +291,7 @@ Plans:
 | 18. Security Audit | v2.1 | 0/TBD | Not started | — |
 | 19. Load / Performance Testing | v2.1 | 0/TBD | Not started | — |
 | 20. Docs & Tutorial | v2.1 | 0/TBD | Not started | — |
-| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 0/TBD | Not started | — |
+| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 1/6 | In Progress|  |
 
 ---
 

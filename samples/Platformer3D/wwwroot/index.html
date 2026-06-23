@@ -185,7 +185,11 @@
     <section class="lobby-panel">
       <h3>Party &amp; Match</h3>
       <div class="lobby-row">
-        <input id="invite-code-input" type="text" placeholder="Lobby invite code (leave blank = solo)" />
+        <button id="btn-create-lobby" disabled>Create Party</button>
+        <span id="lobby-code-display" class="muted" style="display:none;word-break:break-all;flex:1"></span>
+      </div>
+      <div class="lobby-row">
+        <input id="invite-code-input" type="text" placeholder="Paste invite code to join" />
         <button id="btn-join-lobby" disabled>Join</button>
       </div>
       <div class="lobby-row">
@@ -193,8 +197,14 @@
         <span class="muted" id="lobby-status-text">Sign in first.</span>
       </div>
       <div class="lobby-row">
-        <input id="match-id-input" type="text" placeholder="Match ID (UUID) — for direct WS test" />
+        <input id="match-id-input" type="text" placeholder="Match ID (UUID) — direct WS test bypass" />
       </div>
+    </section>
+
+    <!-- Leaderboard panel — populated post-match by lobby.js -->
+    <section class="lobby-panel" style="margin-top:0.5rem">
+      <div id="leaderboard-area" style="display:none;font-size:0.82rem;color:#ccc"></div>
+      <p class="muted" id="leaderboard-hint">Leaderboard appears after your first completed match.</p>
     </section>
   </div>
 
@@ -224,8 +234,13 @@
 
   <!--
     IMPORTANT: three.js is loaded locally from /js/three.module.js (vendored MIT, r184).
+    SignalR JS client loaded locally from /js/signalr.min.js (vendored MIT, 10.0.0).
     NO CDN script tags. All assets served from wwwroot/ — no outbound cloud/CDN calls.
   -->
+  <!-- SignalR IIFE browser bundle — exposes window.signalR global. Must load before lobby.js. -->
+  <script src="/js/signalr.min.js"></script>
+  <!-- Lobby/party wiring — imports signalR from window.signalR set above. -->
+  <script type="module" src="/js/lobby.js"></script>
   <script type="module" src="/js/game.js"></script>
 
 </body>

@@ -13,6 +13,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using GameKit.Auth;
 using GameKit.Auth.Apple.Builder;
 using GameKit.Auth.Apple.Configuration;
 using GameKit.Auth.Apple.Providers.Apple;
@@ -182,6 +183,63 @@ public sealed class AppleProviderTests
         // which is a compile-time literal on the Provider property getter.
         const string expectedDiscriminator = "apple";
         Assert.Equal(expectedDiscriminator, "apple"); // structural discriminator guard
+    }
+
+    // ── CR-01: Fail-closed guard — AddApple without prior AddAuth must throw ───────────────
+
+    /// <summary>
+    /// CR-01 security regression guard: calling <c>AddApple()</c> without a preceding
+    /// <c>AddAuth()</c> call must throw <see cref="InvalidOperationException"/> immediately
+    /// at registration time. Without this guard, the Apple backchannel handler would never
+    /// be assigned and the OAuth token exchange would fall through to the default unrestricted
+    /// <c>HttpClientHandler</c> — defeating the SEC-05 egress allow-list entirely.
+    /// </summary>
+    [Fact]
+    public void AddApple_WithoutAddAuth_Throws_InvalidOperationException()
+    {
+        var services = new ServiceCollection();
+        // AddGameKit WITHOUT AddAuth — GameKitAuthOptions is never registered.
+        var builder = services.AddGameKit(o =>
+        {
+            o.ConnectionString = "Host=localhost;Database=x;Username=gamekit_app;Password=x";
+            o.AutoMigrate = false;
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            builder.AddApple(a =>
+            {
+                // Credentials provided so the misconfiguration is not masked by the
+                // credentials-absent short-circuit.
+                a.ServiceId = "com.example.svc";
+                a.TeamId = "TEAM123456";
+                a.KeyId = "KEYID12345";
+                a.PrivateKeyBase64 = GenerateThrowawayKeyBase64();
+            }));
+
+        Assert.Contains("AddAuth", ex.Message);
+        Assert.Contains("AddApple", ex.Message);
+    }
+
+    /// <summary>
+    /// CR-01 happy-path: calling <c>AddApple()</c> after <c>AddAuth()</c> succeeds and
+    /// registers the Apple backchannel host on the same <see cref="GameKitAuthOptions"/>
+    /// instance that <see cref="GameKit.Auth.Egress.EgressAllowListHandler"/> will use.
+    /// </summary>
+    [Fact]
+    public void AddApple_AfterAddAuth_RegistersAppleHostOnAllowList()
+    {
+        var services = BuildServicesWithApple(withCreds: false);
+
+        // GameKitAuthOptions is the singleton registered by AddAuth().
+        // After AddApple() the Apple host must be present on AllowedProviderHosts.
+        var authOptsDescriptor = services
+            .Single(d => d.ServiceType == typeof(GameKitAuthOptions)
+                      && d.ImplementationInstance is not null);
+        var authOpts = (GameKitAuthOptions)authOptsDescriptor.ImplementationInstance!;
+
+        Assert.Contains("appleid.apple.com",
+            authOpts.AllowedProviderHosts,
+            StringComparer.OrdinalIgnoreCase);
     }
 
     // ── WR-01: Fail-fast guard for partial Apple credentials ────────────────────────────────

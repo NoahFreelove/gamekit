@@ -33,6 +33,7 @@ public static class GoogleBuilderExtensions
     /// Hosts that the Google OAuth2 backchannel must reach for token exchange and userinfo.
     /// Added to <see cref="GameKitAuthOptions.AllowedProviderHosts"/> at registration time
     /// so the egress allow-list covers the Google backchannel.
+    /// Exposed as a public constant so consumers and tests can verify the allowlist.
     /// </summary>
     /// <remarks>
     /// Google endpoints used by <c>Microsoft.AspNetCore.Authentication.Google</c>:
@@ -44,10 +45,6 @@ public static class GoogleBuilderExtensions
     /// SEC-05: these hosts are declared in code rather than read from configuration so that
     /// a misconfigured appsettings.json can never silently clear them.
     /// </remarks>
-    /// <summary>
-    /// The Google backchannel provider hosts allowlisted by this package.
-    /// Exposed as a public constant so consumers and tests can verify the allowlist.
-    /// </summary>
     public static readonly string[] GoogleProviderHosts =
     {
         "oauth2.googleapis.com",
@@ -81,19 +78,26 @@ public static class GoogleBuilderExtensions
         builder.Services.AddScoped<IOAuthProvider, GoogleOAuthProvider>();
 
         // SEC-05: Append Google backchannel hosts to the egress allow-list. GameKitAuthOptions
-        // is registered as a singleton by AddAuth(); resolving it here ensures the SAME
-        // options instance that EgressAllowListHandler snapshots at construction time is the
-        // one we're augmenting. This approach (b per plan) keeps provider hosts co-located
-        // with the provider package that needs them, rather than forcing them into
-        // DefaultAllowedHosts (which is scoped to the two built-in Steam+Discord providers).
-        var authOpts = builder.Services.BuildServiceProvider().GetService<GameKitAuthOptions>();
-        if (authOpts is not null)
+        // is registered as a singleton INSTANCE by AddAuth(); recover it directly from the
+        // IServiceCollection descriptor scan — no BuildServiceProvider() needed, and no
+        // undisposed ServiceProvider object is left behind (CR-01 + WR-01).
+        // FAIL-CLOSED: if AddAuth() has not been called, throw immediately. Silently skipping
+        // this registration would allow the Google backchannel to reach googleapis.com through
+        // the default unrestricted HttpClientHandler — defeating SEC-05 entirely.
+        var authOpts = builder.Services
+            .Where(d => d.ServiceType == typeof(GameKitAuthOptions) && d.ImplementationInstance is not null)
+            .Select(d => (GameKitAuthOptions?)d.ImplementationInstance)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                "AddGoogle() requires AddAuth() to have been called first on the same IGameKitBuilder. " +
+                "GameKitAuthOptions is registered by AddAuth() and must be present so that Google " +
+                "backchannel hosts can be appended to AllowedProviderHosts. " +
+                "Call order: AddGameKit().AddAuth(...).AddGoogle(...).");
+
+        foreach (var host in GoogleProviderHosts)
         {
-            foreach (var host in GoogleProviderHosts)
-            {
-                if (!authOpts.AllowedProviderHosts.Contains(host, StringComparer.OrdinalIgnoreCase))
-                    authOpts.AllowedProviderHosts.Add(host);
-            }
+            if (!authOpts.AllowedProviderHosts.Contains(host, StringComparer.OrdinalIgnoreCase))
+                authOpts.AllowedProviderHosts.Add(host);
         }
 
         // Register the Google authentication scheme only when credentials are present.
@@ -115,11 +119,11 @@ public static class GoogleBuilderExtensions
                     // token-exchange and userinfo calls go through the egress allow-list.
                     // EgressAllowListHandler is a DelegatingHandler; it requires an InnerHandler
                     // (HttpClientHandler) to forward the request after the host check passes.
-                    var resolvedOpts = builder.Services.BuildServiceProvider().GetService<GameKitAuthOptions>();
-                    if (resolvedOpts is not null)
+                    // authOpts is the same instance recovered above (already fail-closed) —
+                    // no second descriptor scan or BuildServiceProvider() needed (CR-01 + WR-01).
                     {
                         var inner = new HttpClientHandler();
-                        var egressHandler = new EgressAllowListHandler(resolvedOpts)
+                        var egressHandler = new EgressAllowListHandler(authOpts)
                         {
                             InnerHandler = inner,
                         };

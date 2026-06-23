@@ -3,6 +3,7 @@
 
 using System.Linq;
 using System.Threading.Tasks;
+using GameKit.Auth;
 using GameKit.Auth.Builder;
 using GameKit.Auth.Google.Builder;
 using GameKit.Auth.Google.Providers.Google;
@@ -103,6 +104,62 @@ public sealed class GoogleProviderTests
         }
         // If IAuthenticationSchemeProvider is null, no schemes are registered at all — which
         // trivially satisfies "Google scheme is NOT registered" (T-07-03-04 mitigation confirmed).
+    }
+
+    // ── CR-01: Fail-closed guard — AddGoogle without prior AddAuth must throw ──────────────
+
+    /// <summary>
+    /// CR-01 security regression guard: calling <c>AddGoogle()</c> without a preceding
+    /// <c>AddAuth()</c> call must throw <see cref="InvalidOperationException"/> immediately
+    /// at registration time. Without this guard, the Google backchannel handler would never
+    /// be assigned and the OAuth token exchange would fall through to the default unrestricted
+    /// <c>HttpClientHandler</c> — defeating the SEC-05 egress allow-list entirely.
+    /// </summary>
+    [Fact]
+    public void AddGoogle_WithoutAddAuth_Throws_InvalidOperationException()
+    {
+        var services = new ServiceCollection();
+        // AddGameKit WITHOUT AddAuth — GameKitAuthOptions is never registered.
+        var builder = services.AddGameKit(o =>
+        {
+            o.ConnectionString = "Host=localhost;Database=x;Username=gamekit_app;Password=x";
+            o.AutoMigrate = false;
+        });
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            builder.AddGoogle(g =>
+            {
+                // Credentials provided so the misconfiguration is not masked by the
+                // credentials-absent short-circuit.
+                g.ClientId = "google-client-id";
+                g.ClientSecret = "google-client-secret";
+            }));
+
+        Assert.Contains("AddAuth", ex.Message);
+        Assert.Contains("AddGoogle", ex.Message);
+    }
+
+    /// <summary>
+    /// CR-01 happy-path: calling <c>AddGoogle()</c> after <c>AddAuth()</c> succeeds and
+    /// registers the Google backchannel hosts on the same <see cref="GameKit.Auth.GameKitAuthOptions"/>
+    /// instance that <see cref="GameKit.Auth.Egress.EgressAllowListHandler"/> will use.
+    /// </summary>
+    [Fact]
+    public void AddGoogle_AfterAddAuth_RegistersGoogleHostsOnAllowList()
+    {
+        var services = BuildServicesWithGoogle("google-client-id");
+
+        // GameKitAuthOptions is the singleton registered by AddAuth().
+        // After AddGoogle() all three Google hosts must be present on AllowedProviderHosts.
+        var authOptsDescriptor = services
+            .Single(d => d.ServiceType == typeof(GameKitAuthOptions)
+                      && d.ImplementationInstance is not null);
+        var authOpts = (GameKitAuthOptions)authOptsDescriptor.ImplementationInstance!;
+
+        foreach (var host in GoogleBuilderExtensions.GoogleProviderHosts)
+        {
+            Assert.Contains(host, authOpts.AllowedProviderHosts, StringComparer.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>

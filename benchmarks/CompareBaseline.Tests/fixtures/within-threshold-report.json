@@ -1,0 +1,22 @@
+{
+  "Benchmarks": [
+    {
+      "Method": "BCryptVerify",
+      "Statistics": {
+        "Mean": 109000000.0
+      }
+    },
+    {
+      "Method": "ValidateToken",
+      "Statistics": {
+        "Mean": 5400.0
+      }
+    },
+    {
+      "Method": "Glicko2Apply",
+      "Statistics": {
+        "Mean": 265000.0
+      }
+    }
+  ]
+}

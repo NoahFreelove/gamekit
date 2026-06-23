@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- Not IsTestProject — that is a marker for dotnet test discovery;
+         this project IS a test project but lives outside tests/ so we set it explicitly. -->
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Test framework — versions from Directory.Packages.props (CPM) -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CompareBaseline\CompareBaseline.csproj" />
+  </ItemGroup>
+
+  <!-- Copy fixture JSON files to output directory so tests can locate them at runtime -->
+  <ItemGroup>
+    <Content Include="fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

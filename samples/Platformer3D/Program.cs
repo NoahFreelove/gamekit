@@ -116,8 +116,7 @@ gameKitBuilder.AddMatchmaking(opts =>
 // and leaves exactly ONE strategy (the custom one). This is the ONLY correct form.
 // The R5 resolution test in 21-06 (GetRequiredService<IMatchmakingStrategy>() is
 // BestTimeMatchmakingStrategy) is the gate that proves this.
-builder.Services.Replace(
-    ServiceDescriptor.Singleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>());
+builder.Services.Replace(ServiceDescriptor.Singleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>());
 
 // Presence — Redis TTL-keyed heartbeat + in-match state marker.
 gameKitBuilder.AddPresence();

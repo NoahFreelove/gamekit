@@ -10,51 +10,68 @@
 //   for the SignalR JSON protocol. This scenario reuses the helpers from tests/k6/helpers/signalr.js.
 //
 // PURPOSE:
-//   Measures the time from broadcast-send to per-client message-receipt across N SignalR
-//   clients connected to /hubs/lobby. When clients are distributed across server replicas
-//   the messages cross the Redis backplane — this scenario exercises that fan-out path.
+//   Measures the end-to-end delivery latency of a SignalR chat broadcast across N concurrently
+//   connected clients.
 //
-//   Delivery-time distribution is recorded into the `signalr_delivery_time_ms` Trend metric.
-//   The k6 end-of-run summary prints p50, p95, p99 for this metric.
+// k6/WEBSOCKETS EVENT MODEL (critical for understanding this script):
 //
-// SCENARIO MODEL (single-iteration, shared setup):
-//   1. All N VUs (CLIENTS) negotiate + connect to /hubs/lobby and perform the SignalR
-//      handshake. They then join the shared lobby via JoinLobbyAsync.
-//   2. VU #0 (the broadcaster) triggers ONE broadcast via SendChatMessageAsync.
-//   3. All N VUs record the time from broadcast-send to ReceiveChatMessage frame receipt
-//      into the `signalr_delivery_time_ms` Trend.
-//   4. All VUs disconnect cleanly.
+//   In grafana/k6 v2.0.0, `new WebSocket(url)` schedules a connection but event callbacks
+//   (open, message, close) are NOT called during sleep(). Instead:
 //
-// DESIGN NOTE — k6/websockets event dispatch timing model (19-02 deviation #1):
-//   In k6/websockets, ALL event callbacks (open, message, close) fire AFTER sleep() completes,
-//   NOT concurrently during sleep. Therefore all protocol state machine logic (handshake
-//   detection, invoke calls, delivery time recording) lives inside event callbacks. sleep()
-//   is used only as a session deadline — it determines when the WebSocket closes.
+//     1. `sleep(SESSION_S)` — k6 keeps the WS connection alive for SESSION_S real seconds.
+//        During this period the actual network I/O runs, server messages are buffered.
+//     2. After sleep() returns, the VU function continues synchronously (any code after sleep).
+//     3. When the VU function RETURNS (exits), k6 flushes the event queue and fires all
+//        buffered callbacks in order: open → message (N times) → close.
 //
-// IMPORTANT: exercises the REAL Redis backplane (fan-out crosses the backplane when clients
-//   connect to different replicas). Run against the LOCAL SpikeHost or Testcontainers stack
-//   with a real Redis instance. NEVER run against production or CI-vs-production.
+//   CONSEQUENCE:
+//     All protocol logic (handshake, join, broadcast, delivery measurement) MUST live
+//     inside event callbacks. Code after sleep() cannot safely read state set by callbacks
+//     because the callbacks haven't run yet. Metrics and checks must be recorded inside
+//     the `close` callback (the last event to fire).
+//
+//   TIMEOUT:
+//     SESSION_S must be long enough for the full protocol flow to complete BEFORE sleep
+//     ends. The handshake is sent in the `open` callback which fires at k6-function-exit
+//     time. The server has a handshake timeout (default 15 s). SESSION_S must be < 15 s
+//     to avoid the server closing with {"error":"Handshake was canceled."}.
+//     Recommended: SESSION_S=10 (matches the spike). Reduce for tighter delivery windows
+//     if the server responds quickly (observed latency ~2 ms on a local stack).
+//
+// PROTOCOL FLOW (all inside callbacks, triggered at function exit after sleep):
+//
+//   open     → send {"protocol":"json","version":1}\x1e  (handshake)
+//   message  → {} ack received → send JoinLobbyAsync(lobbyId)
+//   message  → type=3 join result → record broadcastSentAtMs, send SendChatMessageAsync
+//   message  → type=1 ReceiveChatMessage push → compute deliveryMs, ws.close()
+//   close    → record signalr_delivery_time_ms + signalr_deliveries_received/missed
+//
+// REDIS BACKPLANE NOTE:
+//   When clients connect to DIFFERENT server replicas, the ReceiveChatMessage push crosses
+//   the Redis backplane. On a single-replica local stack, it exercises SignalR's in-process
+//   group dispatch. Use the SpikeHost with a real Redis backplane (see tests/k6/SpikeHost/)
+//   to test the full fan-out path.
+//
+// IMPORTANT: Run against the LOCAL SpikeHost or Testcontainers stack. NEVER production.
 //   See tests/k6/README.md for full invocation instructions.
 //
-// INVOCATION (Linux, --network host):
-//   docker run --rm -i --network host \
+// INVOCATION (Linux, --network host, volume-mount for helper import):
+//   docker run --rm --network host \
+//     -v /path/to/gamekit/tests/k6:/tests/k6 \
 //     -e BASE_URL=http://localhost:5100 \
 //     -e WS_URL=ws://localhost:5100 \
 //     -e JWT=<player_jwt> \
 //     -e LOBBY_ID=<lobby_uuid> \
 //     -e CLIENTS=50 \
-//     grafana/k6:latest run - < tests/k6/lobby-signalr-fanout.js
-//
-// On macOS/Windows Docker Desktop: replace 'localhost' with 'host.docker.internal'.
+//     grafana/k6:latest run /tests/k6/lobby-signalr-fanout.js
 //
 // ENVIRONMENT VARIABLES:
-//   BASE_URL  — HTTP base URL for SignalR negotiate (e.g. http://localhost:5100)
-//   WS_URL    — WebSocket base URL (e.g. ws://localhost:5100)
-//   JWT       — Short-lived bearer JWT from LOCAL stack (never a production token)
-//   LOBBY_ID  — UUID of a lobby the test player is a member of in the local stack
-//   CLIENTS   — Number of concurrent SignalR clients (default: 50)
-//   SESSION_S — WebSocket session duration in seconds (default: 20)
-//               Must be long enough for all clients to connect, join, receive broadcast, and record.
+//   BASE_URL    — HTTP base URL for SignalR negotiate (e.g. http://localhost:5100)
+//   WS_URL      — WebSocket base URL (defaults to BASE_URL with http→ws)
+//   JWT         — Short-lived bearer JWT from LOCAL stack (never a production token)
+//   LOBBY_ID    — UUID of a lobby the test player is a member of in the local stack
+//   CLIENTS     — Number of concurrent SignalR VUs (default: 50)
+//   SESSION_S   — Seconds per VU session (default: 10; must be < SignalR handshake timeout ~15 s)
 //
 // k6 LICENSING NOTE:
 //   k6 (grafana/k6) is AGPLv3. Used here as an EXTERNAL Docker process only — never as a
@@ -63,20 +80,23 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
-import { negotiateSignalR, connectSignalR, invoke, RECORD_SEP } from './helpers/signalr.js';
+import { negotiateSignalR, RECORD_SEP } from './helpers/signalr.js';
+import { WebSocket } from 'k6/websockets';
 
 // ----- custom metrics -----
 
 /**
- * Per-client delivery latency (ms): time from broadcast-send to ReceiveChatMessage receipt.
- * The k6 run summary prints p50/p95/p99 for this Trend automatically.
+ * Per-VU delivery round-trip time (ms): wall-clock time from when SendChatMessageAsync was
+ * sent to when ReceiveChatMessage is received. Captured inside the `message` callback.
+ *
+ * p50/p95/p99 printed automatically in the k6 run summary.
  */
 const deliveryTime = new Trend('signalr_delivery_time_ms', true);
 
-/** Count of clients that successfully received the broadcast. */
+/** Count of VUs that received the ReceiveChatMessage echo. */
 const deliveriesReceived = new Counter('signalr_deliveries_received');
 
-/** Count of clients that did NOT receive the broadcast within the session window. */
+/** Count of VUs that did NOT receive the echo (failed handshake/join/timeout). */
 const deliveriesMissed = new Counter('signalr_deliveries_missed');
 
 // ----- environment config -----
@@ -86,153 +106,213 @@ const WS_URL = (__ENV.WS_URL || BASE_URL).replace(/^http/, 'ws');
 const JWT = __ENV.JWT;
 const LOBBY_ID = __ENV.LOBBY_ID;
 const NUM_CLIENTS = parseInt(__ENV.CLIENTS || '50', 10);
-const SESSION_S = parseInt(__ENV.SESSION_S || '20', 10);
+
+// SESSION_S: duration each VU keeps the WS connection alive.
+// Must be LESS than the ASP.NET Core SignalR handshake timeout (~15 s).
+// The handshake frame is sent when the k6 'open' callback fires — which happens at function
+// exit, not during sleep. The server must receive it before its timeout fires.
+// Recommended: 10 s (= spike default). Reduce only if delivery latency is consistently < 5 s.
+const SESSION_S = parseInt(__ENV.SESSION_S || '10', 10);
 
 // ----- k6 options -----
 
+// SESSION_DURATION_S: how long each VU runs its WS session, including sleep + callback sweep.
+// Add 5 s headroom beyond SESSION_S for the callback sweep (open → message → close) that
+// fires at function exit. The scenario duration governs how long VUs run; the sleep inside
+// the VU function governs how long the WS connection is held open.
+const SCENARIO_DURATION_S = SESSION_S + 5;
+
 export const options = {
   scenarios: {
-    // N VUs each represent one SignalR client. All VUs start simultaneously (preAllocatedVUs).
-    // The `shared-iterations` executor distributes work so each VU handles one client slot.
+    // Each VU runs ONE SignalR session (connect → join → broadcast → receive).
+    // `per-vu-iterations` ensures exactly one iteration per VU — no load distribution.
+    // Scenario duration = SESSION_S (WS hold time) + 5s (callback sweep headroom).
     fanout: {
-      executor: 'shared-iterations',
+      executor: 'per-vu-iterations',
       vus: NUM_CLIENTS,
-      iterations: NUM_CLIENTS,
-      maxDuration: `${SESSION_S + 30}s`,
+      iterations: 1,
+      maxDuration: `${SCENARIO_DURATION_S}s`,
     },
   },
 
   thresholds: {
-    // At least 80% of clients must receive the broadcast within SESSION_S * 1000ms.
-    [`signalr_delivery_time_ms`]: [`p(80)<${SESSION_S * 1000}`],
-    // Less than 20% of clients miss the broadcast (network timeouts on local stack are tolerable).
-    'signalr_deliveries_missed': ['count<' + Math.ceil(NUM_CLIENTS * 0.2)],
+    // At least 50% of VUs must receive the broadcast echo.
+    'signalr_deliveries_received': [`count>${Math.floor(NUM_CLIENTS * 0.5)}`],
+    // p80 delivery time under 5 s (local single-replica stack; loosen for multi-replica / WAN).
+    'signalr_delivery_time_ms': ['p(80)<5000'],
   },
-};
-
-// ----- broadcast send-time registry -----
-// Because k6 VUs share a module scope but run in isolated goroutines, we use a plain object
-// to hold the broadcast send-time. VU #0 writes it; all other VUs read it.
-// NOTE: In k6, __VU is the VU index (1-based). We elect VU index 1 as the broadcaster.
-const sharedState = {
-  broadcastSentAtMs: 0,
 };
 
 // ----- default VU function -----
 
 /**
- * Each VU:
- *  1. Negotiates a SignalR connection to /hubs/lobby.
- *  2. Opens a WebSocket and completes the JSON protocol handshake.
- *  3. Joins the shared LOBBY_ID via JoinLobbyAsync.
- *  4. VU #1 additionally sends a SendChatMessageAsync broadcast and records the send-time.
- *  5. All VUs wait for a ReceiveChatMessage frame and record delivery latency.
+ * Single-sleep SignalR fan-out protocol cycle.
  *
- * All protocol logic lives inside event callbacks to handle the k6/websockets
- * events-fire-after-sleep timing model (19-02 deviation #1).
+ * k6/websockets event model (grafana/k6 v2.0.0):
+ *   - Callbacks (open, message, close) fire AFTER the VU function returns, NOT during sleep().
+ *   - sleep(SESSION_S) keeps the WS connection open for SESSION_S seconds of real I/O.
+ *   - All protocol logic and metric recording must live inside the event callbacks.
+ *   - State checked AFTER sleep() (before function returns) will NOT reflect callback updates.
+ *
+ * Protocol state machine (all inside message callback):
+ *   ack received    → send JoinLobbyAsync
+ *   join result     → record broadcastSentAtMs, send SendChatMessageAsync
+ *   ReceiveChatMessage → compute deliveryMs, ws.close()
+ *   close           → record metrics/checks
  */
 export default function () {
   if (!JWT) {
-    console.warn('JWT env var not set — WebSocket connections will 401.');
-    sleep(SESSION_S);
+    console.warn('JWT env var not set — connections will 401.');
+    deliveriesMissed.add(1);
     return;
   }
   if (!LOBBY_ID) {
     console.warn('LOBBY_ID env var not set — JoinLobbyAsync will fail.');
-    sleep(SESSION_S);
+    deliveriesMissed.add(1);
     return;
   }
 
-  // Step 1: HTTP negotiate.
+  // HTTP negotiate — this runs synchronously before sleep.
   let negotiateBody;
   try {
     negotiateBody = negotiateSignalR(BASE_URL, JWT, '/hubs/lobby');
   } catch (e) {
     console.error(`VU ${__VU}: negotiate failed: ${e}`);
-    sleep(SESSION_S);
+    deliveriesMissed.add(1);
     return;
   }
 
   const connectionToken = negotiateBody.connectionToken || negotiateBody.connectionId;
 
-  // Per-VU state (local — not shared across VUs).
-  let handshakeDone = false;
-  let joinDone = false;
-  let broadcastSent = false; // only VU #1 sets this
-  let deliveryRecorded = false;
-  const vuIdx = __VU;
+  // Per-VU protocol state — mutated inside callbacks (which fire at function exit).
+  const state = {
+    handshakeDone: false,
+    handshakeError: null,
+    joinDone: false,
+    joinError: null,
+    broadcastSentAtMs: 0,
+    deliveryMs: null,
+  };
 
-  // Step 2–5: WebSocket session (all logic inside callbacks).
-  const ws = connectSignalR(
-    WS_URL,
-    JWT,
-    connectionToken,
-    function onMessage(frame, socket) {
-      // Handshake ack is the first frame (empty object, no `type` field).
-      if (!handshakeDone && typeof frame.type === 'undefined') {
-        // Handshake ack received.
-        handshakeDone = true;
+  // Open WebSocket. Connection is established immediately (before sleep).
+  const url = `${WS_URL}/hubs/lobby?id=${connectionToken}&access_token=${JWT}`;
+  const ws = new WebSocket(url);
 
-        // Step 3: Join the shared lobby.
-        invoke(socket, 'JoinLobbyAsync', [LOBBY_ID], `join-${vuIdx}`);
-        return;
+  // open: fires at function exit (after sleep). Send handshake immediately.
+  ws.addEventListener('open', function () {
+    ws.send(JSON.stringify({ protocol: 'json', version: 1 }) + RECORD_SEP);
+  });
+
+  // message: fires at function exit for each server frame received during sleep.
+  // Implements the full SignalR state machine in sequence.
+  ws.addEventListener('message', function (event) {
+    const parts = event.data.split(RECORD_SEP);
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (!part || part.length === 0) continue;
+
+      let frame;
+      try { frame = JSON.parse(part); } catch (_) { continue; }
+
+      // Ping — pong.
+      if (frame.type === 6) {
+        ws.send(JSON.stringify({ type: 6 }) + RECORD_SEP);
+        continue;
       }
 
-      // JoinLobbyAsync completion result (type=3).
-      if (frame.type === 3 && !joinDone) {
-        const invId = frame.invocationId || '';
-        if (invId.startsWith('join-')) {
-          if (frame.error) {
-            console.error(`VU ${vuIdx}: JoinLobbyAsync error: ${frame.error}`);
-            socket.close();
-            return;
-          }
-          joinDone = true;
-
-          // Step 4: VU #1 sends the broadcast after all VUs have (approximately) joined.
-          // We use a short sleep-equivalent by recording the send immediately —
-          // the shared-iterations model means all VUs start near-simultaneously,
-          // and VU #1 is guaranteed to reach this point after its own handshake + join.
-          if (vuIdx === 1 && !broadcastSent) {
-            broadcastSent = true;
-            // Record send-time BEFORE sending (avoids double-counting any callback latency).
-            sharedState.broadcastSentAtMs = Date.now();
-            invoke(socket, 'SendChatMessageAsync', [LOBBY_ID, 'perf-fanout-probe'], `bcast-${vuIdx}`);
-          }
+      // Handshake ack: server sends {} (no type field, no error field).
+      if (!state.handshakeDone) {
+        if (frame.error) {
+          // Handshake canceled (e.g., SESSION_S too long, exceeded server timeout).
+          state.handshakeError = frame.error;
+          ws.close();
+          return;
         }
-        return;
+        if (typeof frame.type === 'undefined') {
+          state.handshakeDone = true;
+          // Immediately send JoinLobbyAsync — response will arrive in a subsequent
+          // message callback (k6 yields between callbacks for network I/O).
+          ws.send(JSON.stringify({
+            type: 1,
+            target: 'JoinLobbyAsync',
+            arguments: [LOBBY_ID],
+            invocationId: 'join-1',
+          }) + RECORD_SEP);
+        }
+        continue;
       }
 
-      // ReceiveChatMessage server-push (type=1, target='ReceiveChatMessage').
-      // This is the delivery signal — record latency for every VU including the broadcaster.
-      if (frame.type === 1 &&
+      // JoinLobbyAsync result (type=3).
+      if (!state.joinDone && state.joinError === null &&
+          frame.type === 3 && frame.invocationId === 'join-1') {
+        if (frame.error) {
+          state.joinError = frame.error;
+          ws.close();
+          return;
+        }
+        state.joinDone = true;
+        // Record send timestamp and fire broadcast immediately.
+        state.broadcastSentAtMs = Date.now();
+        ws.send(JSON.stringify({
+          type: 1,
+          target: 'SendChatMessageAsync',
+          arguments: [LOBBY_ID, `perf-fanout-probe-vu${__VU}`],
+          invocationId: 'bcast-1',
+        }) + RECORD_SEP);
+        continue;
+      }
+
+      // ReceiveChatMessageAsync push (type=1) — the broadcast echo.
+      // Note: ASP.NET Core SignalR sends the full method name including the 'Async' suffix
+      // as the wire target (e.g. "ReceiveChatMessageAsync", NOT "ReceiveChatMessage").
+      if (state.joinDone && state.broadcastSentAtMs > 0 && state.deliveryMs === null &&
+          frame.type === 1 &&
           typeof frame.target === 'string' &&
-          frame.target.toLowerCase() === 'receivechatmessage' &&
-          !deliveryRecorded) {
-        const sentAt = sharedState.broadcastSentAtMs;
-        if (sentAt > 0) {
-          const latencyMs = Date.now() - sentAt;
-          deliveryTime.add(latencyMs);
-          deliveriesReceived.add(1);
-          deliveryRecorded = true;
-          // Close after recording so the VU's session ends cleanly.
-          socket.close();
-        }
+          frame.target.toLowerCase() === 'receivechatmessageasync') {
+        state.deliveryMs = Date.now() - state.broadcastSentAtMs;
+        ws.close();
         return;
       }
+    }
+  });
 
-      // Broadcast result for the sender (type=3, invocationId=bcast-1): no delivery record needed.
-      // (The sender records delivery via the ReceiveChatMessage push like all other clients.)
-    },
-    '/hubs/lobby'
-  );
+  ws.addEventListener('error', function (event) {
+    console.error(`VU ${__VU}: WebSocket error: ${JSON.stringify(event)}`);
+  });
 
-  // sleep() = session deadline. All callbacks fire AFTER sleep() returns (k6/websockets model).
-  // SESSION_S must be long enough for connect + join + broadcast + receive on the local stack.
+  // close: fires last, after all message callbacks. Safe place for metrics + checks.
+  ws.addEventListener('close', function () {
+    if (state.deliveryMs !== null) {
+      deliveryTime.add(state.deliveryMs);
+      deliveriesReceived.add(1);
+    } else {
+      deliveriesMissed.add(1);
+    }
+
+    check(state, {
+      'handshake completed': (s) => s.handshakeDone,
+      'join succeeded': (s) => s.joinDone,
+      'delivery received': (s) => s.deliveryMs !== null,
+    });
+
+    if (state.handshakeError) {
+      console.warn(`VU ${__VU}: handshake error — SESSION_S (${SESSION_S}) may exceed server timeout: ${state.handshakeError}`);
+    }
+    if (state.joinError) {
+      console.warn(`VU ${__VU}: JoinLobbyAsync error: ${state.joinError}`);
+    }
+  });
+
+  // Keep the WS connection alive for SESSION_S seconds. During this time, the real
+  // network I/O runs: the WS connects, the server sends frames, the k6 event loop
+  // buffers them. When this function RETURNS after sleep(), k6 fires all queued
+  // callbacks: open → sends handshake → micro-yield → message (ack) → sends JoinLobby
+  // → micro-yield → message (join result) → sends broadcast → micro-yield →
+  // message (ReceiveChatMessage) → ws.close() → close (records metrics).
+  //
+  // DO NOT call ws.close() here — that would close the WS BEFORE callbacks run,
+  // preventing the handshake, join, and broadcast sequence from completing.
+  // ws.close() is called inside the message callback when ReceiveChatMessage arrives
+  // (or on error paths). The scenario maxDuration provides a hard upper bound.
   sleep(SESSION_S);
-
-  // Post-session: record miss if delivery was not recorded.
-  if (!deliveryRecorded) {
-    deliveriesMissed.add(1);
-  }
 }

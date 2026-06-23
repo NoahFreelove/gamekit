@@ -50,6 +50,13 @@ namespace GameKit.Matchmaking.Integration.Tests;
 /// <see cref="LongPollTimeoutSeconds"/> may be set before <see cref="StartAsync"/> to shorten
 /// the long-poll wait for the LongPollStatusTests; default is 30 s (production).
 /// </para>
+/// <para>
+/// <b>Two-replica shared-DB mode (SCALE-04):</b> pass <paramref name="connectionString"/> to
+/// <see cref="StartAsync(PostgresFixture, RedisFixture, string?, Action{IServiceCollection}?)"/>
+/// so a second instance shares the same Postgres database. The caller is responsible for
+/// running migrations exactly once (via the first app's startup) before starting the second
+/// instance; the shared-DB path does NOT re-migrate. See RESEARCH §Pitfall 3.
+/// </para>
 /// </remarks>
 internal sealed class MatchmakingTestApp : IAsyncDisposable
 {
@@ -59,6 +66,7 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
     private readonly RSA _signingRsa;
     private readonly bool _withRankingsRatingSource;
     private readonly Action<MatchmakingLadderConfig>? _configureLadder;
+    private readonly int? _lockTtlSeconds;
     private IHost? _host;
     private string _databaseSuffix = string.Empty;
 
@@ -87,6 +95,16 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
     public string TestLadderName { get; } = "default";
 
     /// <summary>
+    /// The Redis key used by this host's matchmaker leader-election lock. Populated after
+    /// <see cref="StartAsync"/> completes. Reads the lock key that the host's
+    /// <see cref="GameKitMatchmakingTickerOptions.LockKey"/> resolves to after DI build —
+    /// which is the default <c>gamekit:matchmaking:matcher:lock</c> unless the caller's
+    /// <paramref name="serviceOverrides"/> or the options configuration changes it.
+    /// Used by <c>GracefulDrainTests</c> to assert the lease was released after host stop.
+    /// </summary>
+    public string MatcherLockKey { get; private set; } = string.Empty;
+
+    /// <summary>
     /// Constructs the host — generates an ephemeral RSA PEM keypair under the temp directory.
     /// </summary>
     /// <param name="withRankingsRatingSource">
@@ -100,10 +118,20 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
     /// Invoked after the ladder name is set; the name is locked to <see cref="TestLadderName"/>
     /// regardless of any <c>Name</c> assignment inside the callback.
     /// </param>
-    public MatchmakingTestApp(bool withRankingsRatingSource = false, Action<MatchmakingLadderConfig>? configureLadder = null)
+    /// <param name="lockTtlSeconds">
+    /// Optional override for <see cref="GameKitMatchmakingTickerOptions.LockTtlSeconds"/>.
+    /// When set, the ticker uses this short TTL — required by the SCALE-04 split-brain test
+    /// to make lease expiry observable within a deterministic test window (e.g. 2 s).
+    /// When <see langword="null"/>, the production default (90 s) is used.
+    /// </param>
+    public MatchmakingTestApp(
+        bool withRankingsRatingSource = false,
+        Action<MatchmakingLadderConfig>? configureLadder = null,
+        int? lockTtlSeconds = null)
     {
         _withRankingsRatingSource = withRankingsRatingSource;
         _configureLadder = configureLadder;
+        _lockTtlSeconds = lockTtlSeconds;
         _keyDir = Path.Combine(Path.GetTempPath(), $"gk-mm-host-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_keyDir);
         _privPath = Path.Combine(_keyDir, "priv.pem");
@@ -113,18 +141,65 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
         File.WriteAllText(_pubPath, _signingRsa.ExportRSAPublicKeyPem());
     }
 
-    /// <summary>Builds and starts the host against a fresh per-host database.</summary>
-    public async Task StartAsync(PostgresFixture pg, RedisFixture redis)
+    /// <summary>
+    /// Builds and starts the host against a fresh per-host database. Delegates to the full
+    /// <see cref="StartAsync(PostgresFixture, RedisFixture, string?, Action{IServiceCollection}?)"/>
+    /// overload with <c>connectionString: null</c> and <c>serviceOverrides: null</c> — preserves
+    /// the two-argument call shape used by all existing integration tests.
+    /// </summary>
+    public Task StartAsync(PostgresFixture pg, RedisFixture redis)
+        => StartAsync(pg, redis, connectionString: null, serviceOverrides: null);
+
+    /// <summary>
+    /// Builds and starts the host, optionally sharing a pre-migrated database and injecting
+    /// test-specific service overrides.
+    /// </summary>
+    /// <param name="pg">Postgres fixture providing Testcontainers admin + owner connection strings.</param>
+    /// <param name="redis">Redis fixture providing the Testcontainers connection string.</param>
+    /// <param name="connectionString">
+    /// When non-<see langword="null"/>, the host connects to this existing database and does
+    /// NOT create a fresh database or re-apply migrations (RESEARCH Pitfall 3 — migrate once).
+    /// Pass <c>_appA.ConnectionString</c> when starting <c>_appB</c> in two-replica tests so
+    /// both replicas share one <c>game_sessions</c> table. The shared-DB path still registers
+    /// the <see cref="MatchmakingTestModelCustomizer"/> so all <c>DbSet&lt;T&gt;</c> paths resolve.
+    /// When <see langword="null"/>, a fresh database is created and full migrations are applied.
+    /// </param>
+    /// <param name="serviceOverrides">
+    /// Optional callback applied AFTER all standard GameKit services are registered and BEFORE
+    /// the host is built. Use this to replace services (e.g. inject
+    /// <c>DelayingChaosInterceptor</c> for the SCALE-04 split-brain test) without forking
+    /// <see cref="MatchmakingTestApp"/>. Mirrors <c>LobbyTestApp.StartAsync</c>.
+    /// </param>
+    public async Task StartAsync(
+        PostgresFixture pg,
+        RedisFixture redis,
+        string? connectionString = null,
+        Action<IServiceCollection>? serviceOverrides = null)
     {
         ArgumentNullException.ThrowIfNull(pg);
         ArgumentNullException.ThrowIfNull(redis);
 
-        ConnectionString = await IntegrationTestHelpers.CreateFreshDatabaseAsync(pg);
-        await IntegrationTestHelpers.ApplyMatchmakingMigrationsAsync(ConnectionString);
+        if (connectionString is not null)
+        {
+            // Shared-DB path: use the supplied connection string directly.
+            // The caller already applied migrations via the first app's StartAsync call.
+            // Do NOT create a fresh database or re-apply migrations (RESEARCH Pitfall 3).
+            ConnectionString = connectionString;
+            // Seed a ladder in the shared DB only if not already present.
+            TestLadderId = await IntegrationTestHelpers.SeedLadderAsync(ConnectionString, TestLadderName + "_b");
+        }
+        else
+        {
+            // Fresh-DB path: create a new database, apply all migrations, seed the ladder.
+            ConnectionString = await IntegrationTestHelpers.CreateFreshDatabaseAsync(pg);
+            await IntegrationTestHelpers.ApplyMatchmakingMigrationsAsync(ConnectionString);
+            // Seed a Rankings ladder row so /api/mm/queue can resolve a real LadderId at
+            // enqueue time and the matchmaking_tickets FK is satisfied later by the drain.
+            TestLadderId = await IntegrationTestHelpers.SeedLadderAsync(ConnectionString, TestLadderName);
+        }
 
-        // Seed a Rankings ladder row so /api/mm/queue can resolve a real LadderId at enqueue
-        // time and the matchmaking_tickets FK is satisfied later by the drain.
-        TestLadderId = await IntegrationTestHelpers.SeedLadderAsync(ConnectionString, TestLadderName);
+        // Capture the short TTL (if any) for use in the options callback below.
+        var ttlSeconds = _lockTtlSeconds;
 
         // Build the host.
         _host = await Host.CreateDefaultBuilder()
@@ -154,6 +229,10 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
                     var mm = b.AddMatchmaking(o =>
                     {
                         o.LongPollTimeoutSeconds = LongPollTimeoutSeconds;
+                        // SCALE-04: when a short TTL was requested, configure the ticker
+                        // to use it so lease expiry is observable within the test window.
+                        if (ttlSeconds.HasValue)
+                            o.Ticker.LockTtlSeconds = ttlSeconds.Value;
                     });
                     mm.AddLadder(TestLadderName, _configureLadder);
 
@@ -170,9 +249,15 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
                     // query time. Replace the scoped DbContext registration with one that
                     // applies the test customizer (re-binds the model with both packages'
                     // configurations applied so DbSet<Party>/<PartyMember>/<Ladder> succeed).
+                    // Also applied for the shared-DB path so DbSet<GameSession> resolves.
                     services.AddDbContext<GameKitDbContext>((_, dbOpts) =>
                         dbOpts.UseNpgsql(ConnectionString)
                               .ReplaceService<IModelCustomizer, MatchmakingTestModelCustomizer>());
+
+                    // Apply optional test-specific service overrides (e.g. inject
+                    // DelayingChaosInterceptor for the SCALE-04 split-brain simulation).
+                    // Mirrors LobbyTestApp.StartAsync serviceOverrides pattern.
+                    serviceOverrides?.Invoke(services);
                 });
                 web.Configure(app =>
                 {
@@ -192,6 +277,13 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
             .ConfigureAwait(false);
 
         Client = _host.GetTestClient();
+
+        // Read the configured lock key back from the built host's options so MatcherLockKey
+        // reflects whatever value the host actually resolves (default or serviceOverrides-changed).
+        // Uses IOptions<GameKitMatchmakingOptions> rather than the constant so operator
+        // overrides to Ticker.LockKey are captured correctly.
+        var opts = _host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<GameKitMatchmakingOptions>>();
+        MatcherLockKey = opts.Value.Ticker.LockKey;
     }
 
     /// <summary>

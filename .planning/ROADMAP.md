@@ -175,7 +175,13 @@ Plans:
   4. A CI check asserts that every `Down()` method in every migration file contains only `throw new NotSupportedException(...)` — no DROP TABLE, DROP COLUMN, or destructive DDL
   5. A `MigrationTimestampTests` suite asserts that each package's latest migration timestamp is lexicographically greater than the previous package's latest timestamp, enforcing the per-package application ordering
 
-**Plans**: TBD
+**Plans**: 6 plans
+- [ ] 17-01-PLAN.md — Convert all 14 migration Down() bodies to throw NotSupportedException + add 5 ordering-marker migrations (DR-04, DR-05, DR-07)
+- [ ] 17-02-PLAN.md — GK0003 Down()-policy analyzer + analyzer tests + MigrationTimestampTests (DR-04, DR-05, DR-07)
+- [ ] 17-03-PLAN.md — `gamekit migrations list` + `apply --dry-run` CLI + per-package context factory + CLI tests (DR-04, DR-05)
+- [ ] 17-04-PLAN.md — `gamekit db backup` / `db restore` CLI (pg_dump/pg_restore wrappers + Redis BGSAVE) + path-traversal guard (DR-06)
+- [ ] 17-05-PLAN.md — DR round-trip Testcontainers test: dump → destroy → restore → /health/ready 200 (DR-03)
+- [ ] 17-06-PLAN.md — Postgres + Redis backup/restore runbooks + migration-ops docs + RunbookFilesTests (DR-01, DR-02, DR-07)
 **UI hint**: no
 
 ### Phase 18: Security Audit

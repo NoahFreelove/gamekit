@@ -64,7 +64,7 @@
 
 ### Load / Performance Testing
 
-- [ ] **PERF-01**: BenchmarkDotNet (MIT) micro-benchmarks for hot paths — JWT validation, BCrypt + Argon2id verify, Glicko-2 rating calculation, and the matchmaking-ticket Redis round-trip.
+- [x] **PERF-01**: BenchmarkDotNet (MIT) micro-benchmarks for hot paths — JWT validation, BCrypt + Argon2id verify, Glicko-2 rating calculation, and the matchmaking-ticket Redis round-trip.
 - [ ] **PERF-02**: Committed performance baselines (`benchmarks/BASELINES.md`) recording machine spec + .NET version + result per benchmark.
 - [ ] **PERF-03**: k6 (AGPLv3 CLI; no library dependency) load scenarios — a matchmaking burst (500 players queue simultaneously, assert p99 match time) and auth throughput — runnable against a local Testcontainers stack and **never** run in CI against production.
 - [ ] **PERF-04**: k6 Lobby SignalR fan-out scenario (N connected clients, one broadcast, measure delivery-time distribution) exercising the real Redis backplane. *(A short spike confirms k6 WebSocket sufficiency for SignalR before committing the scenario.)*
@@ -168,7 +168,7 @@ Phase mapping populated by roadmapper 2026-06-08. All 47 requirements mapped.
 | SEC-06 | Phase 18 | Pending |
 | SEC-07 | Phase 18 | Pending |
 | SEC-08 | Phase 18 | Pending |
-| PERF-01 | Phase 19 | Pending |
+| PERF-01 | Phase 19 | Complete |
 | PERF-02 | Phase 19 | Pending |
 | PERF-03 | Phase 19 | Pending |
 | PERF-04 | Phase 19 | Pending |

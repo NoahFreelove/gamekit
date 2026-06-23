@@ -3,18 +3,18 @@ gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Operability & Hardening
 current_phase: 16
-current_phase_name: Multi-Replica Hardening
 status: planning
-stopped_at: Phase 15 complete (verified — UAT + live-stack passed)
-last_updated: "2026-06-22T23:42:08.074Z"
+stopped_at: Phase 21 context gathered
+last_updated: "2026-06-23T00:26:46.416Z"
 last_activity: 2026-06-22
-last_activity_desc: Phase 15 complete + verified; next up Phase 16 (16–20 precede the Phase-21 capstone)
+last_activity_desc: Phase 15 complete + verified
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 15
   completed_plans: 15
   percent: 30
+current_phase_name: Multi-Replica Hardening
 ---
 
 # STATE: GameKit
@@ -338,9 +338,9 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-06-22T21:31:25.354Z
-**Stopped at:** Completed 15-06-PLAN.md
-**Resume file:** None
+**Last session:** 2026-06-23T00:26:46.410Z
+**Stopped at:** Phase 21 context gathered
+**Resume file:** .planning/phases/21-final-demo-3d-multiplayer-platformer/21-CONTEXT.md
 
 **Last action:** 2026-06-08 — v2.1 roadmap created. 8 phases (13–20), 47/47 requirements mapped. Architecture decisions locked: no new packages, health/obs in Core, k6 + BenchmarkDotNet + DocFX as tooling.
 

@@ -33,6 +33,16 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
 
+    <!-- SEC-07 (Phase 18-01): NuGet supply-chain audit gate.
+         Enables vulnerability checking for ALL packages (direct + transitive) and fails
+         the build on any HIGH or CRITICAL severity advisory. The prior -p:NuGetAudit=false
+         workaround (MEMORY.md "Pre-existing MessagePack NU1903") is now obsolete — the
+         underlying advisory (GHSA-hv8m-jj95-wg3x) is eliminated by the MessagePack 3.1.7
+         transitive pin in Directory.Packages.props. Do NOT add NuGetAuditSuppress entries
+         for MessagePack — the CVE is removed by upgrade, not silenced. -->
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>high</NuGetAuditLevel>
+
     <!-- D-15 + 06-PATTERNS Critical Misuse Warning #5: emit GameKit.Build
          source-generator output to disk so (a) the Plan 06-01 Task 4 smoke
          verify can grep the live GameKitMarker.GameKitVersion value, and

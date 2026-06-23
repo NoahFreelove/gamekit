@@ -98,6 +98,18 @@
          (11-RESEARCH §Standard Stack). Reuses existing IConnectionMultiplexer Singleton. -->
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.8" />
 
+    <!-- SEC-07 (Phase 18-01): Transitive pin to resolve GHSA-hv8m-jj95-wg3x
+         (MessagePack 2.5.187 HIGH severity CVE).
+         Microsoft.AspNetCore.SignalR.StackExchangeRedis 10.0.8 requires >= 2.5.187;
+         3.1.7 satisfies the constraint and is clean of the advisory.
+         CentralPackageTransitivePinningEnabled=true (line 4) propagates this pin to all
+         transitive uses across the 15 affected projects (Lobby, Matchmaking, Admin.UI, Cli,
+         TicTacToeDuel, and their test projects). No GameKit package adds MessagePack as a
+         direct PackageReference — this is a transitive-only pin.
+         After this pin, the -p:NuGetAudit=false workaround (MEMORY.md) is obsolete. -->
+    <PackageVersion Include="MessagePack" Version="3.1.7" />
+    <PackageVersion Include="MessagePack.Annotations" Version="3.1.7" />
+
     <!-- Phase 11 Lobby — SignalR test client (test-only; used by HubConnectionBuilder
          in GameKit.Lobby.Integration.Tests Wave 2+ backplane + hub-auth tests).
          Microsoft first-party package; same 10.0.8 release train as StackExchangeRedis. -->

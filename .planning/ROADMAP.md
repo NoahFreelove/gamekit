@@ -152,12 +152,14 @@ Plans:
   5. A SignalR multi-replica integration test with real Testcontainers Redis backplane confirms all connected lobby **and admin** clients receive hub events regardless of which replica sends them under replica restart and Redis reconnect (covers both the Lobby hub and the Admin hub, per SCALE-06 "Lobby + Admin")
 
 **Plans**: 6 plans
+
 - [ ] 16-01-PLAN.md — Extract `ILeaderLease` + `LeaseStatus` into `GameKit.Core`; adapt all four lease helpers (SCALE-01) [Wave 1]
 - [ ] 16-02-PLAN.md — Core migration + `game_sessions.IdempotencyKey` + idempotent match-formation write (SCALE-03 impl) [Wave 1]
 - [ ] 16-03-PLAN.md — Fix 5 finally-path lease releases to `CancellationToken.None` + static grep gate (SCALE-02) [Wave 1]
 - [ ] 16-04-PLAN.md — Extend `MatchmakingTestApp` + `MatchmakerSplitBrainTests` split-brain CI gate + idempotency proof (SCALE-04, SCALE-03) [Wave 2]
 - [ ] 16-05-PLAN.md — `GracefulDrainTests` — 100 concurrent requests + SIGTERM → zero 5xx, lock released (SCALE-05) [Wave 3]
 - [ ] 16-06-PLAN.md — Lobby `SignalRReplicaTests` + Admin `AdminSignalRReplicaTests` multi-replica restart/reconnect + sticky-session operator doc covering both hubs (SCALE-06: Lobby + Admin) [Wave 1]
+
 **UI hint**: no
 
 ### Phase 17: Backup / DR + Migration Ops
@@ -247,12 +249,27 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 21-01-PLAN.md — Foundation: two sample project shells + two test projects + Testcontainers fixture + reuse CLI + sln wiring (R1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 21-02-PLAN.md — Custom IMatchmakingStrategy (best-time) + custom IRankingAlgorithm (fixed-delta, D-09 amended) + unit tests (R5, R6)
 - [ ] 21-03-PLAN.md — three.js browser client (vendored, no CDN) + guest onboarding + level + REUSE/notices (R2, R8, R11)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 21-04-PLAN.md — Host composition (custom seams resolved, admin, WebSocket) + embedded GameServer IHostedService + run-summary validation (R4, R5, R6, R7, R8, R9)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 21-05-PLAN.md — Multi-stage Dockerfile + single compose (only app port) + offline docker save tarball (R3, R11)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 21-06-PLAN.md — Integration/smoke: resolution, guest, player-JWT-401/403, idempotency, lobby→1v1+abort, full-loop+concurrent, compose-port, human-verify (R5, R7, R8, R9, R10)
+
 **UI hint**: yes
 
 ## Progress

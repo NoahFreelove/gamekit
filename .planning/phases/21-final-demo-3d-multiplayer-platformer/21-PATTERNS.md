@@ -69,12 +69,17 @@ var gameKitBuilder = builder.Services.AddGameKit(opts =>
 });
 ```
 
-**Custom strategy registration note:** Before `gameKitBuilder.AddMatchmaking(...)`, register the custom strategy as a singleton so Scrutor's dedup contract prevents double-registration:
+**Custom strategy registration note (CORRECTED — A3):** Register the custom strategy via `services.Replace(...)` **AFTER** `gameKitBuilder.AddMatchmaking(...)`:
 ```csharp
-// Register BEFORE AddMatchmaking so Scrutor dedup skips re-registering from assembly scan
-builder.Services.AddSingleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>();
+using Microsoft.Extensions.DependencyInjection.Extensions; // for services.Replace
+
+// ... after gameKitBuilder.AddMatchmaking(...).AddLadder("platformer", ...):
+// Replace the Scrutor-scanned EloRange descriptor so the SINGLE resolved
+// IMatchmakingStrategy is the custom one (A3 shadowing fix).
+builder.Services.Replace(
+    ServiceDescriptor.Singleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>());
 ```
-This follows the pattern documented in `src/GameKit.Matchmaking/Builder/MatchmakingBuilderExtensions.Strategy.cs` lines 51–53: "Consumers who ship their own strategy in a separate assembly register it via `services.AddSingleton<IMatchmakingStrategy, MyStrategy>()` BEFORE calling `AddMatchmaking()`."
+**Shadowing rationale (A3):** `MatchmakerTickerService` injects a **SINGLE** `IMatchmakingStrategy` (ctor line ~103; `_strategy.Match(...)` line ~477) — not `IEnumerable`, not keyed by `Name`. `AddMatchmaking()` calls `AddStrategyServices()` (`MatchmakingBuilderExtensions.Strategy.cs` lines 67–71), which Scrutor-scans and registers `EloRangeMatchmakingStrategy` as an `IMatchmakingStrategy` singleton. MS.DI returns the **last-registered** descriptor for a service type, so a plain `AddSingleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>()` placed *before* `AddMatchmaking()` is **shadowed** by EloRange. The XML doc at `MatchmakingBuilderExtensions.Strategy.cs:50–56` ("register BEFORE … Scrutor dedups by service+impl pair") only prevents double-registering the *same* impl — it does NOT make a *different* impl win. Therefore use `services.Replace(...)` **after** `AddMatchmaking()`: it removes the scanned EloRange descriptor and leaves exactly one strategy. The R5 resolution test (21-06) — `GetRequiredService<IMatchmakingStrategy>()` is `BestTimeMatchmakingStrategy` — is the gate that proves this.
 
 **Custom algorithm registration note:** Register before `AddRankings()` using the same pattern:
 ```csharp

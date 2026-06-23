@@ -56,7 +56,7 @@
 | R2 | Browser-playable 3D client in stock Chromium/Firefox — interactive level, no player-side install | three.js (MIT) WebGL client; ES module vendor pattern; no CDN |
 | R3 | One-command offline packaging — `docker compose up` yields `/health/ready` 200 and browser-reachable game; `docker save` tarball | Multi-stage Dockerfile pattern; compose shape; offline tarball section |
 | R4 | Running app exposes admin console showing live demo players/matches/sessions; renders empty states | Admin console surfacing section; `AddGameKitAdmin()` composition pattern |
-| R5 | Custom `IMatchmakingStrategy` registered and invoked for demo ladder; test asserts resolved type is custom | Custom strategy section; DI registration before `AddMatchmaking()` |
+| R5 | Custom `IMatchmakingStrategy` registered and invoked for demo ladder; test asserts resolved type is custom | Custom strategy section; DI registration via `services.Replace(...)` AFTER `AddMatchmaking()` (A3 RESOLVED) |
 | R6 | Custom ladder/algorithm (time/score-based); integer-ms precision; exact tie = draw | Custom algorithm section; `IRankingAlgorithm.Apply` batched-only; `LadderConfig.Algorithm` field |
 | R7 | Authoritative results only from service-token game server; double-post idempotent; player JWT -> 401/403 | Service-token auth section; `IIdempotencyStore` / `Idempotency-Key` header pattern |
 | R8 | One-click guest sign-in — `POST /auth/login/guest` produces authenticated player, no email/OAuth required | Guest onboarding section; `GuestOAuthProvider` creates ephemeral `Player` row |
@@ -173,8 +173,8 @@ Browser (WebGL/three.js client)
 
 ASP.NET Core 10 Host (Platformer3D -- single process, single image)
   |
-  +-- services.AddSingleton<IMatchmakingStrategy, BestTimeProximityStrategy>()  [BEFORE AddMatchmaking]
-  +-- services.AddSingleton<IRankingAlgorithm, PlatformerSpeedrunAlgorithm>()   [BEFORE AddRankings]
+  +-- services.Replace(Singleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>())  [AFTER AddMatchmaking — A3 RESOLVED]
+  +-- services.AddSingleton<IRankingAlgorithm, TimeMarginRankingAlgorithm>()   [BEFORE AddRankings — selection by Name, no shadowing]
   +-- AddGameKit().AddAuth().AddRankings("platformer", algo="platformer-speedrun")
   |                          .AddMatchmaking("platformer", strategy="best-time-proximity")
   |                          .AddLobby().AddPresence().AddGameKitAdmin().AddGameKitHealthChecks()
@@ -231,6 +231,15 @@ tests/
 ```
 
 ### Pattern 1: Custom IMatchmakingStrategy Registration
+
+> **⚠ SUPERSEDED — see ## Open Questions (RESOLVED) #1 (A3).** This draft pattern's
+> "register BEFORE `AddMatchmaking()`" guidance and the `[ASSUMED]` StrategyName note
+> below are WRONG: the ticker injects a SINGLE `IMatchmakingStrategy` and MS.DI returns
+> the LAST-registered, so a pre-`AddMatchmaking` `AddSingleton` is shadowed by the
+> Scrutor-scanned EloRange. The **LOCKED** registration is
+> `services.Replace(ServiceDescriptor.Singleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>())`
+> called **AFTER** `AddMatchmaking()`. The code block below is retained only as the
+> (incorrect) draft; follow the RESOLVED section and `21-PATTERNS.md`.
 
 **What:** Register the custom strategy as a singleton BEFORE `AddMatchmaking()`. Scrutor's scan inside `AddMatchmaking()` scans only `GameKit.Matchmaking` assembly via `FromAssemblyOf<EloRangeMatchmakingStrategy>()` — it does NOT scan the consumer assembly. Consumer strategies must be registered explicitly.
 
@@ -807,7 +816,7 @@ Files under `samples/Platformer3D/wwwroot/js/`.
 | Service token validation | JWT parse in game server | `ServiceTokenAuthenticationHandler` (registered by `AddRankings()`) | Handler verifies SHA-256 hash, expiry, revocation -- do not reimplement |
 | Lobby party/ready-check | Custom SignalR hub | `ILobbyService` + `LobbyHub` | Abort path (disconnect/timeout/decline) already handled; SERIALIZABLE all-ready transition already built |
 | Player JWT verification in WS | Custom JWT parse | `ctx.User` in WebSocket handler (auth middleware already ran) | `UseGameKitAuth()` + `UseGameKit()` before the WS endpoint; `User` is authenticated |
-| Strategy/algorithm DI wiring | Manual factory | Scrutor scan + `Name` discriminator | Ticker resolves by Name; consumer registers singleton before `AddMatchmaking()` |
+| Strategy/algorithm DI wiring | Manual factory | Scrutor scan; single resolved strategy (last-wins) | Ticker resolves a SINGLE `IMatchmakingStrategy`; consumer uses `services.Replace(...)` AFTER `AddMatchmaking()` (A3 RESOLVED); algorithm selected by `Name` |
 | Rating convergence loop | Custom Glicko | Fixed-delta Elo in `PlatformerSpeedrunAlgorithm` | Simple K-factor is correct and safe; Glicko math is unnecessary overhead |
 | Matchmaking queue management | Redis sorted-set logic | Existing `MatchmakerTickerService` | Ticker manages queue, proposals, accept/decline -- no consumer code needed |
 | Health endpoints | Custom health check | `AddGameKitHealthChecks()` + `MapGameKitHealth()` | Already built; `HLTH-01/02` -- `/health/live` + `/health/ready` |
@@ -818,15 +827,15 @@ Files under `samples/Platformer3D/wwwroot/js/`.
 
 ## Common Pitfalls
 
-### Pitfall 1: Scrutor Scan Excludes Consumer Assembly
+### Pitfall 1: Custom Strategy Shadowed by EloRange (A3 RESOLVED)
 
-**What goes wrong:** `BestTimeProximityStrategy` is registered but `EloRangeMatchmakingStrategy` is selected for the "platformer" ladder because the ticker cannot find a strategy whose `Name == "platformer"` or `Name == "best-time-proximity"`.
+**What goes wrong:** The custom strategy is registered but `GetRequiredService<IMatchmakingStrategy>()` returns `EloRangeMatchmakingStrategy`, so the demo ladder never uses the custom one.
 
-**Why it happens:** The Scrutor scan inside `AddMatchmaking()` scans `GameKit.Matchmaking` assembly only. Consumer strategies in `samples/Platformer3D/` are NOT auto-discovered.
+**Why it happens:** The ticker injects a **SINGLE** `IMatchmakingStrategy`; MS.DI returns the **last-registered** descriptor for a service type. `AddMatchmaking()` Scrutor-registers `EloRangeMatchmakingStrategy` as `IMatchmakingStrategy`. A custom `AddSingleton<IMatchmakingStrategy, ...>()` placed BEFORE `AddMatchmaking()` is therefore SHADOWED (registered earlier, EloRange wins). The "Scrutor dedups by service+impl pair" note in the package XML doc only blocks double-registering the *same* impl — it does not make a *different* impl win.
 
-**How to avoid:** Register `services.AddSingleton<IMatchmakingStrategy, BestTimeProximityStrategy>()` BEFORE `AddMatchmaking()`. Then confirm the strategy Name is used correctly for ladder routing (read `MatchmakerTickerService` strategy-resolution code before writing plan tasks).
+**How to avoid:** Call `services.Replace(ServiceDescriptor.Singleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>())` **AFTER** `AddMatchmaking()` (see ## Open Questions (RESOLVED) #1 and `21-PATTERNS.md`). `Replace` removes the scanned EloRange descriptor and leaves exactly one strategy.
 
-**Warning signs:** R5 test resolves `IMatchmakingStrategy` and gets `EloRangeMatchmakingStrategy`.
+**Warning signs:** R5 test resolves `IMatchmakingStrategy` and gets `EloRangeMatchmakingStrategy` instead of `BestTimeMatchmakingStrategy`.
 
 ### Pitfall 2: Service Token Name Collision on Container Restart
 
@@ -894,27 +903,39 @@ Files under `samples/Platformer3D/wwwroot/js/`.
 
 ### Phase Requirements to Test Map
 
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| R1 | Projects build; `TicTacToeDuel` unchanged | CI build gate | `dotnet build GameKit.sln` | N/A (existing build) |
-| R2 | Browser renders 3D level (no CDN script tags) | Manual + grep check | `grep -r "cdn\|unpkg\|cdnjs" samples/Platformer3D/wwwroot/` returns empty | Wave 0 (grep script) |
-| R3 | Offline compose stack: `/health/ready` = 200 | Integration smoke | `docker compose up` + `curl /health/ready` | Wave 0 |
-| R3 | Pg/Redis ports NOT published | Compose port assert | Parse `docker-compose.yml` and assert no pg/redis port mappings | Unit / Wave 0 |
-| R4 | Admin console renders empty states | Manual browse | n/a (UI acceptance) | -- |
-| R5 | Resolved `IMatchmakingStrategy` for platformer ladder is `BestTimeProximityStrategy` | Unit | `dotnet test ... --filter BestTimeProximityStrategyResolutionTests` | Wave 0 |
-| R5 | Match formed through custom strategy | Unit | `dotnet test ... --filter BestTimeProximityStrategyMatchTests` | Wave 0 |
-| R6 | Custom algorithm updates leaderboard (Win = +30, Loss = -30) | Unit | `dotnet test ... --filter PlatformerSpeedrunAlgorithmTests` | Wave 0 |
-| R6 | Exact integer-ms tie -> draw, no asymmetric change | Unit | `dotnet test ... --filter "DrawEdge"` | Wave 0 |
-| R7 | Double-post session-complete -> exactly one outcome row | Integration | `dotnet test ... --filter IdempotencyDoublePostTests` | Wave 0 |
-| R7 | Player JWT -> 401/403 on session-complete | Integration | `dotnet test ... --filter PlayerJwtRejectedTests` | Wave 0 |
-| R8 | `POST /auth/login/guest` -> player able to enter matchmaking | Integration | `dotnet test ... --filter GuestOnboardingTests` | Wave 0 |
-| R9 | Invite -> ready-check -> queue -> both in one 1v1 match | Integration | `dotnet test ... --filter LobbyToMatchSmokeTests` | Wave 0 |
-| R9 | Declined ready-check -> zero tickets, party intact | Integration | `dotnet test ... --filter ReadyCheckDeclineTests` | Wave 0 |
-| R10 | Full loop smoke: guest -> party -> matchmake -> result -> leaderboard | Integration | `dotnet test ... --filter EndToEndSmokeTests` | Wave 0 |
-| R10 | Smoke test re-runnable (no leaked state) | Integration | Run smoke test twice on same stack; second run passes | Wave 0 |
-| R10 | Two concurrent parties each form exactly one match | Integration | `dotnet test ... --filter ConcurrentPartiesTests` | Wave 0 |
-| R11 | `reuse lint` passes for new sample paths | CI lint | `reuse lint` (requires `pip install reuse` in CI) | Wave 0 |
-| R11 | No CDN/outbound egress in wwwroot | Grep gate | `grep -rE "cdn\.|unpkg\.|cdnjs\." samples/Platformer3D/wwwroot/` | Wave 0 |
+> **Filter-name reconciliation (plan revision 2026-06-22):** The PLAN `<verify><automated>` blocks
+> are authoritative. The illustrative class names from the original draft
+> (`BestTimeProximityStrategy*`, `PlatformerSpeedrunAlgorithm*`,
+> `IdempotencyDoublePostTests`) have been reconciled to the actual filter strings
+> the plans use: `BestTimeMatchmakingStrategy` / `TimeMarginRankingAlgorithm` types,
+> the `--filter "FullyQualifiedName~..."` substring filters, and `IdempotentCompletion`
+> (the new Docker-free R7 unit test, 21-04 Task 4). The exact per-task command map is in
+> `21-VALIDATION.md` § Per-Task Verification Map.
+
+| Req ID | Behavior | Test Type | Plan/Task | Automated Command (authoritative) | File Exists? |
+|--------|----------|-----------|-----------|-----------------------------------|-------------|
+| R1 | Projects build; `TicTacToeDuel` unchanged | CI build gate | 21-01 T2 | `dotnet build samples/Platformer3D/Platformer3D.csproj -p:NuGetAudit=false && dotnet build samples/TicTacToeDuel/TicTacToeDuel.csproj -p:NuGetAudit=false` | Wave 1 |
+| R2 | Browser renders 3D level (no CDN script tags) | Grep gate (+ manual render in 21-06 T3) | 21-03 T2 | `! grep -rEiq 'https?://(cdn\|unpkg\|cdnjs\|fonts\.googleapis\|jsdelivr...)' samples/Platformer3D/wwwroot/ && grep -q 'btn-guest' .../index.html` | Wave 2 |
+| R3 | Offline compose stack builds / `/health/ready` 200 | Build gate (+ smoke 21-06) | 21-05 T1 | `docker build ... \|\| dotnet publish ... -p:NuGetAudit=false` | Wave 4 |
+| R3 | Pg/Redis ports NOT published | Compose port assert (no Testcontainers) | 21-06 T1 | `dotnet test tests/GameKit.Platformer3D.Integration.Tests/ --filter "ComposePort" -p:NuGetAudit=false` | Wave 5 |
+| R4 | Admin console mounted / renders empty states | Build assert + manual browse | 21-04 T1 / 21-06 T3 | `dotnet build samples/Platformer3D/Platformer3D.csproj` (grep `AddGameKitAdmin`); manual in 21-06 T3 | Wave 3 / 5 |
+| R5 | Resolved `IMatchmakingStrategy` is the custom type + match forms | Unit + Integration | 21-02 T2 / 21-06 T1 | `--filter "FullyQualifiedName~BestTimeMatchmakingStrategy"` (unit); `--filter "Resolution"` (integration) | Wave 2 / 5 |
+| R6 | Custom algorithm updates leaderboard (Win +30 / Loss -30) | Unit | 21-02 T1 | `--filter "FullyQualifiedName~TimeMarginRankingAlgorithm"` | Wave 2 |
+| R6 | Exact integer-ms tie -> draw, no asymmetric change | Unit | 21-02 T1 | `--filter "FullyQualifiedName~TimeMarginRankingAlgorithm"` (DrawEdge case) | Wave 2 |
+| R7 | Double-post session-complete -> exactly one outcome (Docker-free) | Unit (mocked) | 21-04 T4 | `--filter "IdempotentCompletion"` | Wave 3 |
+| R7 | Double-post -> one outcome row (full-stack) | Integration (Docker-gated) | 21-06 T2 | `--filter "FullLoop"` | Wave 5 |
+| R7 | Player JWT -> 401/403 on session-complete | Integration | 21-06 T1 | `--filter "PlayerJwt"` | Wave 5 |
+| R7 | D-03 run-summary sanity validation | Unit | 21-04 T2 | `--filter "RunSummary"` | Wave 3 |
+| R8 | `POST /auth/login/guest` -> player able to enter matchmaking, no PII | Integration | 21-06 T1 | `--filter "Guest"` | Wave 5 |
+| R8 | Guest button + run-summary frame present in client | Grep gate | 21-03 T2 | `grep -q '/auth/login/guest' .../game.js && grep -q 'run_finish' .../game.js` | Wave 2 |
+| R9 | Invite -> ready-check -> 1v1 match | Integration | 21-06 T2 | `--filter "LobbyToMatch"` | Wave 5 |
+| R9 | Declined/timeout/disconnect -> zero tickets, party intact | Integration | 21-06 T2 | `--filter "ReadyCheck"` (within LobbyToMatchTests) | Wave 5 |
+| R10 | Full loop smoke: guest -> party -> matchmake -> result -> leaderboard | Integration | 21-06 T2 | `--filter "FullLoop"` | Wave 5 |
+| R10 | Smoke re-runnable (no leaked state) | Integration | 21-06 T2 | `--filter "FullLoop"` (second-run case) | Wave 5 |
+| R10 | Two concurrent parties each form exactly one match | Integration | 21-06 T2 | `--filter "Concurrent"` | Wave 5 |
+| R11 | `reuse lint` passes for new sample paths | CI lint | 21-01 T3 / 21-03 T1 / 21-05 T2 | `reuse lint` (requires `pipx install reuse`, 21-01 T1) | Wave 1/2/4 |
+| R11 | three.js version string identical in NOTICES + REUSE.toml | Grep consistency gate | 21-03 T1 | `grep -qF "$TAG" THIRD-PARTY-NOTICES.md && grep -qF "$TAG" REUSE.toml` | Wave 2 |
+| R11 | No CDN/outbound egress in wwwroot | Grep gate | 21-03 T2 | `! grep -rEiq 'https?://(cdn\|unpkg\|cdnjs...)' samples/Platformer3D/wwwroot/` | Wave 2 |
 
 ### Sampling Rate
 
@@ -988,30 +1009,35 @@ Files under `samples/Platformer3D/wwwroot/js/`.
 |---|-------|---------|---------------|
 | A1 | three.js latest stable version is r168 | Standard Stack | Planner vendors wrong version; mitigate by running `curl` version check before vendoring |
 | A2 | WebSocket endpoint placement in middleware order (after UseGameKitAdmin, before Map calls) produces authenticated `ctx.User` | Pattern 4 | Player JWT not validated on WebSocket upgrade; player identity not bound to session |
-| A3 | `MatchmakingLadderConfig` strategy routing: pool-name == ladder-name == strategy Name (i.e. "platformer" pool selects strategy where Name="platformer") OR a StrategyName field exists | Pattern 1 / Custom Strategy | Custom strategy never invoked; EloRange selected instead; R5 test fails |
-| A4 | `SessionResult` enum (session layer) maps correctly to `MatchResult.Draw` in the ranking batch such that `SessionResult.Draw` from `SessionCompleteParticipant` produces `MatchResult.Draw` in `MatchOutcome` | D-10 / R6 | Tie does not produce draw; asymmetric rating change in contradiction of D-10 |
-| A5 | `RevokeAsync` is idempotent when the token name does not exist (i.e. returns false, does not throw) | Pattern 3 / In-Process Token | `StartAsync` fails on first container start (before any prior token row exists) |
+| A3 | ~~`MatchmakingLadderConfig` strategy routing~~ → **RESOLVED**: ticker injects a SINGLE `IMatchmakingStrategy`; MS.DI returns last-registered; custom strategy registered via `services.Replace(...)` AFTER `AddMatchmaking()` | Pattern 1 / Custom Strategy / Open Questions (RESOLVED) #1 | (was: custom strategy never invoked) — now closed |
+| A4 | ~~`SessionResult.Draw` → `MatchResult.Draw` mapping~~ → **RESOLVED**: `SessionResult.Draw=2`; `RankingsTickerService.cs:532` maps `"draw" => MatchResult.Draw`; fixed-delta Draw = 0 | D-10 / R6 / Open Questions (RESOLVED) #2 | (was: tie does not produce draw) — now closed |
+| A5 | ~~`RevokeAsync` idempotency when name missing~~ → **RESOLVED**: `RevokeAsync` returns `false` when missing, no throw; unconditional revoke-then-issue is safe | Pattern 3 / In-Process Token / Open Questions (RESOLVED) #3 | (was: StartAsync fails on first start) — now closed |
 
-**Most critical:** A3 (strategy routing) and A4 (Draw mapping) must be confirmed before plan tasks are locked. A3 requires reading `MatchmakerTickerService` strategy-resolution logic. A4 requires reading `PendingRatingUpdatesAdapter`.
+**Most critical:** A3 (strategy routing) and A4 (Draw mapping) were the load-bearing unknowns for R5 and R6/D-10. **Both are now RESOLVED** against source (see ## Open Questions (RESOLVED)); A5 is also resolved. No open assumptions remain that block plan locking.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Strategy routing mechanism (A3)**
-   - What we know: `EloRangeMatchmakingStrategy.FindLadderConfig` matches `cfg.Name` against `party.PoolName`; `IMatchmakingStrategy.Name` is `"elo-range"`
-   - What's unclear: Does the ticker select the strategy singleton by comparing `IMatchmakingStrategy.Name` against a per-ladder config field, or does ALL `IMatchmakingStrategy` singletons receive ALL pools and the first matching one wins?
-   - Recommendation: Read `MatchmakerTickerService` strategy-dispatch logic before writing plan tasks for R5. If the ticker dispatches by iterating all `IMatchmakingStrategy` singletons and calling `Match()` on each until one returns non-null, the `Name` field may be irrelevant to dispatch. If there's a `StrategyName` config field on `MatchmakingLadderConfig`, use that.
+> The three load-bearing questions (A3, A4, A5) are RESOLVED below against the
+> real source, locked by the orchestrator during plan revision (2026-06-22).
+> A3 and A4 are load-bearing for R5 and R6/D-10; no "ASSUMED" / "empirically
+> confirm" language remains for these three.
 
-2. **SessionResult to MatchResult Draw mapping (A4)**
-   - What we know: `SessionCompleteParticipant.Result` is `SessionResult`; `MatchOutcome.Result` is `MatchResult`; both have `Draw` variants
-   - What's unclear: Does the `PendingRatingUpdatesAdapter` (or equivalent) map `SessionResult.Draw` to `MatchResult.Draw` in the batch?
-   - Recommendation: Read `PendingRatingUpdatesAdapter.OnCompletedAsync` before writing R6 plan tasks.
+1. **Strategy routing mechanism (A3) — RESOLVED**
+   - **Source:** `src/GameKit.Matchmaking/Services/MatchmakerTickerService.cs` ctor (`IMatchmakingStrategy strategy` parameter, line ~103; field assigned line ~127) and call site `_strategy.Match(candidate, poolScratch, now)` (line ~477); `src/GameKit.Matchmaking/Builder/MatchmakingBuilderExtensions.Strategy.cs` `AddStrategyServices()` (lines 67–71, called from `AddMatchmaking()` at `MatchmakingBuilderExtensions.cs:124`).
+   - **Finding:** The ticker injects a **SINGLE** `IMatchmakingStrategy` — NOT `IEnumerable`, NOT keyed by `Name`. That one resolved strategy self-filters per ladder via its `FindLadderConfig`. `AddStrategyServices()` runs a Scrutor `Scan(...).FromAssemblyOf<EloRangeMatchmakingStrategy>().AddClasses(...AssignableTo<IMatchmakingStrategy>()).WithSingletonLifetime()` that registers `EloRangeMatchmakingStrategy` as an `IMatchmakingStrategy` singleton. MS.DI returns the **LAST-registered** descriptor when several are registered for the same service type. Therefore registering the custom strategy **BEFORE** `AddMatchmaking()` (as that file's XML doc lines 50–56 advises) is **SHADOWED** by the EloRange registration that runs later inside `AddMatchmaking()`. The doc's "Scrutor dedups by service+impl pair" only prevents double-registering the *same* impl — it does NOT make a *different* impl win.
+   - **LOCKED decision:** Call `services.Replace(ServiceDescriptor.Singleton<IMatchmakingStrategy, BestTimeMatchmakingStrategy>())` **AFTER** `AddMatchmaking()`. `Replace` removes the scanned EloRange descriptor and registers exactly one strategy. (`Replace` lives in `Microsoft.Extensions.DependencyInjection.Extensions`; it is already used in `MatchmakingBuilderExtensions.Ticker.cs:61`.) R5's resolution test (21-06) asserts `provider.GetRequiredService<IMatchmakingStrategy>()` is `BestTimeMatchmakingStrategy` for the demo ladder. Wired in 21-04 Task 1; the PATTERNS.md Program.cs note has been corrected to this post-`AddMatchmaking` `services.Replace` form.
 
-3. **`RevokeAsync` idempotency when name not found (A5)**
-   - What we know: Interface signature returns `Task<bool>` -- `false` when name not found
-   - What's unclear: Does it throw when name not found?
-   - Recommendation: Wrap in try/catch or check `ListAsync` first as an alternative to unconditional `RevokeAsync`.
+2. **SessionResult → MatchResult Draw mapping (A4) — RESOLVED**
+   - **Source:** `src/GameKit.Core/Entities/SessionResult.cs` (`Draw = 2`); `src/GameKit.Rankings/Services/RankingsTickerService.cs:532` (`"draw" => MatchResult.Draw`; full map at lines 530–534).
+   - **Finding:** A GameServer posting a `SessionResult.Draw` completion flows to `MatchResult.Draw` in the rankings batch. D-10's exact integer-ms tie → draw is therefore **fully implementable** with the fixed-delta algorithm (Draw delta = 0, symmetric). No GameKit.* API change required.
+   - **LOCKED decision:** The GameServer posts both participants as `SessionResult.Draw` on an exact integer-ms tie (21-04 Task 3); `TimeMarginRankingAlgorithm` maps `MatchResult.Draw` to a 0.0 delta (21-02 Task 1). No API change.
+
+3. **`RevokeAsync` idempotency when name not found (A5) — RESOLVED**
+   - **Source:** `src/GameKit.Rankings/Services/IServiceTokenService.cs:56` (`Task<bool> RevokeAsync(string name, CancellationToken ct)`) and `:47` (`Task<(string Raw, ServiceToken Row)> IssueAsync(string name, DateTimeOffset? expiresAt, CancellationToken ct)`).
+   - **Finding:** `RevokeAsync` returns a `bool` — `false` when the name is missing, **no throw**. `IssueAsync` throws `ServiceTokenNameAlreadyExistsException` on a duplicate name (hence revoke-then-issue is mandatory for clean restart).
+   - **LOCKED decision:** The embedded GameServer's `StartAsync` does an unconditional `RevokeAsync(name, ct)` (false-on-missing is fine — no try/catch, no `ListAsync` pre-check) then `IssueAsync(name, null, ct)` for a clean container-restart re-issue (21-04 Task 3).
 
 ---
 
@@ -1019,7 +1045,7 @@ Files under `samples/Platformer3D/wwwroot/js/`.
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| EloRangeMatchmakingStrategy (default) | Custom `IMatchmakingStrategy` registered before `AddMatchmaking()` | This phase | Consumer strategies are first-class; Scrutor dedup prevents double-reg |
+| EloRangeMatchmakingStrategy (default) | Custom `IMatchmakingStrategy` registered via `services.Replace(...)` AFTER `AddMatchmaking()` (A3 RESOLVED) | This phase | Single resolved strategy; `Replace` removes the scanned EloRange descriptor (last-wins shadowing fix) |
 | Glicko2Algorithm (default) | Custom `IRankingAlgorithm` with `LadderConfig.Algorithm = "name"` | This phase | Fixed-delta Elo for time-based leaderboard; simpler and correct for async 1v1 |
 | Separate console GameServer process (TicTacToeDuel.GameServer) | Embedded `IHostedService` in single app image | This phase | Single-image offline demo; in-process token; simpler compose |
 | CDN-loaded JS (hypothetical) | Vendored ES module from `wwwroot/` | This phase | GPL-compliant offline demo; no outbound CDN call |

@@ -4,9 +4,9 @@ milestone: v2.1
 milestone_name: — Operability & Hardening
 current_phase: 21
 current_phase_name: final-demo-3d-multiplayer-platformer
-status: executing
+status: verifying
 stopped_at: Phase 21 context gathered
-last_updated: "2026-06-23T03:46:05.153Z"
+last_updated: "2026-06-23T21:39:33.893Z"
 last_activity: 2026-06-23
 last_activity_desc: Phase 21 execution started
 progress:
@@ -32,7 +32,7 @@ progress:
 
 Phase: 21 (final-demo-3d-multiplayer-platformer) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-06-23 — Phase 21 execution started
 
 ## Performance Metrics
@@ -124,6 +124,7 @@ Last activity: 2026-06-23 — Phase 21 execution started
 | Phase 21 P03 | 6min | 2 tasks | 9 files |
 | Phase 21 P04 | 18min | - tasks | - files |
 | Phase 21-final-demo-3d-multiplayer-platformer P06 | 75m | 2 tasks | 8 files |
+| Phase 21-final-demo-3d-multiplayer-platformer P06 | 35 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -343,7 +344,7 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-06-23T03:45:53.316Z
+**Last session:** 2026-06-23T21:39:29.184Z
 **Stopped at:** Phase 21 context gathered
 **Resume file:** .planning/phases/21-final-demo-3d-multiplayer-platformer/21-CONTEXT.md
 
@@ -388,3 +389,4 @@ None.
 - [Phase ?]: SeedLobbyAsync (direct SQL) used for solo MaxMembers=1 lobbies to bypass Open→ReadyChecking gap
 - [Phase ?]: IRankingsTicker.RunOnceAsync() invoked in tests to flush PendingRatingUpdate without 60s ticker delay
 - [Phase ?]: Session Pending→Active start call added to PlatformerGameServerService on first WS connection
+- [Phase ?]: DemoAdminSeeder uses config gate + Production guard — seeds superadmin only in non-Production on empty admin_users

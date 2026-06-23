@@ -1,0 +1,12 @@
+<Project>
+  <!-- Override the tests/ Directory.Build.props to exclude test-runner packages.
+       SpikeHost is a developer tool (console app), NOT an xUnit test project. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../../'))" />
+  <ItemGroup>
+    <!-- Remove auto-added test runner packages from the tests/ parent Directory.Build.props -->
+    <PackageReference Remove="Microsoft.NET.Test.Sdk" />
+    <PackageReference Remove="xunit" />
+    <PackageReference Remove="xunit.runner.visualstudio" />
+    <PackageReference Remove="coverlet.collector" />
+  </ItemGroup>
+</Project>

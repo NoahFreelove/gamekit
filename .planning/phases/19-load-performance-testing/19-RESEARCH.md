@@ -939,7 +939,9 @@ All of these benefit from the Postgres `ANALYZE` after bulk loads and correct in
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+*All resolved in planning: Q1 (host networking) → README documents `host.docker.internal` (plan 19-02); Q2 (benchmark CI job) → push-to-main-only gate (plan 19-03); Q3 (spike result) → blocking `checkpoint:human-verify` before the fan-out (plan 19-02 Task 3).*
 
 1. **k6 host networking on macOS/Windows CI runners**
    - What we know: `--network host` works on Linux (GitHub Actions `ubuntu-24.04`); fails on macOS/Windows Docker Desktop VMs.

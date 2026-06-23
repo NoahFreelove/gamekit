@@ -247,7 +247,12 @@ Plans:
   4. `docs/upgrade-v2.1.md` documents all v2.0 → v2.1 config additions (new health/observability wiring, migration-order changes if any) and has been tested against a real v2.0 sample install
   5. `docs/runbooks/` contains runbooks for backup/restore, rolling deploy, migration apply, and matchmaking-outage incident response; `docs/security-checklist.md` maps threat model → implementation → test for auth/admin/rate-limit/egress/GDPR
 
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 20-01-PLAN.md — Sample currency: fix matchmaking.html poolName (default pool) + expose public Program type (DOCS-06)
+- [ ] 20-02-PLAN.md — DocFX gate: tool manifest + docfx.json + Directory.Build.props dup-AdditionalFiles fix + CI --warningsAsErrors gate (DOCS-01)
+- [ ] 20-03-PLAN.md — Getting-started tutorial + CI smoke test (guest→enqueue poolName null→match→accept→/health/ready) (DOCS-02)
+- [ ] 20-04-PLAN.md — Per-package concepts docs (replaceable-interface story, lib-vs-consumer line) (DOCS-03)
+- [ ] 20-05-PLAN.md — Upgrade v2.0→v2.1 guide + rolling-deploy/matchmaking-outage runbooks + ADRs + runbook gate (DOCS-04, DOCS-05)
 **UI hint**: no
 
 ### Phase 21: Final Demo — 3D Multiplayer Platformer

@@ -369,7 +369,26 @@ public sealed class ProposalService : IProposalService
                 .FirstOrDefaultAsync(ct)
                 .ConfigureAwait(false);
 
-            return existing == Guid.Empty ? sessionId : existing;
+            if (existing == Guid.Empty)
+            {
+                // ON CONFLICT DO NOTHING fired but the follow-up query found no row —
+                // this is logically impossible (the conflict implies a row exists) and
+                // indicates a severe data-integrity problem (e.g. a concurrent DELETE on
+                // game_sessions, or a bug in the partial-index predicate). Returning the
+                // never-inserted sessionId would produce a dangling session reference, so
+                // we fail loudly instead.
+                _logger?.LogError(
+                    "ProposalService.CreateSessionAsync: ON CONFLICT DO NOTHING fired for proposal {ProposalId} " +
+                    "(idempotencyKey={IdempotencyKey}) but follow-up query returned no row. " +
+                    "This is logically impossible — a concurrent DELETE or index bug is suspected.",
+                    proposalId, idempotencyKey);
+                throw new InvalidOperationException(
+                    $"ProposalService.CreateSessionAsync: conflict guard fired for proposal {proposalId} " +
+                    "but the canonical game_sessions row is missing. " +
+                    "Cannot return a valid session id — see logs for diagnostics.");
+            }
+
+            return existing;
         }
 
         // Primary path: we created the row — now insert participants.

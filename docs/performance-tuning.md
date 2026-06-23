@@ -5,7 +5,7 @@
 > sizing, and the top-5 hot queries.
 >
 > **Source of truth for measured latency values:** All mean values cited in this document
-> are transcribed from [`benchmarks/BASELINES.md`](../benchmarks/BASELINES.md), which in
+> are transcribed from `benchmarks/BASELINES.md`, which in
 > turn reflects the committed BenchmarkDotNet baseline captured on the dev machine
 > (11th Gen Intel i7-11700K, Ubuntu 26.04, .NET 10.0.9, BDN 0.15.8). Table figures below
 > are rules-of-thumb; BASELINES.md carries the machine-measured truth. Re-capture baselines

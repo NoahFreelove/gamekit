@@ -737,7 +737,7 @@ The Down() convention change is NOT a rename/refactor. It is a body replacement.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`migrations list` vs `migrations status`**
    - What we know: CONTEXT.md/REQUIREMENTS say DR-04 is `gamekit migrations list`. The existing `migrate` command is a top-level command, not a branch. Adding a `migrations` branch changes the surface (`gamekit migrations list` vs. `gamekit migrate`).

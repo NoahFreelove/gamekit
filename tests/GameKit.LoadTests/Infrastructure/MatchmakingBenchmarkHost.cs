@@ -161,6 +161,23 @@ public sealed class MatchmakingBenchmarkHost : IAsyncDisposable
                     o.AutoMigrate = false; // migrations already applied above
                 });
 
+                // Override the DbContext registration to use GameKitModelCacheKeyFactory so the
+                // full-runtime model (Rankings + Matchmaking entities) is cached separately from
+                // the Core-only migration model built in BuildServiceProviderForMigrations above.
+                // This prevents the "Cannot create a DbSet for 'SessionCompleteIdempotency'" crash
+                // that occurs when the migration SP pollutes the shared EF model cache.
+                services.AddDbContext<GameKitDbContext>((sp, dbOpts) =>
+                    dbOpts.UseNpgsql(appCs, npg =>
+                    {
+                        npg.MigrationsAssembly(typeof(GameKitDbContext).Assembly.FullName);
+                        npg.MigrationsHistoryTable(
+                            GameKitMigrationConstants.MigrationsHistoryTable,
+                            GameKitMigrationConstants.SchemaName);
+                    })
+                    .UseApplicationServiceProvider(sp)
+                    .ReplaceService<Microsoft.EntityFrameworkCore.Infrastructure.IModelCacheKeyFactory,
+                                    GameKitModelCacheKeyFactory>());
+
                 gk.AddAuth(o =>
                 {
                     o.Jwt.Issuer          = "gk-bench";
@@ -230,6 +247,20 @@ public sealed class MatchmakingBenchmarkHost : IAsyncDisposable
     /// Builds a minimal <see cref="IServiceProvider"/> containing <see cref="GameKitDbContext"/>
     /// registered via <c>AddGameKit</c>, used for running Core migrations.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Registers <see cref="GameKitModelCacheKeyFactory"/> so that this Core-only migration
+    /// service provider's EF model (no Rankings/Matchmaking entities) does NOT pollute the
+    /// shared EF model cache and collide with the full-runtime host's model
+    /// (which includes all sibling-package entities via <see cref="IModelBuilderExtension"/>).
+    /// Without this, the Core-only migration SP builds and caches the model under key
+    /// <c>(GameKitDbContext, GameKitModelCustomizer, false)</c>, and the runtime host
+    /// retrieves the same cache entry — causing "Cannot create DbSet for X" errors.
+    /// The <see cref="GameKitModelCacheKeyFactory"/> appends the extension-type list to the
+    /// cache key, producing distinct entries for Core-only and full-runtime contexts.
+    /// See <see cref="GameKitModelCacheKeyFactory"/> XML doc for full rationale.
+    /// </para>
+    /// </remarks>
     private static ServiceProvider BuildServiceProviderForMigrations(string cs)
     {
         var services = new ServiceCollection();
@@ -239,6 +270,22 @@ public sealed class MatchmakingBenchmarkHost : IAsyncDisposable
             o.MigrationsConnectionString = cs;
             o.AutoMigrate = false;
         });
+
+        // Override the DbContext registration to include the model cache key factory.
+        // We must re-register GameKitDbContext with the factory so the migration model
+        // doesn't pollute the cache key shared with the runtime host.
+        services.AddDbContext<GameKitDbContext>((sp, dbOpts) =>
+            dbOpts.UseNpgsql(cs, npg =>
+            {
+                npg.MigrationsAssembly(typeof(GameKitDbContext).Assembly.FullName);
+                npg.MigrationsHistoryTable(
+                    GameKitMigrationConstants.MigrationsHistoryTable,
+                    GameKitMigrationConstants.SchemaName);
+            })
+            .UseApplicationServiceProvider(sp)
+            .ReplaceService<Microsoft.EntityFrameworkCore.Infrastructure.IModelCacheKeyFactory,
+                            GameKitModelCacheKeyFactory>());
+
         return services.BuildServiceProvider();
     }
 

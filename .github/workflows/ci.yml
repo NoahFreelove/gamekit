@@ -34,6 +34,71 @@ jobs:
       - name: Restore
         run: dotnet restore
 
+      # SEC-05 (Phase 18-05): Static egress + air-gap gate.
+      # Two checks enforce the invariant that no GameKit source file phones home or bypasses
+      # the egress allow-list by constructing an unwrapped HttpClient directly.
+      #
+      # Check 1 — bare HttpClient construction in src/
+      #   Scans src/**/*.cs for 'new HttpClient(' lines that are not:
+      #   (a) commented out,
+      #   (b) inside the egress-handler wiring files (EgressAllowListHandler.cs,
+      #       AppleBuilderExtensions.cs, GoogleBuilderExtensions.cs) which legitimately
+      #       create an HttpClientHandler as the DelegatingHandler's inner handler, or
+      #   (c) IHttpClientFactory / AddHttpClient named-client paths (already egress-wrapped).
+      #   A match fails the build — a new bare unwrapped client in src/ is a security gap.
+      #
+      # Check 2 — SaaS OTLP / telemetry endpoint in src/ or samples/
+      #   Scans for hardcoded SaaS telemetry destination strings (case-insensitive).
+      #   Matches fail the build — any hardcoded phone-home endpoint breaks the air-gap.
+      #   Commented-out lines are excluded (they document rejected approaches, not live usage).
+      #   NOTE: The literal patterns below are the canonical location for these strings.
+      #   Do NOT add them elsewhere in source comments or docs to avoid triggering the grep.
+      - name: Static egress + air-gap gate (SEC-05)
+        run: |
+          set -euo pipefail
+
+          # --- Check 1: no bare HttpClient construction in src/ ---
+          # Egress-handler wiring in the three files below legitimately construct an HttpClientHandler
+          # (as the InnerHandler for DelegatingHandler); those files are explicitly excluded.
+          BARE_CLIENT=$(grep -rn "new HttpClient(" src/ --include="*.cs" 2>/dev/null \
+            | grep -v "/obj/" \
+            | grep -v "//.*new HttpClient" \
+            | grep -v "EgressAllowListHandler.cs" \
+            | grep -v "AppleBuilderExtensions.cs" \
+            | grep -v "GoogleBuilderExtensions.cs" \
+            | grep -v "AddHttpClient\|IHttpClientFactory" \
+            || true)
+          if [ -n "$BARE_CLIENT" ]; then
+            echo "ERROR: bare 'new HttpClient(' found in src/ — route through EgressAllowListHandler:" >&2
+            echo "$BARE_CLIENT" >&2
+            exit 1
+          fi
+          echo "Check 1 passed: no bare HttpClient construction in src/"
+
+          # --- Check 2: no SaaS telemetry endpoint string in src/ or samples/ ---
+          # Scans for hardcoded SaaS collector hostnames that indicate phone-home to a
+          # third-party managed observability service. These are the patterns we ban:
+          #   honeycomb.io  — Honeycomb SaaS telemetry
+          #   datadoghq.com — Datadog SaaS telemetry
+          #   newrelic.com  — New Relic SaaS telemetry
+          #   grafana.net / grafana-cloud — Grafana Cloud managed service
+          #   lightstep.com — Lightstep SaaS telemetry (now ServiceNow Cloud Observability)
+          # NOT banned: "otlp", "otelcol", "otel-collector" — those refer to the
+          # open-source self-hosted OpenTelemetry Collector which GameKit legitimately uses
+          # in the sample app's docker-compose observability stack (self-hosted, no phone-home).
+          SAAS_TELEMETRY=$(grep -rniE "honeycomb\.io|datadoghq\.com|newrelic\.com|grafana-cloud|grafana\.net|lightstep\.com" \
+            src/ samples/ --include="*.cs" --include="*.yml" --include="*.yaml" --include="*.json" 2>/dev/null \
+            | grep -v "/obj/" \
+            | grep -v "^\s*//" \
+            | grep -v "^[^:]*:#" \
+            || true)
+          if [ -n "$SAAS_TELEMETRY" ]; then
+            echo "ERROR: SaaS telemetry endpoint string found in src/ or samples/ — air-gap broken:" >&2
+            echo "$SAAS_TELEMETRY" >&2
+            exit 1
+          fi
+          echo "Check 2 passed: no SaaS telemetry endpoint strings in src/ or samples/"
+
       # SEC-07 (Phase 18-01): Explicit supply-chain gate — fail the build if any HIGH or
       # CRITICAL CVE is present in the transitive dependency graph. This is a layered
       # secondary defense; the primary gate is NuGetAuditMode=all + NuGetAuditLevel=high

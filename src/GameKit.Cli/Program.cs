@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using GameKit.Cli.Commands;
+using GameKit.Cli.Commands.Db;
 using GameKit.Cli.Commands.Migrations;
 using Spectre.Console.Cli;
 
@@ -28,6 +29,22 @@ app.Configure(config =>
             .WithDescription("Revoke a service-account bearer token by name.");
         st.AddCommand<ServiceTokenListCommand>("list")
             .WithDescription("List all service-account bearer tokens (names, dates, status — never the hash).");
+    });
+
+    // Plan 17-04: DR-06 — db backup/restore branch wrapping pg_dump/pg_restore.
+    // Binaries must be on the operator's PATH; they are not bundled with GameKit.
+    // Password is passed via PGPASSWORD env var, never as a CLI argument (T-17-04-02).
+    config.AddBranch("db", db =>
+    {
+        db.SetDescription("Database backup and restore helpers (wraps pg_dump/pg_restore). " +
+            "Prerequisite: pg_dump and pg_restore must be on the operator's PATH.");
+        db.AddCommand<DbBackupCommand>("backup")
+            .WithDescription("Backup Postgres to a file via pg_dump (--format=custom). " +
+                "Optionally issues a Redis BGSAVE. pg_dump must be on the operator's PATH.");
+        db.AddCommand<DbRestoreCommand>("restore")
+            .WithDescription("Restore Postgres from a pg_dump custom-format file via pg_restore. " +
+                "Requires explicit --database to prevent accidental restore into the wrong DB. " +
+                "pg_restore must be on the operator's PATH.");
     });
 
     // Plan 17-03: DR-04 / DR-05 — unified migrations branch covering all 6 GameKit packages.

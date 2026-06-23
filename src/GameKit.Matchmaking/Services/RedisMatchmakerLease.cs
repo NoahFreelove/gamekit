@@ -4,6 +4,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using GameKit.Core.Services;
 using GameKit.Matchmaking.Redis;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -32,7 +33,7 @@ namespace GameKit.Matchmaking.Services;
 /// instance can never release another instance's lock even after a temporary disconnect.
 /// </para>
 /// </remarks>
-public sealed class RedisMatchmakerLease : IMatchmakerLease
+public sealed class RedisMatchmakerLease : IMatchmakerLease, ILeaderLease
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<RedisMatchmakerLease> _logger;
@@ -79,6 +80,14 @@ public sealed class RedisMatchmakerLease : IMatchmakerLease
             return false;
         }
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// This minimal implementation does not support lease renewal. Returns <c>false</c>
+    /// unconditionally — callers must treat this as lease lost and stop processing.
+    /// Use <c>MatchmakerLeaseHelper</c> (Polly v8) when renewal is required.
+    /// </remarks>
+    public Task<bool> RenewLeaseAsync(CancellationToken ct) => Task.FromResult(false);
 
     /// <inheritdoc />
     public async Task ReleaseLeaseAsync(CancellationToken ct)

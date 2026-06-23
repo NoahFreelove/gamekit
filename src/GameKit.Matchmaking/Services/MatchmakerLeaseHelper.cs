@@ -4,6 +4,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using GameKit.Core.Services;
 using GameKit.Matchmaking.Redis;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -51,7 +52,7 @@ namespace GameKit.Matchmaking.Services;
 /// in Plan 05-07 SUMMARY §Wave-3 Parallel-Plan Coordination Notes.
 /// </para>
 /// </remarks>
-public sealed class MatchmakerLeaseHelper : IMatchmakerLease
+public sealed class MatchmakerLeaseHelper : IMatchmakerLease, ILeaderLease
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<MatchmakerLeaseHelper> _logger;

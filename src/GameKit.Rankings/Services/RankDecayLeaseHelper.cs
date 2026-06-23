@@ -4,6 +4,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using GameKit.Core.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -35,7 +36,7 @@ namespace GameKit.Rankings.Services;
 /// exclude each other (RANK-15 / Pitfall 4 from RESEARCH.md).
 /// </para>
 /// </remarks>
-public sealed class RankDecayLeaseHelper
+public sealed class RankDecayLeaseHelper : ILeaderLease
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<RankDecayLeaseHelper> _logger;
@@ -169,5 +170,53 @@ public sealed class RankDecayLeaseHelper
             _logger.LogWarning(ex,
                 "RankDecayLeaseHelper: failed to release lease — lock will expire via TTL.");
         }
+    }
+
+    /// <summary>
+    /// Single non-acquiring atomic read of the decay lock holder + remaining TTL. Returns the
+    /// holder value (element 0) and PTTL in milliseconds (element 1) from the same point in
+    /// time so the snapshot is never torn. Does NOT take or modify the lock.
+    /// </summary>
+    private const string QueryLeaseScript =
+        "return { redis.call('GET', KEYS[1]), redis.call('PTTL', KEYS[1]) }";
+
+    /// <inheritdoc />
+    public async Task<LeaseStatus> QueryLeaseAsync(CancellationToken ct)
+    {
+        try
+        {
+            var db = _redis.GetDatabase();
+            var result = (RedisResult[]?)await db
+                .ScriptEvaluateAsync(QueryLeaseScript, new RedisKey[] { _opts.Decay.LockKey })
+                .ConfigureAwait(false);
+            return ParseLeaseStatus(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "RankDecayLeaseHelper: QueryLeaseAsync — Redis unavailable.");
+            return new LeaseStatus(null, null);
+        }
+    }
+
+    /// <summary>
+    /// Parses the <c>{ GET, PTTL }</c> Lua result into a <see cref="LeaseStatus"/>: element 0
+    /// is the holder (null/empty =&gt; no holder), element 1 is PTTL in milliseconds
+    /// (&lt;= 0 =&gt; no TTL, covering both the -1 "no expiry" and -2 "missing key" replies).
+    /// </summary>
+    private static LeaseStatus ParseLeaseStatus(RedisResult[]? result)
+    {
+        if (result is null || result.Length < 2)
+            return new LeaseStatus(null, null);
+
+        var holderRaw = (RedisValue)result[0];
+        string? holder = holderRaw.HasValue && holderRaw.Length() > 0
+            ? (string?)holderRaw
+            : null;
+
+        var pttlMs = (long)result[1];
+        TimeSpan? ttl = pttlMs > 0 ? TimeSpan.FromMilliseconds(pttlMs) : null;
+
+        return new LeaseStatus(holder, ttl);
     }
 }

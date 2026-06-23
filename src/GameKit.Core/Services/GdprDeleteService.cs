@@ -2,6 +2,7 @@
 // Copyright (c) 2026 GameKit contributors
 
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Text.Json;
 using System.Threading;
@@ -18,13 +19,27 @@ internal sealed class GdprDeleteService : IGdprDeleteService
     private readonly GameKitDbContext _ctx;
     private readonly IClock _clock;
     private readonly IIdGenerator _ids;
+    private readonly IEnumerable<IGdprDeleteExtension> _extensions;
 
     /// <summary>Constructs the service.</summary>
-    public GdprDeleteService(GameKitDbContext ctx, IClock clock, IIdGenerator ids)
+    /// <param name="ctx">The shared database context.</param>
+    /// <param name="clock">UTC clock.</param>
+    /// <param name="ids">UUIDv7 generator.</param>
+    /// <param name="extensions">
+    /// Zero or more package-registered pre-delete hooks (SEC-04 Option A). Resolved as
+    /// <c>IEnumerable&lt;IGdprDeleteExtension&gt;</c> — empty when no sibling packages are
+    /// installed, preserving Core-standalone behavior.
+    /// </param>
+    public GdprDeleteService(
+        GameKitDbContext ctx,
+        IClock clock,
+        IIdGenerator ids,
+        IEnumerable<IGdprDeleteExtension> extensions)
     {
         _ctx = ctx;
         _clock = clock;
         _ids = ids;
+        _extensions = extensions;
     }
 
     /// <inheritdoc />
@@ -67,6 +82,15 @@ internal sealed class GdprDeleteService : IGdprDeleteService
             CreatedAt = _clock.UtcNow,
         });
         await _ctx.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // SEC-04 Option A: invoke package-registered pre-delete hooks BEFORE the players delete
+        // so that RESTRICT-FK rows (party_members.PlayerId, account_merges.TargetPlayerId) are
+        // removed while we still own the SERIALIZABLE transaction. Each extension MUST NOT open
+        // or commit its own transaction (contract documented on IGdprDeleteExtension).
+        foreach (var ext in _extensions)
+        {
+            await ext.DeletePlayerDataAsync(_ctx, playerId, cancellationToken).ConfigureAwait(false);
+        }
 
         var deleted = await _ctx.Players
             .Where(p => p.Id == playerId)

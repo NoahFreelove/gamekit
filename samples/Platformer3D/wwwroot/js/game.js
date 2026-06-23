@@ -439,10 +439,10 @@ export async function initGame(matchId) {
 // Bootstrap — wires the "Play as Guest" button and exports initGame
 // -------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-  const btnGuest   = document.getElementById('btn-guest');
-  const authPanel  = document.getElementById('auth-panel');
+  const btnGuest    = document.getElementById('btn-guest');
+  const authScreen  = document.getElementById('auth-screen');   // Bug A fix: hide the whole screen
   const gameSection = document.getElementById('game-section');
-  const authError  = document.getElementById('auth-error');
+  const authError   = document.getElementById('auth-error');
 
   if (!btnGuest) return;  // page not loaded yet (shouldn't happen for DOMContentLoaded)
 
@@ -450,15 +450,34 @@ document.addEventListener('DOMContentLoaded', () => {
     btnGuest.disabled = true;
     authError.textContent = '';
     try {
-      const payload = await guestSignIn();
-      if (authPanel)  authPanel.classList.add('hidden');
+      await guestSignIn();
+
+      // Bug A fix: hide #auth-screen (the full overlay), not just #auth-panel.
+      // Hiding only #auth-panel left the screen background visible, blocking the canvas.
+      if (authScreen) authScreen.classList.add('hidden');
       if (gameSection) gameSection.classList.remove('hidden');
+
+      // Trigger lobby flow after sign-in (lobby.js hooks into lobby panel buttons).
+      // lobby.js fires initLobbyControls() which will call window.startGame(sessionId)
+      // when a match is formed. The match-id-input bypass for direct WS testing is
+      // handled inside lobby.js (it checks the field on Create/Join).
+      if (typeof window.initLobbyControls === 'function') {
+        window.initLobbyControls(() => _accessToken);
+      }
+
+      // Direct match-id bypass: if a UUID is typed in the test input, start immediately.
       const matchIdEl = document.getElementById('match-id-input');
       const matchId   = matchIdEl?.value?.trim() || null;
-      await initGame(matchId);
+      if (matchId) {
+        await initGame(matchId);
+      }
+      // Otherwise game starts when lobby.js resolves the match and calls window.startGame().
     } catch (err) {
       authError.textContent = err.message ?? 'Guest sign-in failed.';
       btnGuest.disabled = false;
     }
   });
+
+  // Expose initGame as window.startGame so lobby.js can call it after match is found.
+  window.startGame = initGame;
 });

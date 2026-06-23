@@ -30,3 +30,5 @@ appsettings.*.local.json
 _site/
 api/*.yml
 api/toc.yml
+BenchmarkDotNet.Artifacts/
+api/.manifest

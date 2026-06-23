@@ -197,7 +197,14 @@ Plans:
   4. A `GdprDeleteCoverage` integration test seeds a player across every table (including v2.0 additions: `lobby_members`, `party_members`, `matchmaking_tickets`, regional pool refs, account-merge tombstones) and asserts zero residual rows post-`DeletePlayerAsync`
   5. A static check + integration test assert no package makes outbound HTTP beyond the configured OAuth provider hosts; a grep CI check asserts no SaaS OTLP endpoint appears anywhere in `samples/` or `src/`
 
-**Plans**: TBD
+**Plans**: 6 plans
+Plans:
+- [ ] 18-01-PLAN.md — SEC-07: CVE CI gate (NuGetAuditMode=all) + MessagePack 3.1.7 transitive pin; full solution builds clean without suppression [Wave 1]
+- [ ] 18-02-PLAN.md — SEC-04: GDPR delete completeness — IGdprDeleteExtension fixes party_members + account_merges RESTRICT FKs + GdprDeleteCoverageTests [Wave 2]
+- [ ] 18-03-PLAN.md — SEC-01: JWT threat tests (alg:none / downgrade / wrong aud-iss / expired) + revoked-refresh-exchange test [Wave 2]
+- [ ] 18-04-PLAN.md — SEC-02/03: admin route-enumeration auth audit + auth rate-limit enumeration audit [Wave 2]
+- [ ] 18-05-PLAN.md — SEC-05/06: Apple/Google egress wiring fix + egress/refresh-hash/CSRF tests + static air-gap CI gate [Wave 2]
+- [ ] 18-06-PLAN.md — SEC-08: docs/security-checklist.md threat→implementation→test traceability [Wave 3]
 **UI hint**: no
 
 ### Phase 19: Load / Performance Testing

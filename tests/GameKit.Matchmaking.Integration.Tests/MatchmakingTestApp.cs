@@ -185,8 +185,11 @@ internal sealed class MatchmakingTestApp : IAsyncDisposable
             // The caller already applied migrations via the first app's StartAsync call.
             // Do NOT create a fresh database or re-apply migrations (RESEARCH Pitfall 3).
             ConnectionString = connectionString;
-            // Seed a ladder in the shared DB only if not already present.
-            TestLadderId = await IntegrationTestHelpers.SeedLadderAsync(ConnectionString, TestLadderName + "_b");
+            // Seed a ladder with a unique name so the shared DB does not collide with the
+            // first app's "default" ladder (IX_ladders_Name unique constraint). The unique
+            // suffix guarantees no 23505 conflict regardless of how many shared-DB apps start.
+            TestLadderId = await IntegrationTestHelpers.SeedLadderAsync(
+                ConnectionString, TestLadderName + "_" + Guid.NewGuid().ToString("N")[..8]);
         }
         else
         {

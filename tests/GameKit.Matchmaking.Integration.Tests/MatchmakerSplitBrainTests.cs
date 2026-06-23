@@ -103,8 +103,8 @@ public sealed class MatchmakerSplitBrainTests : IAsyncLifetime
     /// During the stall the 2 s lock TTL expires; Replica B acquires the lock, forms the match,
     /// and writes one <c>game_sessions</c> row. Replica A's Lua atomic-claim returns
     /// <c>LEASE_LOST</c> — no duplicate row. Asserts: <c>COUNT(game_sessions WHERE
-    /// IdempotencyKey = proposalId) == 1</c> and Replica A's tick returned
-    /// <see cref="MatcherTickResult.LeaseLost"/> or <see cref="MatcherTickResult.LockNotAcquired"/>.
+    /// LadderId = ladderId) &lt;= 1</c> and at most one replica returned
+    /// <see cref="MatcherTickResult.Matched"/>.
     /// </summary>
     [Fact(DisplayName = "SCALE-04: zero duplicate game_sessions rows under leader churn")]
     public async Task SplitBrain_NoDuplicateSessions()
@@ -168,18 +168,9 @@ public sealed class MatchmakerSplitBrainTests : IAsyncLifetime
             "expected at most 1. ON CONFLICT DO NOTHING + LEASE_LOST guard should prevent duplicates. " +
             $"TickerA={resultA}, TickerB={resultB}");
 
-        // Secondary assertion: the ticker outcomes are consistent with leader election
-        // (exactly one matched, the other was blocked — or both saw no tickets in their
-        // respective first scan windows).
-        var outcomes = new[] { resultA, resultB };
-        var matchedCount = outcomes.Count(r => r == MatcherTickResult.Matched);
-        var blockedCount = outcomes.Count(r =>
-            r == MatcherTickResult.LockNotAcquired || r == MatcherTickResult.LeaseLost);
-
-        // Acceptable: one matched + one blocked (normal split-brain recovery),
-        // OR: AppA got LeaseLost (stall caused LEASE_LOST from AtomicClaimScript), and AppB
-        // may have gotten LockNotAcquired if AppA still held the key during part of the race.
-        // OR: both NoMatch (no tickets found in their respective first scans — also valid).
+        // Secondary assertion: at most one ticker returned Matched — split-brain never
+        // allows both replicas to claim a successful match formation simultaneously.
+        var matchedCount = new[] { resultA, resultB }.Count(r => r == MatcherTickResult.Matched);
         Assert.True(matchedCount <= 1,
             $"SCALE-04 FAIL: both replicas returned Matched (matchedCount={matchedCount}). " +
             $"TickerA={resultA}, TickerB={resultB}");

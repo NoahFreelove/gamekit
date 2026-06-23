@@ -86,4 +86,48 @@ public class RunbookFilesTests
             $"Doc docs/migration-ops.md is too small ({size} bytes). " +
             $"Expected > {MinimumByteCount} bytes of content. The file may have been emptied.");
     }
+
+    /// <summary>
+    /// DOCS-05 — asserts that <c>docs/runbooks/rolling-deploy.md</c> exists and
+    /// contains at least <see cref="MinimumByteCount"/> bytes of content.
+    /// Prevents the zero-downtime rolling-deploy runbook from being deleted or emptied.
+    /// </summary>
+    [Fact]
+    public void RollingDeployRunbook_Exists_AndIsNonTrivial()
+    {
+        var path = Path.Combine(RepoRoot, "docs", "runbooks", "rolling-deploy.md");
+
+        Assert.True(
+            File.Exists(path),
+            $"Missing runbook: docs/runbooks/rolling-deploy.md (expected at {path}). " +
+            "DOCS-05 requires this file to exist.");
+
+        var size = new FileInfo(path).Length;
+        Assert.True(
+            size > MinimumByteCount,
+            $"Runbook docs/runbooks/rolling-deploy.md is too small ({size} bytes). " +
+            $"Expected > {MinimumByteCount} bytes of content. The file may have been emptied.");
+    }
+
+    /// <summary>
+    /// DOCS-05 — asserts that <c>docs/runbooks/matchmaking-outage.md</c> exists and
+    /// contains at least <see cref="MinimumByteCount"/> bytes of content.
+    /// Prevents the matchmaking-outage incident-response runbook from being deleted or emptied.
+    /// </summary>
+    [Fact]
+    public void MatchmakingOutageRunbook_Exists_AndIsNonTrivial()
+    {
+        var path = Path.Combine(RepoRoot, "docs", "runbooks", "matchmaking-outage.md");
+
+        Assert.True(
+            File.Exists(path),
+            $"Missing runbook: docs/runbooks/matchmaking-outage.md (expected at {path}). " +
+            "DOCS-05 requires this file to exist.");
+
+        var size = new FileInfo(path).Length;
+        Assert.True(
+            size > MinimumByteCount,
+            $"Runbook docs/runbooks/matchmaking-outage.md is too small ({size} bytes). " +
+            $"Expected > {MinimumByteCount} bytes of content. The file may have been emptied.");
+    }
 }

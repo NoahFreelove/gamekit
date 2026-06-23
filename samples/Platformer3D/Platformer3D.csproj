@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>Platformer3D</RootNamespace>
+    <AssemblyName>Platformer3D</AssemblyName>
+    <!-- Platformer3D is not a NuGet package -->
+    <IsPackable>false</IsPackable>
+    <!-- Sample apps are exempted from the repo-wide CS1591 enforcement
+         (no public API surface to document). -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- GameKit package references — same set as TicTacToeDuel (D-15: pure consumer) -->
+    <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Lobby\GameKit.Lobby.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.OpenApi\GameKit.OpenApi.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
+    <!-- D-13: embedded game-server as IHostedService (not a separate process) -->
+    <ProjectReference Include="..\Platformer3D.GameServer\Platformer3D.GameServer.csproj" />
+  </ItemGroup>
+  <!-- Phase 15 (OBS-04/05/06) — OpenTelemetry SDK. GameKit.Core declares these PrivateAssets="all"
+       (OBS-01), so a consumer that wants observability opts in by referencing the SDK itself. -->
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+  </ItemGroup>
+</Project>

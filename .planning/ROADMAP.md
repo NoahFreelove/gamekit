@@ -35,7 +35,7 @@
 - [x] **Phase 14: Health & Readiness** — `MapGameKitHealth()` + `IMigrationReadinessReporter` across all packages + three-probe model + Admin.UI delegation (completed 2026-06-15)
 - [x] **Phase 15: Per-Package OTel Instrumentation** — Activity spans + RED metrics + W3C trace propagation wired into every package (completed 2026-06-22)
 - [x] **Phase 16: Multi-Replica Hardening** — `ILeaderLease` abstraction + SIGTERM drain + idempotency + split-brain CI gate (completed 2026-06-22)
-- [ ] **Phase 17: Backup / DR + Migration Ops** — CLI commands + Postgres/Redis runbooks + DR round-trip CI test + migration-ops docs
+- [x] **Phase 17: Backup / DR + Migration Ops** — CLI commands + Postgres/Redis runbooks + DR round-trip CI test + migration-ops docs (completed 2026-06-23)
 - [ ] **Phase 18: Security Audit** — JWT/admin/GDPR/egress/rate-limit audit tests + CVE CI gate + security checklist
 - [ ] **Phase 19: Load / Performance Testing** — BenchmarkDotNet micro-benchmarks + k6 load scenarios + CI regression gate + tuning guide
 - [ ] **Phase 20: Docs & Tutorial** — DocFX API reference + getting-started tutorial + upgrade guide + runbook library
@@ -293,7 +293,7 @@ Plans:
 | 14. Health & Readiness | v2.1 | 5/5 | Complete    | 2026-06-15 |
 | 15. Per-Package OTel Instrumentation | v2.1 | 6/6 | Complete    | 2026-06-22 |
 | 16. Multi-Replica Hardening | v2.1 | 6/6 | Complete | 2026-06-22 |
-| 17. Backup / DR + Migration Ops | v2.1 | 0/TBD | Not started | — |
+| 17. Backup / DR + Migration Ops | v2.1 | 6/6 | Complete | 2026-06-23 |
 | 18. Security Audit | v2.1 | 0/TBD | Not started | — |
 | 19. Load / Performance Testing | v2.1 | 0/TBD | Not started | — |
 | 20. Docs & Tutorial | v2.1 | 0/TBD | Not started | — |

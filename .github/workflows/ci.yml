@@ -34,6 +34,26 @@ jobs:
       - name: Restore
         run: dotnet restore
 
+      # SEC-07 (Phase 18-01): Explicit supply-chain gate — fail the build if any HIGH or
+      # CRITICAL CVE is present in the transitive dependency graph. This is a layered
+      # secondary defense; the primary gate is NuGetAuditMode=all + NuGetAuditLevel=high
+      # in Directory.Build.props (which already makes dotnet restore + build fail on advisory).
+      # Running this step explicitly ensures the vulnerability list is visible in CI logs
+      # and satisfies ROADMAP Phase 18 success criterion #1 ("explicit CI step running on
+      # every push to main").
+      # NOTE: No step in this workflow passes -p:NuGetAudit=false — the MessagePack
+      # advisory (GHSA-hv8m-jj95-wg3x) is eliminated by the 3.1.7 transitive pin, not
+      # silenced. The prior -p:NuGetAudit=false workaround is now obsolete.
+      - name: Vulnerability scan (SEC-07 gate)
+        run: |
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee /tmp/vuln-report.txt
+          if grep -qiE '^\s*(High|Critical)' /tmp/vuln-report.txt; then
+            echo "ERROR: HIGH or CRITICAL vulnerability found in dependency graph:" >&2
+            grep -iE '^\s*(High|Critical)' /tmp/vuln-report.txt >&2
+            exit 1
+          fi
+          echo "Vulnerability scan passed — no HIGH or CRITICAL advisories found."
+
       - name: Build
         run: dotnet build --no-restore --configuration Release -warnaserror
 

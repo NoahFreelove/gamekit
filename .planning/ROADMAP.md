@@ -148,8 +148,8 @@ Plans:
   1. `ILeaderLease` in `GameKit.Core` is the single interface all three lease helpers implement; a grep of `src/` shows no `LockTakeAsync` call outside a class that implements `ILeaderLease`
   2. A two-replica Testcontainers integration test (`MatchmakerSplitBrainTests`) simulates lease expiry mid-tick and asserts zero duplicate rows in `game_sessions` and no ticker gap longer than one lock TTL — this test is a required CI gate
   3. A graceful-drain integration test sends 100 concurrent in-flight requests, triggers SIGTERM, and asserts zero 5xx responses and zero duplicate matches; `ReleaseLeaseAsync` is verified to use `CancellationToken.None` (not the stopping token) on all finally paths
-  4. Concurrent `SessionCompleteAsync` calls for the same idempotency key produce exactly one `game_sessions` row (`INSERT … ON CONFLICT DO NOTHING` proven by a dedicated Testcontainers test)
-  5. A SignalR multi-replica integration test with real Testcontainers Redis backplane confirms all connected lobby clients receive hub events regardless of which replica sends them under replica restart and Redis reconnect
+  4. Concurrent match-formation writes (`ProposalService.CreateSessionAsync`) for the same proposal/idempotency key produce exactly one `game_sessions` row (`INSERT … ON CONFLICT DO NOTHING` proven by a dedicated Testcontainers test). (`SessionCompleteAsync` is already idempotent via its own `SessionCompleteIdempotency` table; the split-brain risk is the formation write, which research confirmed is the correct target.)
+  5. A SignalR multi-replica integration test with real Testcontainers Redis backplane confirms all connected lobby **and admin** clients receive hub events regardless of which replica sends them under replica restart and Redis reconnect (covers both the Lobby hub and the Admin hub, per SCALE-06 "Lobby + Admin")
 
 **Plans**: 6 plans
 - [ ] 16-01-PLAN.md — Extract `ILeaderLease` + `LeaseStatus` into `GameKit.Core`; adapt all four lease helpers (SCALE-01) [Wave 1]
@@ -157,7 +157,7 @@ Plans:
 - [ ] 16-03-PLAN.md — Fix 5 finally-path lease releases to `CancellationToken.None` + static grep gate (SCALE-02) [Wave 1]
 - [ ] 16-04-PLAN.md — Extend `MatchmakingTestApp` + `MatchmakerSplitBrainTests` split-brain CI gate + idempotency proof (SCALE-04, SCALE-03) [Wave 2]
 - [ ] 16-05-PLAN.md — `GracefulDrainTests` — 100 concurrent requests + SIGTERM → zero 5xx, lock released (SCALE-05) [Wave 3]
-- [ ] 16-06-PLAN.md — `SignalRReplicaTests` multi-replica restart/reconnect + sticky-session operator doc (SCALE-06) [Wave 1]
+- [ ] 16-06-PLAN.md — Lobby `SignalRReplicaTests` + Admin `AdminSignalRReplicaTests` multi-replica restart/reconnect + sticky-session operator doc covering both hubs (SCALE-06: Lobby + Admin) [Wave 1]
 **UI hint**: no
 
 ### Phase 17: Backup / DR + Migration Ops

@@ -6,14 +6,14 @@ current_phase: 21
 current_phase_name: final-demo-3d-multiplayer-platformer
 status: executing
 stopped_at: Phase 21 context gathered
-last_updated: "2026-06-23T02:28:20.034Z"
+last_updated: "2026-06-23T02:43:35.589Z"
 last_activity: 2026-06-23
 last_activity_desc: Phase 21 execution started
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 27
-  completed_plans: 22
+  completed_plans: 23
   percent: 30
 ---
 
@@ -31,7 +31,7 @@ progress:
 ## Current Position
 
 Phase: 21 (final-demo-3d-multiplayer-platformer) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-06-23 — Phase 21 execution started
 
@@ -122,6 +122,7 @@ Last activity: 2026-06-23 — Phase 21 execution started
 | Phase 21 P01 | 10min | 3 tasks | 12 files |
 | Phase 21 P02 | 6m | 2 tasks | 4 files |
 | Phase 21 P03 | 6min | 2 tasks | 9 files |
+| Phase 21 P04 | 18min | - tasks | - files |
 
 ## Accumulated Context
 
@@ -341,7 +342,7 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-06-23T02:28:20.028Z
+**Last session:** 2026-06-23T02:42:55.026Z
 **Stopped at:** Phase 21 context gathered
 **Resume file:** .planning/phases/21-final-demo-3d-multiplayer-platformer/21-CONTEXT.md
 
@@ -380,3 +381,6 @@ None.
 - [Phase ?]: D-09 AMENDMENT: Fixed-delta Elo replaces margin-scaled; MatchOutcome has no Score field
 - [Phase ?]: BestTimeMatchmakingStrategy: cold-start (RD>=300) uses NeutralBracketMs=60000 overriding conjunctive rule (D-08)
 - [Phase ?]: Name discriminators locked: time-margin (IRankingAlgorithm) + best-time (IMatchmakingStrategy) for 21-04 host wiring
+- [Phase ?]: A3: services.Replace after AddMatchmaking
+- [Phase ?]: Deterministic Idempotency-Key per session: platformer-session-{sessionId} for R7/D-05 idempotent session completion
+- [Phase ?]: RatingPeriod = 1 minute on platformer Rankings ladder for live demo visibility (Pitfall 8)

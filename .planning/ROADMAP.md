@@ -246,7 +246,7 @@ Plans:
   - GPL compatibility of any bundled engine/runtime bits must be checked before vendoring (per project license constraint).
   - Likely the v2.1 capstone; could alternatively be split into its own demo milestone if scope (real 3D game + game server + secure auth + image packaging) proves too large for one phase — decide at /gsd-spec-phase / /gsd-discuss-phase 21.
 
-**Plans**: 3/6 plans executed
+**Plans**: 4/6 plans executed
 
 Plans:
 **Wave 1**
@@ -260,7 +260,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 21-04-PLAN.md — Host composition (custom seams resolved, admin, WebSocket) + embedded GameServer IHostedService + run-summary validation (R4, R5, R6, R7, R8, R9)
+- [x] 21-04-PLAN.md — Host composition (custom seams resolved, admin, WebSocket) + embedded GameServer IHostedService + run-summary validation (R4, R5, R6, R7, R8, R9)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -291,7 +291,7 @@ Plans:
 | 18. Security Audit | v2.1 | 0/TBD | Not started | — |
 | 19. Load / Performance Testing | v2.1 | 0/TBD | Not started | — |
 | 20. Docs & Tutorial | v2.1 | 0/TBD | Not started | — |
-| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 3/6 | In Progress|  |
+| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 4/6 | In Progress|  |
 
 ---
 

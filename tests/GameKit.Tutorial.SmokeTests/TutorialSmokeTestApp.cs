@@ -34,10 +34,12 @@ using StackExchange.Redis;
 namespace GameKit.Tutorial.SmokeTests;
 
 /// <summary>
-/// In-process ASP.NET Core test host that mirrors <c>samples/TicTacToeDuel/Program.cs</c> —
-/// composing the full GameKit chain (Core + Auth + Rankings + Matchmaking + Presence + Admin)
-/// with the <c>"tictactoe"</c> ladder registered in both Rankings and Matchmaking, an in-process
-/// matchmaking ticker (500 ms interval), and all <c>Map*</c> endpoints mapped.
+/// In-process ASP.NET Core test host that exercises the matchmaking-focused subset of GameKit
+/// (Core + Auth + Rankings + Matchmaking + Presence + Admin) against
+/// <c>samples/TicTacToeDuel/Program.cs</c>, with the <c>"tictactoe"</c> ladder registered in
+/// both Rankings and Matchmaking, an in-process matchmaking ticker (500 ms interval), and all
+/// <c>Map*</c> endpoints mapped. <c>GameKit.Lobby</c> is intentionally omitted — it is not
+/// under test in this smoke suite (TicTacToeDuel does not use Lobby).
 /// </summary>
 /// <remarks>
 /// <para>

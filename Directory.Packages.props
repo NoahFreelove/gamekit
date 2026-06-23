@@ -5,6 +5,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- BenchmarkDotNet micro-benchmark runner (Plan 19-01 / PERF-01; MIT; dotnet/BenchmarkDotNet, >100M downloads) -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+
     <!-- EF Core + Postgres (verified GA on net10.0 2026-04-15) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.6" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.6" />

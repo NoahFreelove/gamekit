@@ -21,6 +21,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Lobby\GameKit.Lobby.csproj" />
     <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
   </ItemGroup>
 

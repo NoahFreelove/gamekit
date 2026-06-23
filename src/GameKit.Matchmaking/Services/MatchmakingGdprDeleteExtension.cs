@@ -13,22 +13,30 @@ using Microsoft.EntityFrameworkCore;
 namespace GameKit.Matchmaking.Services;
 
 /// <summary>
-/// GDPR pre-delete hook that removes <c>party_members</c> rows where the deleted player is a
-/// non-owner member (<c>party_members.PlayerId</c> FK is <c>ON DELETE RESTRICT</c> — SEC-04 GAP 1).
+/// GDPR pre-delete hook that removes ALL <c>party_members</c> rows for the deleted player
+/// (<c>party_members.PlayerId</c> FK is <c>ON DELETE RESTRICT</c> — SEC-04 GAP 1).
 /// </summary>
 /// <remarks>
 /// <para>
-/// Without this hook, deleting a player who is a non-owner member of any party throws a Postgres
-/// 23503 FK violation and rolls back the entire GDPR erasure, leaving the player's PII in the
-/// database — a GDPR compliance failure.
+/// Without this hook, deleting a player who is a member of any party (owner or non-owner) throws
+/// a Postgres 23503 FK violation on <c>party_members.PlayerId → players.Id (RESTRICT)</c>,
+/// rolling back the entire GDPR erasure and leaving the player's PII in the database — a GDPR
+/// compliance failure.
 /// </para>
 /// <para>
-/// <b>Owned parties are handled by the Postgres cascade chain:</b> <c>parties.OwnerPlayerId</c> is
-/// <c>ON DELETE CASCADE</c>, so when the <c>players</c> row is deleted, owned party rows are deleted
-/// automatically, which in turn cascades to <c>party_members</c> (also <c>CASCADE</c>) for the
-/// members of that party, and sets <c>matchmaking_tickets.PartyId</c> to NULL (<c>SET NULL</c>).
-/// This hook only needs to remove the player's non-owner memberships; it must <b>not</b> delete the
-/// parties the player owns (those are handled by the cascade).
+/// <b>What this hook deletes:</b> All <c>party_members</c> rows where <c>PlayerId = playerId</c>,
+/// which covers BOTH owner and non-owner memberships. The <c>WHERE PlayerId = playerId</c> predicate
+/// does not distinguish owner role — it removes every membership row for this player.
+/// </para>
+/// <para>
+/// <b>Owned parties and the Postgres cascade:</b> <c>parties.OwnerPlayerId</c> is
+/// <c>ON DELETE CASCADE</c>, so when the <c>players</c> row is deleted, any party rows owned by
+/// this player are also deleted, which in turn cascades to the remaining <c>party_members</c> rows
+/// for those parties (also <c>CASCADE</c>) and sets <c>matchmaking_tickets.PartyId</c> to NULL
+/// (<c>SET NULL</c>). The owner's own <c>party_members</c> row for those parties has already been
+/// deleted by this hook, so the cascade attempt finds zero rows — harmless.
+/// This hook must <b>not</b> delete the <c>parties</c> rows themselves (those are handled by the
+/// cascade when the <c>players</c> row is deleted).
 /// </para>
 /// <para>
 /// This implementation runs inside the caller's <c>SERIALIZABLE</c> transaction. It <b>MUST NOT</b>
@@ -45,11 +53,15 @@ internal sealed class MatchmakingGdprDeleteExtension : IGdprDeleteExtension
     /// <inheritdoc />
     public async Task DeletePlayerDataAsync(GameKitDbContext ctx, Guid playerId, CancellationToken cancellationToken)
     {
-        // SEC-04 GAP 1: party_members.PlayerId = RESTRICT.
-        // Remove all party_member rows for this player. This covers non-owner memberships.
-        // Owner memberships will be handled by the Postgres CASCADE when parties.OwnerPlayerId
-        // is deleted via the players row delete — do NOT delete the owned parties here, as other
-        // members of that party need to survive the cascade-driven cleanup correctly.
+        // SEC-04 GAP 1: party_members.PlayerId → RESTRICT.
+        // Remove ALL party_member rows for this player (both owner and non-owner memberships).
+        // Owner memberships: this delete pre-empts the Postgres CASCADE on parties.OwnerPlayerId,
+        //   which would attempt to cascade into party_members after the player row is deleted.
+        //   The cascade finds these rows already gone — harmless.
+        // Non-owner memberships: these carry ON DELETE RESTRICT on party_members.PlayerId and MUST
+        //   be removed before the player row is deleted to avoid Postgres error 23503.
+        // Do NOT delete the parties rows owned by this player — those are handled by the
+        // ON DELETE CASCADE on parties.OwnerPlayerId when the players row is deleted.
         await ctx.Set<PartyMember>()
             .Where(pm => pm.PlayerId == playerId)
             .ExecuteDeleteAsync(cancellationToken)

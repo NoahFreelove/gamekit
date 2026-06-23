@@ -220,7 +220,12 @@ Plans:
   4. A k6 Lobby SignalR fan-out scenario exercises the real Redis backplane (N connected clients, one broadcast) and produces a delivery-time distribution; a spike confirms k6 WebSocket framing is sufficient before the scenario is committed
   5. `docs/performance-tuning.md` documents the BCrypt/Argon2 cost-factor vs latency table, Npgsql connection-pool sizing formula, and the top-5 hot-query tuning notes
 
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 19-01-PLAN.md — BenchmarkDotNet project + 5 hot-path micro-benchmarks (PERF-01)
+- [ ] 19-02-PLAN.md — k6 SignalR spike + reusable helper + README + GO/NO-GO checkpoint (PERF-04a)
+- [ ] 19-03-PLAN.md — CompareBaseline regression-gate tool + proving self-test + push-to-main CI job (PERF-06)
+- [ ] 19-04-PLAN.md — Capture + commit baseline JSON and BASELINES.md (PERF-02)
+- [ ] 19-05-PLAN.md — k6 matchmaking-burst + auth throughput, SignalR fan-out, performance-tuning.md (PERF-03, PERF-04b, PERF-05)
 **UI hint**: no
 
 ### Phase 20: Docs & Tutorial

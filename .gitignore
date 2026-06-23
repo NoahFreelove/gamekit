@@ -28,4 +28,5 @@ appsettings.*.local.json
 
 # DocFX generated output (DOCS-01)
 _site/
-api/
+api/*.yml
+api/toc.yml

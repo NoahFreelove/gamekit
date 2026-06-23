@@ -119,5 +119,5 @@ app.MapRankings();  // /api/players/{id}/export + admin rank-adjust endpoints
 
 ## See Also
 
-- [API reference](../api/GameKit.Rankings.yml) — full member-level docs.
+- [API reference](../../api/GameKit.Rankings.yml) — full member-level docs.
 - [docs/performance-tuning.md](../performance-tuning.md) — rating batch tuning.

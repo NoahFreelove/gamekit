@@ -112,6 +112,6 @@ app.MapGameKitAdmin("/admin");         // /admin/* Blazor console + /admin/api/*
 
 - [auth.md](auth.md) — Auth coupling (required) and `IPasswordHasher`.
 - [core.md](core.md) — `AddGameKitHealthChecks()` and `MapGameKitHealth()`.
-- [API reference](../api/GameKit.Admin.UI.yml) — full member-level docs.
+- [API reference](../../api/GameKit.Admin.UI.yml) — full member-level docs.
 - [docs/security-checklist.md](../security-checklist.md) — admin hardening checklist.
 - [docs/ops/postgres-roles.md](../ops/postgres-roles.md) — database role separation.

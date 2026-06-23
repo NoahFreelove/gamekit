@@ -109,6 +109,6 @@ gk.AddLobby();
 
 ## See Also
 
-- [API reference](../api/GameKit.Lobby.yml) — full member-level docs.
+- [API reference](../../api/GameKit.Lobby.yml) — full member-level docs.
 - [docs/architecture/signalr-multi-replica.md](../architecture/signalr-multi-replica.md) — multi-replica SignalR topology.
 - [docs/ops/redis-aof.md](../ops/redis-aof.md) — Redis durability configuration.

@@ -136,7 +136,7 @@ app.MapMatchmaking();  // /api/parties/* + /api/mm/*
 
 ## See Also
 
-- [API reference](../api/GameKit.Matchmaking.yml) — full member-level docs.
+- [API reference](../../api/GameKit.Matchmaking.yml) — full member-level docs.
 - [docs/runbooks/matchmaking-outage.md](../runbooks/matchmaking-outage.md) — incident response.
 - [docs/performance-tuning.md](../performance-tuning.md) — ticker interval and queue tuning.
 - [docs/ops/redis-aof.md](../ops/redis-aof.md) — Redis durability for queue state.

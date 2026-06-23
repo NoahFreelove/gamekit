@@ -87,5 +87,5 @@ app.MapGameKitOpenApi();   // GET /openapi/v1.json — anonymous GET, admin path
 
 ## See Also
 
-- [API reference](../api/GameKit.OpenApi.yml) — full member-level docs.
+- [API reference](../../api/GameKit.OpenApi.Builder.yml) — full member-level docs.
 - [docs/security-checklist.md](../security-checklist.md) — API surface hardening.

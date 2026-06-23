@@ -89,6 +89,6 @@ After installation, configure the connection string(s) the same way as the host 
 
 ## See Also
 
-- [API reference](../api/GameKit.Cli.yml) — full member-level docs.
+- [API reference](../../api/GameKit.Cli.Commands.Migrations.yml) — full member-level docs.
 - [docs/ops/migrations-runbook.md](../ops/migrations-runbook.md) — migration operations.
 - [docs/runbooks/postgres-backup-restore.md](../runbooks/postgres-backup-restore.md) — backup/restore runbook.

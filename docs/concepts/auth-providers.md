@@ -91,7 +91,7 @@ collection before that call is preserved (Scrutor's `TryAdd` semantics).
 ## See Also
 
 - [auth.md](auth.md) — core auth package and the `IOAuthProvider` interface.
-- [API reference — GameKit.Auth.Apple](../api/GameKit.Auth.Apple.yml)
-- [API reference — GameKit.Auth.Epic](../api/GameKit.Auth.Epic.yml)
-- [API reference — GameKit.Auth.Google](../api/GameKit.Auth.Google.yml)
+- [API reference — GameKit.Auth.Apple](../../api/GameKit.Auth.Apple.Builder.yml)
+- [API reference — GameKit.Auth.Epic](../../api/GameKit.Auth.Epic.Builder.yml)
+- [API reference — GameKit.Auth.Google](../../api/GameKit.Auth.Google.Builder.yml)
 - [docs/ops/jwt-keys.md](../ops/jwt-keys.md) — key management (also covers Apple private key).

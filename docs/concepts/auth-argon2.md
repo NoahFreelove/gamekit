@@ -76,4 +76,4 @@ with Argon2id before returning.
 ## See Also
 
 - [auth.md](auth.md) — the core auth package and `IPasswordHasher` context.
-- [API reference](../api/GameKit.Auth.Argon2.yml) — full member-level docs.
+- [API reference](../../api/GameKit.Auth.Argon2.Services.yml) — full member-level docs.

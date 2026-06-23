@@ -80,6 +80,6 @@ gk.AddPresence(opts =>
 
 ## See Also
 
-- [API reference](../api/GameKit.Presence.yml) — full member-level docs.
+- [API reference](../../api/GameKit.Presence.yml) — full member-level docs.
 - [core.md](core.md) — `ISessionLifecycleObserver` and `IPresenceProvider` in Core.
 - [docs/ops/redis-aof.md](../ops/redis-aof.md) — Redis durability configuration.

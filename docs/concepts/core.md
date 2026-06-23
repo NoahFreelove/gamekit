@@ -158,6 +158,6 @@ await app.RunAsync();
 
 ## See Also
 
-- [API reference](../api/GameKit.Core.yml) — full member-level docs generated from XML comments.
+- [API reference](../../api/GameKit.Core.yml) — full member-level docs generated from XML comments.
 - [docs/ops/migrations-runbook.md](../ops/migrations-runbook.md) — migration operations.
 - [docs/security-checklist.md](../security-checklist.md) — rate-limit and JWT hardening.

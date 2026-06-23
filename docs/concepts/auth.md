@@ -137,6 +137,6 @@ app.MapAuth();   // /auth/* endpoints
 
 - [auth-argon2.md](auth-argon2.md) — opt-in Argon2id password hashing.
 - [auth-providers.md](auth-providers.md) — Apple, Epic, Google OAuth provider packages.
-- [API reference](../api/GameKit.Auth.yml) — full member-level docs.
+- [API reference](../../api/GameKit.Auth.yml) — full member-level docs.
 - [docs/ops/jwt-keys.md](../ops/jwt-keys.md) — key generation and rotation runbook.
 - [docs/security-checklist.md](../security-checklist.md) — auth hardening checklist.

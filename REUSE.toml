@@ -56,6 +56,13 @@ precedence = "override"
 SPDX-FileCopyrightText = "2010-2026 Three.js Authors"
 SPDX-License-Identifier = "MIT AND GPL-3.0-or-later"
 
+# @microsoft/signalr 10.0.0 (vendored MIT) — keep in sync with THIRD-PARTY-NOTICES.md
+[[annotations]]
+path = "samples/Platformer3D/wwwroot/js/signalr.min.js"
+precedence = "override"
+SPDX-FileCopyrightText = ".NET Foundation and Contributors"
+SPDX-License-Identifier = "MIT AND GPL-3.0-or-later"
+
 [[annotations]]
 path = ["samples/Platformer3D/**", "samples/Platformer3D.GameServer/**"]
 precedence = "aggregate"

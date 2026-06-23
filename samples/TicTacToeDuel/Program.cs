@@ -230,3 +230,11 @@ app.MapGet("/demo/ladder-id/{name}", async (
 });
 
 app.Run();
+
+/// <summary>
+/// Exposes the compiler-synthesized top-level <c>Program</c> type as a publicly referenceable
+/// partial class so that future <c>WebApplicationFactory&lt;Program&gt;</c>-based integration
+/// tests can name it as the generic argument without reflection hacks.
+/// This declaration has no runtime behaviour — the entry point remains the top-level statements above.
+/// </summary>
+public partial class Program { }

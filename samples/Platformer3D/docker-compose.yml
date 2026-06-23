@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 GameKit contributors
+#
+# docker-compose.yml — Platformer3D demo stack.
+#
+# Brings up three services: app (Platformer3D), postgres, redis.
+# ONLY the app HTTP port (8080) is published to the host.
+# Postgres and Redis are reachable ONLY via the internal Docker bridge network —
+# they must NOT have host-port mappings (SPEC prohibition / D-14 / 21-06 compose-port test).
+#
+# Quick start (from repo root):
+#   docker compose -f samples/Platformer3D/docker-compose.yml up
+#
+# The app auto-migrates the database on first startup via EF Core AutoMigrate.
+# Visit http://localhost:8080 once /health/ready returns 200.
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # app — Platformer3D ASP.NET Core 10 host (built from the multi-stage Dockerfile)
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      # Build context is the REPO ROOT so the SDK stage can COPY src/GameKit.*
+      # ProjectReferences (see Dockerfile COPY instructions).
+      context: ../..
+      dockerfile: samples/Platformer3D/Dockerfile
+    image: platformer3d:latest
+    ports:
+      - "8080:8080"     # ONLY app port published to host (must-NOT: no pg/redis ports)
+    environment:
+      # ASP.NET Core listen address
+      ASPNETCORE_URLS: "http://+:8080"
+      ASPNETCORE_ENVIRONMENT: "Production"
+
+      # GameKit database connection strings.
+      # gamekit_owner is the migration user (DDL).
+      # gamekit_app is the runtime user (DML).
+      ConnectionStrings__GameKit: "Host=postgres;Port=5432;Database=gamekit;Username=gamekit_app;Password=demo_app_pw"
+      ConnectionStrings__GameKitMigrations: "Host=postgres;Port=5432;Database=gamekit;Username=gamekit_owner;Password=demo_owner_pw"
+      ConnectionStrings__Redis: "redis:6379"
+
+      # JWT configuration — key paths are inside the image (generated at build time).
+      # DEMO ONLY: these keys are regenerated every docker build. Not for production.
+      GameKit__Auth__Jwt__Issuer: "platformer3d"
+      GameKit__Auth__Jwt__Audience: "platformer3d"
+      GameKit__Auth__Jwt__PrivateKeyPemPath: "/app/keys/private.pem"
+      GameKit__Auth__Jwt__PublicKeyPemPath: "/app/keys/public.pem"
+      GameKit__Auth__Jwt__Kid: "platformer3d-demo-1"
+
+      # Game server in-process config
+      Platformer__WebApiBaseUrl: "http://localhost:8080"
+      Platformer__ServiceTokenName: "platformer-gameserver-embedded"
+
+      # Observability — no SaaS OTLP endpoint configured (must-NOT: zero cloud egress).
+      # To enable local OTel export, add an overlay compose file with an OTLP collector.
+      # GameKit__Observability__OtlpEndpoint: ""  # intentionally absent
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s    # Allow time for EF Core auto-migrate on first boot
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # postgres — Postgres 17.9 (NO host ports — internal network only)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:17.9
+    # NO ports: section — must-NOT per SPEC D-14.
+    # Postgres is reachable ONLY by the app service via the internal Docker bridge.
+    # The 21-06 compose-port test asserts the absence of this section.
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_bootstrap_demo_only
+      POSTGRES_DB: postgres   # The app database "gamekit" is created by 01-init.sql
+    volumes:
+      - platformer-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # redis — Redis 8.6.2 (NO host ports — internal network only)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:8.6.2
+    # NO ports: section — must-NOT per SPEC D-14.
+    # Redis is reachable ONLY by the app service via the internal Docker bridge.
+    # The 21-06 compose-port test asserts the absence of this section.
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--appendfsync"
+      - "everysec"
+      - "--maxmemory-policy"
+      - "noeviction"
+    volumes:
+      - platformer-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  platformer-postgres-data:
+  platformer-redis-data:

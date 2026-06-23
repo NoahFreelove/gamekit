@@ -1,0 +1,232 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (c) 2026 GameKit contributors -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Platformer3D — GameKit Phase 21 Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0a0a1a; color: #e0e0e0; font-family: system-ui, sans-serif; }
+
+    /* --- auth screen --- */
+    #auth-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1.5rem;
+      gap: 1rem;
+    }
+    #auth-screen h1 { font-size: 2rem; color: #90caf9; text-align: center; }
+    .banner-demo {
+      background: #1a1a00;
+      border-left: 4px solid #ffc107;
+      padding: 0.6rem 0.9rem;
+      font-size: 0.82rem;
+      max-width: 420px;
+      border-radius: 3px;
+      color: #bdb98a;
+    }
+    .auth-panel {
+      background: #12122a;
+      border: 1px solid #2a2a5a;
+      border-radius: 8px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 420px;
+    }
+    .auth-panel h2 { font-size: 1.1rem; color: #90caf9; margin-bottom: 1rem; }
+
+    /* guest button */
+    #btn-guest {
+      width: 100%;
+      padding: 0.75rem;
+      background: #1565c0;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #btn-guest:hover:not(:disabled) { background: #1976d2; }
+    #btn-guest:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .muted { color: #888; font-size: 0.85rem; margin-top: 0.4rem; }
+    #auth-error { color: #ef9a9a; font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.2em; }
+
+    /* --- lobby/party panel (below guest button) --- */
+    .lobby-panel {
+      background: #12122a;
+      border: 1px solid #2a2a5a;
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      width: 100%;
+      max-width: 420px;
+    }
+    .lobby-panel h3 { font-size: 0.95rem; color: #90caf9; margin-bottom: 0.75rem; }
+    .lobby-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+    .lobby-row input {
+      flex: 1;
+      background: #1a1a3a;
+      border: 1px solid #3a3a6a;
+      border-radius: 4px;
+      color: #e0e0e0;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.9rem;
+    }
+    .lobby-row button {
+      padding: 0.4rem 0.75rem;
+      background: #1a237e;
+      border: 1px solid #3949ab;
+      border-radius: 4px;
+      color: #e0e0e0;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .lobby-row button:hover:not(:disabled) { background: #283593; }
+    .lobby-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* --- game screen --- */
+    #game-section {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+    }
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* HUD overlay (shown when pointer not locked) */
+    #game-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.55);
+      gap: 0.75rem;
+      pointer-events: none;
+    }
+    #game-overlay .overlay-title {
+      font-size: 1.4rem;
+      color: #90caf9;
+    }
+    #game-overlay .overlay-hint {
+      font-size: 0.9rem;
+      color: #bbb;
+    }
+
+    /* Status bar */
+    #game-status-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.5);
+      padding: 0.4rem 1rem;
+      font-size: 0.85rem;
+      color: #e0e0e0;
+    }
+    #game-status { display: inline; }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      pointer-events: none;
+      opacity: 0.6;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: #fff;
+    }
+    #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+    #crosshair::after  { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- Auth / lobby screen — shown before the game starts           -->
+  <!-- ============================================================ -->
+  <div id="auth-screen">
+    <h1>Platformer3D</h1>
+    <p class="muted" style="text-align:center">GameKit Phase 21 — 3D Multiplayer Platformer Demo</p>
+
+    <div class="banner-demo">
+      <strong>Demo-only client:</strong> the refresh token is stored in
+      <code>localStorage</code> (XSS-vulnerable). Do not copy this pattern into
+      production. See <code>README.md</code> for alternatives.
+    </div>
+
+    <!-- Auth panel — guest sign-in only (no email/phone/name fields) -->
+    <section id="auth-panel" class="auth-panel">
+      <h2>Sign in</h2>
+      <button id="btn-guest">Play as Guest</button>
+      <p class="muted">One click — no email, no password, no OAuth required.</p>
+      <div id="auth-error"></div>
+    </section>
+
+    <!-- Lobby / party UI hooks — 21-04 SignalR wiring binds to these elements -->
+    <section class="lobby-panel">
+      <h3>Party &amp; Match</h3>
+      <div class="lobby-row">
+        <input id="invite-code-input" type="text" placeholder="Lobby invite code (leave blank = solo)" />
+        <button id="btn-join-lobby" disabled>Join</button>
+      </div>
+      <div class="lobby-row">
+        <button id="btn-ready" disabled>Ready</button>
+        <span class="muted" id="lobby-status-text">Sign in first.</span>
+      </div>
+      <div class="lobby-row">
+        <input id="match-id-input" type="text" placeholder="Match ID (UUID) — for direct WS test" />
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- Game viewport — hidden until guest sign-in succeeds          -->
+  <!-- ============================================================ -->
+  <div id="game-section" class="hidden">
+
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Pointer-lock overlay (visible when NOT locked) -->
+    <div id="game-overlay">
+      <span class="overlay-title">Platformer3D</span>
+      <span class="overlay-hint">Click to capture mouse and start</span>
+      <span class="overlay-hint">WASD = move &nbsp;|&nbsp; Space = jump &nbsp;|&nbsp; Esc = release mouse</span>
+    </div>
+
+    <!-- Crosshair (visible only when locked) -->
+    <div id="crosshair"></div>
+
+    <!-- Status bar -->
+    <div id="game-status-bar">
+      <span id="game-status">Initialising…</span>
+    </div>
+
+  </div>
+
+  <!--
+    IMPORTANT: three.js is loaded locally from /js/three.module.js (vendored MIT, r184).
+    NO CDN script tags. All assets served from wwwroot/ — no outbound cloud/CDN calls.
+  -->
+  <script type="module" src="/js/game.js"></script>
+
+</body>
+</html>

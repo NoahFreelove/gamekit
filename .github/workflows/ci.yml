@@ -138,6 +138,89 @@ jobs:
           path: TestResults/
           retention-days: 14
 
+  # ---------------------------------------------------------------------------
+  # benchmarks job — push to main only (PERF-06)
+  #
+  # This job is intentionally EXCLUDED from pull_request runs:
+  #   * Benchmarks take 10+ minutes for the full suite; the fast build-and-test
+  #     job (unit + integration) is the PR gate.
+  #   * Benchmark results have ±5-15 % CI runner-to-runner variance — running on
+  #     every PR would produce noisy feedback without actionable signal.
+  #
+  # IMPORTANT: Benchmarks NEVER run against an external or production target.
+  #   All benchmark I/O is in-process or targets Testcontainers containers
+  #   spun up on the CI runner itself.  No BASE_URL, no remote server, no SaaS.
+  #
+  # Gate activation: the regression gate (CompareBaseline) becomes active once
+  # benchmarks/baselines/report-baseline.json is committed (Plan 19-04).
+  # Until that file exists, the gate step prints an informational message and
+  # skips gracefully rather than hard-failing.
+  # ---------------------------------------------------------------------------
+  benchmarks:
+    name: Benchmarks + Regression Gate (push-to-main only)
+    runs-on: ubuntu-24.04
+
+    # Gate: run only on push events to main — skip on all pull_request events.
+    # The existing `on:` block covers both push:main and pull_request:main, so
+    # we use a per-job condition to restrict this expensive job to main pushes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # MinVer needs full tag history
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release)
+        # NOTE: No -p:NuGetAudit=false — the audit gate remains active.
+        run: dotnet build --no-restore --configuration Release -warnaserror
+
+      - name: Run micro-benchmarks (PERF-01/02)
+        # Benchmarks run in Release mode against in-process code + Testcontainers
+        # (Redis for the ticket round-trip benchmark).  No external network calls.
+        run: |
+          dotnet run --project tests/GameKit.LoadTests -c Release -- \
+            --filter '*' \
+            --exporters json \
+            --artifacts BenchmarkRun
+
+      - name: Benchmark regression gate (PERF-06)
+        # Compares the emitted -report-full.json against the committed baseline.
+        # CompareBaseline exits 1 on any benchmark that regresses >20%, failing
+        # the job.  If the baseline file is not yet committed (before Plan 19-04
+        # lands), the step prints a clear message and skips gracefully.
+        run: |
+          REPORT=$(ls BenchmarkRun/results/*-report-full.json 2>/dev/null | head -1)
+          if [ -z "$REPORT" ]; then
+            echo "WARNING: No benchmark report emitted — benchmark run may have failed."
+            exit 1
+          fi
+
+          BASELINE="benchmarks/baselines/report-baseline.json"
+          if [ ! -f "$BASELINE" ]; then
+            echo "INFO: Baseline not yet committed (see Plan 19-04) — skipping regression gate."
+            echo "      Commit benchmarks/baselines/report-baseline.json to activate the gate."
+            exit 0
+          fi
+
+          dotnet run --project benchmarks/CompareBaseline -c Release -- "$REPORT" "$BASELINE"
+          # Exit code from CompareBaseline propagates: 0 = pass, 1 = regression.
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: BenchmarkRun/
+          retention-days: 30
+
   pack:
     name: Pack (verify .nupkg output)
     runs-on: ubuntu-24.04

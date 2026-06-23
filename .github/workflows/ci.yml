@@ -131,25 +131,29 @@ jobs:
       - name: Unit tests (fast, no containers)
         run: dotnet test --no-build --configuration Release --filter "Category!=Integration" --logger "trx" --results-directory TestResults/unit
 
-      - name: Integration tests (Testcontainers)
-        env:
-          TESTCONTAINERS_RYUK_DISABLED: "false"
-        run: dotnet test --no-build --configuration Release --filter "Category=Integration" --logger "trx" --results-directory TestResults/integration
-
       # DOCS-02: Pre-pull the exact Testcontainers image tags that PostgresFixture and
       # RedisFixture request so first-run Docker pull latency is bounded on the main-branch
       # runner. Tags are read verbatim from tests/GameKit.TestFixtures/PostgresFixture.cs
       # (postgres:17.9) and RedisFixture.cs (redis:8.6.2) — do NOT invent tags.
+      # continue-on-error: true so a renamed upstream image tag cannot block CI.
       - name: Pre-pull Testcontainers images (DOCS-02)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         run: |
           docker pull postgres:17.9
           docker pull redis:8.6.2
 
-      # DOCS-02: Dedicated visible CI gate for the tutorial smoke test. The solution-wide
-      # "Integration tests (Testcontainers)" step above already sweeps this project, but
-      # DOCS-02 requires an explicitly named, visible gate that runs on push to main so
-      # stakeholders can see the tutorial path status at a glance in the CI timeline.
+      - name: Integration tests (Testcontainers)
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+        # Exclude the tutorial smoke-test project — it is run exclusively by the dedicated
+        # "Tutorial smoke test (DOCS-02)" step below (push-to-main only).  Running it here
+        # as well would double-pull containers and double-bill CI time on every push.
+        run: dotnet test --no-build --configuration Release --filter "Category=Integration&FullyQualifiedName!~GameKit.Tutorial" --logger "trx" --results-directory TestResults/integration
+
+      # DOCS-02: Dedicated visible CI gate for the tutorial smoke test. Excluded from the
+      # solution-wide "Integration tests (Testcontainers)" step above (see filter comment)
+      # so it runs exactly once — here — on push to main.
       # Uses --no-build because the earlier "Build" step compiled the whole solution.
       # No -p:NuGetAudit=false — the audit gate remains active.
       - name: Tutorial smoke test (DOCS-02)

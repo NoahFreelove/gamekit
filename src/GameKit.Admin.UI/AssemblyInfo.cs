@@ -26,6 +26,10 @@ using System.Runtime.CompilerServices;
 // Plan 10-04: AccountMerge endpoint tests boot a local AdminTestHost that applies
 // AdminUserConfiguration + AdminMigrationModelCustomizer in its runtime query customizer.
 [assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]
+// Plan 20-03: Tutorial smoke test applies AdminMigrationModelCustomizer in
+// TutorialRuntimeModelCustomizer so the Admin hosted service (SuperadminGateHostedService)
+// can query admin_users at boot. Mirrors the GameKit.OpenApi.Integration.Tests grant above.
+[assembly: InternalsVisibleTo("GameKit.Tutorial.SmokeTests")]
 
 namespace GameKit.Admin.UI;
 

@@ -44,3 +44,8 @@ using System.Runtime.CompilerServices;
 // Core+Auth+Admin+Rankings test host and prove SC#3: IRankAdjustService.AdjustAsync
 // writes an admin_audit_log row with action "admin.player.rank_adjust".
 [assembly: InternalsVisibleTo("GameKit.Admin.Integration.Tests")]
+// Plan 20-03: Tutorial smoke test applies RankingsModelBuilderExtension and
+// RankingsMigrationModelCustomizer in TutorialRuntimeModelCustomizer to include
+// Rankings entities (Ladder) in the runtime DbContext. Mirrors the
+// GameKit.OpenApi.Integration.Tests grant above.
+[assembly: InternalsVisibleTo("GameKit.Tutorial.SmokeTests")]

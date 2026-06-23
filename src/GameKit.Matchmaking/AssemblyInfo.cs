@@ -27,3 +27,8 @@ using System.Runtime.CompilerServices;
 // MatchmakingModelBuilderExtension directly so the runtime DbContext sees matchmaking entities
 // (parties, matchmaking_tickets, etc.) needed for the two-TestServer integration harness.
 [assembly: InternalsVisibleTo("GameKit.Lobby.Integration.Tests")]
+// Plan 20-03: Tutorial smoke test applies MatchmakingMigrationModelCustomizer in
+// TutorialRuntimeModelCustomizer and runs the in-process matchmaking ticker so a real
+// proposal forms between two guest players. Mirrors the
+// GameKit.OpenApi.Integration.Tests grant above.
+[assembly: InternalsVisibleTo("GameKit.Tutorial.SmokeTests")]

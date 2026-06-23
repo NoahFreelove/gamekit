@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Tutorial.SmokeTests</RootNamespace>
+    <AssemblyName>GameKit.Tutorial.SmokeTests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- CS1591: XML doc warnings suppressed for test projects — mirroring all other integration test projects. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Required for ASP.NET Core test server hosting (UseTestServer, GetTestClient). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Mirror the GameKit.OpenApi.Integration.Tests package references exactly.
+         Microsoft.Extensions.Hosting intentionally omitted — supplied by
+         Microsoft.AspNetCore.App framework reference (Phase 1 NU1510 precedent). -->
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Full GameKit chain — mirrors the OpenApi integration test project which boots
+         the same package composition as the TicTacToeDuel sample.
+         No ProjectReference to TicTacToeDuel — the host is hand-rolled inline. -->
+    <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Admin.UI\GameKit.Admin.UI.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Presence\GameKit.Presence.csproj" />
+    <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
+  </ItemGroup>
+</Project>

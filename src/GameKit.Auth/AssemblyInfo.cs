@@ -39,6 +39,11 @@ using System.Runtime.CompilerServices;
 // etc.) and AuthMigrationModelCustomizer are needed by the test-local runtime query customizer
 // to build a hybrid host that exercises the full four-package merge service code path.
 [assembly: InternalsVisibleTo("GameKit.Auth.AccountMerge.Integration.Tests")]
+// Plan 20-03: Tutorial smoke test composes Core + Auth + Rankings + Matchmaking + Admin into a
+// hand-rolled in-process host (TutorialSmokeTestApp, mirroring OpenApiTestApp) and applies
+// AuthMigrationModelCustomizer to the runtime DbContext via TutorialRuntimeModelCustomizer.
+// Mirrors the GameKit.OpenApi.Integration.Tests grant above.
+[assembly: InternalsVisibleTo("GameKit.Tutorial.SmokeTests")]
 
 namespace GameKit.Auth;
 

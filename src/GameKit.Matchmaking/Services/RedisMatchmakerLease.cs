@@ -83,9 +83,20 @@ public sealed class RedisMatchmakerLease : IMatchmakerLease, ILeaderLease
 
     /// <inheritdoc />
     /// <remarks>
-    /// This minimal implementation does not support lease renewal. Returns <c>false</c>
-    /// unconditionally — callers must treat this as lease lost and stop processing.
-    /// Use <c>MatchmakerLeaseHelper</c> (Polly v8) when renewal is required.
+    /// <para>
+    /// This is a <b>fallback-only</b> implementation — it does not support real lease
+    /// renewal and returns <c>false</c> unconditionally. The production ticker registers
+    /// <c>MatchmakerLeaseHelper</c> (Polly v8 retry + <c>IDatabase.LockExtendAsync</c>)
+    /// via <c>AddTickerServices</c>; that helper replaces this class as
+    /// <see cref="IMatchmakerLease"/> in the DI container and provides genuine renewal.
+    /// </para>
+    /// <para>
+    /// If <c>AddTickerServices</c> was NOT called and the container still resolves this
+    /// class, every tick that reaches the renewal call will behave as if the lease was lost
+    /// (returning <c>false</c>). This is a safe footgun: the ticker bails rather than
+    /// processing without a held lock. It is NOT silent corruption — but it WILL produce
+    /// <see cref="MatcherTickResult.LeaseLost"/> on every tick.
+    /// </para>
     /// </remarks>
     public Task<bool> RenewLeaseAsync(CancellationToken ct) => Task.FromResult(false);
 

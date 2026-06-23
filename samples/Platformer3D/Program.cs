@@ -220,6 +220,61 @@ app.MapGet("/demo/ladder-id/{name}", async (
         : Results.Ok(new { id = ladder.Id, name = ladder.Name });
 });
 
+// Demo helper — returns the calling player's active matchmaking ticket id (if any).
+// Used by the browser client after receiving the InGame lobby broadcast to discover
+// the ticket id needed for the poll loop (GET /api/mm/queue/{ticketId}/status).
+// D-15 compliant: lives entirely within samples/Platformer3D/Program.cs.
+app.MapGet("/demo/my-ticket", async (
+    Microsoft.AspNetCore.Http.HttpContext ctx,
+    GameKit.Core.Data.GameKitDbContext db,
+    System.Threading.CancellationToken ct) =>
+{
+    var sub = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+              ?? ctx.User.FindFirst("sub")?.Value;
+    if (sub is null || !Guid.TryParse(sub, out var playerId))
+        return Results.Unauthorized();
+
+    // Find the caller's most recent active ticket (Queued=0 or Proposed=1).
+    // GameKitDbContext has all sets registered when AddMatchmaking() is called.
+    // Uses static-method form of FirstOrDefaultAsync to avoid a `using` import.
+    var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(
+            db.Set<GameKit.Matchmaking.Entities.MatchmakingTicket>()
+              .Join(db.Set<GameKit.Matchmaking.Entities.PartyMember>(),
+                    t => t.PartyId,
+                    pm => pm.PartyId,
+                    (t, pm) => new { Ticket = t, Member = pm })
+              .Where(x => x.Member.PlayerId == playerId
+                       && ((int)x.Ticket.Status == 0 || (int)x.Ticket.Status == 1))
+              .OrderByDescending(x => x.Ticket.QueuedAt)
+              .Select(x => new { ticketId = x.Ticket.Id }),
+            ct);
+
+    return row is null
+        ? Results.NotFound(new { error = "no_active_ticket" })
+        : Results.Ok(row);
+}).RequireAuthorization();
+
+// Demo leaderboard — read-only, anonymous. Returns top-20 players on the platformer ladder.
+// Uses ILeaderboardService (registered via AddRankings). No admin auth required for the demo.
+// D-15 compliant: lives entirely within samples/Platformer3D/Program.cs.
+app.MapGet("/demo/leaderboard", async (
+    GameKit.Rankings.Services.ILeaderboardService svc,
+    GameKit.Core.Data.GameKitDbContext db,
+    System.Threading.CancellationToken ct) =>
+{
+    var ladder = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(
+            db.Set<GameKit.Rankings.Entities.Ladder>()
+              .Where(l => l.Name == "platformer"),
+            ct);
+    if (ladder is null)
+        return Results.NotFound(new { error = "ladder_not_found" });
+    var rows = await svc.TopAsync(ladder.Id, limit: 20, seasonId: null, ct);
+    return Results.Ok(rows);
+});
+// Anonymous — read-only demo leaderboard, no auth required.
+
 // D-01/D-13: WebSocket run-summary endpoint.
 // Placed AFTER the auth middleware (UseGameKitAuth ran above) so ctx.User is the
 // authenticated player's principal. The endpoint itself delegates all game logic to the

@@ -59,6 +59,10 @@ public sealed class PlatformerGameServerService : IHostedService
     // Raw service token held in process memory — NEVER logged/returned/persisted (T-21-14).
     private string? _serviceTokenRaw;
 
+    // Track which sessions have been activated (Pending → Active) so only the first
+    // player connection triggers POST /api/sessions/{id}/start.
+    private readonly ConcurrentDictionary<Guid, bool> _activatedSessions = new();
+
     // Track completed run times per matchId (matchId → list of (playerId, completionMs)).
     // Two entries triggers the authoritative completion POST.
     private readonly ConcurrentDictionary<Guid, List<(Guid PlayerId, long CompletionMs)>> _runResults = new();
@@ -132,6 +136,13 @@ public sealed class PlatformerGameServerService : IHostedService
             "WebSocket connected for match {MatchId}, player {Player}.",
             matchId,
             user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "(unknown)");
+
+        // Transition the session from Pending → Active on the first player connection.
+        // Idempotent: only the first caller per matchId sends the start request (D-13 / PRES-05).
+        if (_activatedSessions.TryAdd(matchId, true))
+        {
+            await StartSessionAsync(matchId, ct);
+        }
 
         var session = new WebSocketGameSession(ws, matchId, user, this, _logger);
         await session.RunAsync(ct);
@@ -230,6 +241,45 @@ public sealed class PlatformerGameServerService : IHostedService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to post session-complete for {SessionId}.", sessionId);
+        }
+    }
+
+    // ─── Session lifecycle helpers ───────────────────────────────────────────
+
+    /// <summary>
+    /// Activates the session (Pending → Active) via <c>POST /api/sessions/{sessionId}/start</c>.
+    /// Called once per match on the first player WebSocket connection (D-13 / PRES-05).
+    /// A non-200 response is logged but not fatal — the complete POST will still attempt later
+    /// and will return 409 InvalidState if start didn't go through.
+    /// </summary>
+    private async Task StartSessionAsync(Guid sessionId, CancellationToken ct)
+    {
+        if (_serviceTokenRaw is null)
+        {
+            _logger.LogWarning("Service token not available — cannot start session {SessionId}.", sessionId);
+            return;
+        }
+
+        try
+        {
+            var baseUrl = _configuration["Platformer:WebApiBaseUrl"] ?? "http://localhost:8080";
+            var http = _httpClientFactory.CreateClient("platformer.web-api");
+            http.BaseAddress = new Uri(baseUrl);
+            http.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", _serviceTokenRaw);
+
+            // SessionStartRequest is an empty record — POST with an empty JSON body.
+            var response = await http.PostAsJsonAsync(
+                $"/api/sessions/{sessionId}/start",
+                new { }, // Empty body matching SessionStartRequest()
+                ct);
+            _logger.LogInformation(
+                "POST /api/sessions/{SessionId}/start → {StatusCode}.",
+                sessionId, (int)response.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start session {SessionId}.", sessionId);
         }
     }
 

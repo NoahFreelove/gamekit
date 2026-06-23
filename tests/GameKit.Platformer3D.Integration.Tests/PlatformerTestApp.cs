@@ -10,6 +10,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using System.Net.Http;
 using System.Threading;
 using GameKit.Admin.UI.Services;
 using GameKit.Auth.Builder;
@@ -59,6 +60,9 @@ internal sealed class PlatformerTestApp : IAsyncDisposable
     private readonly string _pubPath;
     private readonly RSA _signingRsa;
     private IHost? _host;
+    // Set after host starts — used by the ForwardingHandler to route HttpClient calls
+    // made by PlatformerGameServerService through the in-process TestServer.
+    private HttpMessageHandler? _testServerHandler;
 
     /// <summary>HTTP client bound to the in-memory test server.</summary>
     public HttpClient Client { get; private set; } = default!;
@@ -183,7 +187,12 @@ internal sealed class PlatformerTestApp : IAsyncDisposable
                     gkBuilder.AddGameKitHealthChecks();
 
                     // GameServer in-process (D-13).
-                    services.AddHttpClient("platformer.web-api");
+                    // The "platformer.web-api" named client uses a ForwardingHandler that
+                    // delegates to the TestServer's in-process handler (set after host starts).
+                    // This lets PlatformerGameServerService.PostCompleteAsync call the test
+                    // host's /api/sessions/{id}/complete without a real TCP socket.
+                    services.AddHttpClient("platformer.web-api")
+                        .ConfigurePrimaryHttpMessageHandler(() => new ForwardingHandler(this));
                     services.AddSingleton<PlatformerGameServerService>();
                     services.AddHostedService(sp => sp.GetRequiredService<PlatformerGameServerService>());
 
@@ -214,12 +223,41 @@ internal sealed class PlatformerTestApp : IAsyncDisposable
                         e.MapPresence();
                         e.MapGameKitHealth();
                     });
+
+                    // D-01/D-13: WebSocket run-summary endpoint (mirrors samples/Platformer3D/Program.cs).
+                    // app.Map expects Action<IApplicationBuilder>; the terminal middleware reads HttpContext.
+                    app.Map("/ws/game", branch => branch.Run(async ctx =>
+                    {
+                        if (!ctx.WebSockets.IsWebSocketRequest)
+                        {
+                            ctx.Response.StatusCode = 400;
+                            return;
+                        }
+                        // Inside app.Map("/ws/game", ...) the matched prefix is stripped,
+                        // so ctx.Request.Path is "/{matchId}" — segments[0] holds the matchId.
+                        var path = ctx.Request.Path.Value ?? string.Empty;
+                        var segments = path.TrimStart('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                        var matchIdStr = segments.Length >= 1 ? segments[0] : string.Empty;
+                        if (!Guid.TryParse(matchIdStr, out var matchId))
+                        {
+                            ctx.Response.StatusCode = 400;
+                            return;
+                        }
+                        var gameServer = ctx.RequestServices.GetRequiredService<PlatformerGameServerService>();
+                        var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+                        await gameServer.HandleConnectionAsync(ws, matchId, ctx.User, ctx.RequestAborted);
+                    }));
                 });
             })
             .StartAsync()
             .ConfigureAwait(false);
 
         Client = _host.GetTestClient();
+
+        // Wire the ForwardingHandler to the TestServer's in-process handler so that
+        // PlatformerGameServerService.PostCompleteAsync routes through the test host
+        // instead of making a real TCP connection.
+        _testServerHandler = Server.CreateHandler();
     }
 
     // ─── JWT helpers ─────────────────────────────────────────────────────────
@@ -358,15 +396,32 @@ internal sealed class PlatformerTestApp : IAsyncDisposable
     }
 
     /// <summary>
+    /// Returns <see langword="true"/> when the <c>game_sessions</c> row for
+    /// <paramref name="sessionId"/> is in the <c>Completed</c> state.
+    /// </summary>
+    public async Task<bool> IsSessionCompletedAsync(Guid sessionId)
+    {
+        await using var conn = new NpgsqlConnection(ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"SELECT COUNT(*) FROM gamekit.game_sessions
+            WHERE ""Id"" = @id AND ""State"" = 'Completed'";
+        cmd.Parameters.AddWithValue("id", sessionId);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
+    }
+
+    /// <summary>
     /// Returns the count of <c>game_sessions</c> outcome rows for the given
-    /// <paramref name="sessionId"/> (should be exactly 1 after an idempotent completion).
+    /// <paramref name="sessionId"/> in <c>Completed</c> state
+    /// (should be exactly 1 after an idempotent completion).
     /// </summary>
     public async Task<int> CountGameSessionOutcomesAsync(Guid sessionId)
     {
         await using var conn = new NpgsqlConnection(ConnectionString);
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"SELECT COUNT(*) FROM gamekit.game_sessions WHERE ""Id"" = @id";
+        cmd.CommandText = @"SELECT COUNT(*) FROM gamekit.game_sessions
+            WHERE ""Id"" = @id AND ""State"" = 'Completed'";
         cmd.Parameters.AddWithValue("id", sessionId);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
@@ -408,6 +463,41 @@ internal sealed class PlatformerTestApp : IAsyncDisposable
     // ─── Nested types ────────────────────────────────────────────────────────
 
     /// <summary>
+    /// <see cref="HttpMessageHandler"/> that forwards requests to the TestServer's in-process
+    /// handler once it is available (set by <see cref="StartAsync"/>). This enables the
+    /// <c>"platformer.web-api"</c> named <see cref="HttpClient"/> used by
+    /// <see cref="PlatformerGameServerService.PostCompleteAsync"/> to call the in-process
+    /// test host's <c>/api/sessions/{id}/complete</c> without a real TCP socket.
+    /// </summary>
+    private sealed class ForwardingHandler : HttpMessageHandler
+    {
+        private readonly PlatformerTestApp _app;
+
+        public ForwardingHandler(PlatformerTestApp app)
+        {
+            _app = app;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            // Rewrite the request URI's host to "localhost" so the TestServer handler accepts it.
+            if (request.RequestUri is not null)
+            {
+                request.RequestUri = new Uri(
+                    $"http://localhost{request.RequestUri.PathAndQuery}");
+            }
+
+            var inner = _app._testServerHandler
+                ?? throw new InvalidOperationException(
+                    "TestServer handler not yet initialized — ForwardingHandler used before StartAsync completed.");
+
+            var invoker = new HttpMessageInvoker(inner, disposeHandler: false);
+            return invoker.SendAsync(request, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// No-op <see cref="IAdminAuditWriter"/> used in the Platformer3D test host.
     /// <para>
     /// <c>GameKit.Matchmaking</c>'s <c>RedisMatchmakingControlService</c> and
@@ -431,6 +521,58 @@ internal sealed class PlatformerTestApp : IAsyncDisposable
             string? reason,
             CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+    }
+
+    // ─── Lobby helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a lobby row in <c>ReadyChecking</c> state (State=1) and inserts all
+    /// <paramref name="memberPlayerIds"/> as members. The first element is the lobby owner.
+    /// Used by <see cref="LobbyToMatchTests"/> to seed a pre-joined lobby without driving
+    /// the full REST API flow.
+    /// </summary>
+    public async Task<Guid> SeedLobbyAsync(IReadOnlyList<Guid> memberPlayerIds, Guid ladderId)
+    {
+        ArgumentNullException.ThrowIfNull(memberPlayerIds);
+        if (memberPlayerIds.Count == 0)
+            throw new ArgumentException("At least one member required.", nameof(memberPlayerIds));
+
+        var lobbyId = Guid.NewGuid();
+        var ownerId = memberPlayerIds[0];
+        var now = DateTimeOffset.UtcNow;
+
+        await using var conn = new NpgsqlConnection(ConnectionString);
+        await conn.OpenAsync();
+
+        // Insert the lobby in ReadyChecking state (1).
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = @"INSERT INTO gamekit.lobbies
+                (""Id"", ""OwnerId"", ""LadderId"", ""State"", ""MaxMembers"", ""CreatedAt"", ""UpdatedAt"")
+                VALUES (@id, @ownerId, @ladderId, 1, @maxMembers, @now, @now)";
+            cmd.Parameters.AddWithValue("id", lobbyId);
+            cmd.Parameters.AddWithValue("ownerId", ownerId);
+            cmd.Parameters.AddWithValue("ladderId", ladderId);
+            cmd.Parameters.AddWithValue("maxMembers", memberPlayerIds.Count);
+            cmd.Parameters.AddWithValue("now", now);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Insert all members.
+        foreach (var playerId in memberPlayerIds)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"INSERT INTO gamekit.lobby_members
+                (""Id"", ""LobbyId"", ""PlayerId"", ""Ready"", ""JoinedAt"")
+                VALUES (@id, @lobbyId, @playerId, false, @now)";
+            cmd.Parameters.AddWithValue("id", Guid.NewGuid());
+            cmd.Parameters.AddWithValue("lobbyId", lobbyId);
+            cmd.Parameters.AddWithValue("playerId", playerId);
+            cmd.Parameters.AddWithValue("now", now);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        return lobbyId;
     }
 
     // ─── Static helpers ──────────────────────────────────────────────────────

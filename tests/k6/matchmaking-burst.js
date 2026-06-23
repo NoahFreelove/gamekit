@@ -47,12 +47,21 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Trend } from 'k6/metrics';
+import { Counter, Trend } from 'k6/metrics';
 
 // ----- custom metrics -----
 
 /** Time from enqueue response to matched status (in milliseconds). */
 const matchFormationTime = new Trend('match_formation_time_ms', true);
+
+/**
+ * WR-04 fix: count VUs that exit the matchPoll function early (enqueue failed or returned no
+ * ticketId).  When all 20 match_poll VUs miss, the match_formation_time_ms Trend has zero data
+ * points, and k6 evaluates a zero-sample Trend threshold as PASS — a fully broken matchmaking
+ * stack would silently green the run.  This counter gives us a hard gate: if more than 5 of
+ * 20 VUs miss, the run fails even if Trend has no samples.
+ */
+const matchPollEnqueueMiss = new Counter('match_poll_enqueue_miss');
 
 // ----- environment config -----
 
@@ -109,6 +118,11 @@ export const options = {
     // Enqueue p99 must be under 2 seconds (endpoint overhead only; not match-formation time).
     'http_req_duration{name:enqueue}': ['p(99)<2000'],
 
+    // WR-01 fix: auth_throughput scenario p99 threshold — was documented in comments but never
+    // enforced.  BCrypt wf=12 ~202ms mean; 100 VUs over 1 CPU → ~1–2 s p99 under load.
+    // Without this threshold a BCrypt cost-factor regression would be measured but never fail k6.
+    'http_req_duration{name:auth_login}': ['p(99)<1500'],
+
     // Overall HTTP error rate must stay below 1%.
     // (409 Conflict = already queued is an acceptable outcome per EnqueueOutcome.AlreadyEnqueued
     //  and is NOT counted as a failure by k6's default error rate — only network/5xx errors are.)
@@ -116,6 +130,12 @@ export const options = {
 
     // Match-formation p99: ticker at ~500ms + proposal flow → allow up to MATCH_P99_MS.
     [`match_formation_time_ms`]: [`p(99)<${MATCH_P99_MS}`],
+
+    // WR-04 fix: guard against a vacuous Trend pass.  If all match_poll VUs fail to enqueue
+    // (e.g. JWT not set, spike host down), match_formation_time_ms has zero data points and
+    // k6 evaluates its threshold as PASS.  This counter ensures at most 5 of 20 VUs may
+    // take the early-exit path before the run fails.
+    'match_poll_enqueue_miss': ['count<5'],
   },
 };
 
@@ -210,6 +230,7 @@ export function authThroughput() {
 export function matchPoll() {
   if (!JWT) {
     console.warn('JWT env var not set — match-poll will 401.');
+    matchPollEnqueueMiss.add(1); // WR-04: count early-exit so Trend cannot vacuously pass
     sleep(1);
     return;
   }
@@ -230,6 +251,7 @@ export function matchPoll() {
 
   if (enqueueRes.status !== 200 && enqueueRes.status !== 409) {
     // Could not enqueue — skip polling for this iteration.
+    matchPollEnqueueMiss.add(1); // WR-04: count early-exit so Trend cannot vacuously pass
     sleep(1);
     return;
   }
@@ -240,6 +262,7 @@ export function matchPoll() {
       const body = JSON.parse(enqueueRes.body);
       ticketId = body.ticketId;
     } catch (_) {
+      matchPollEnqueueMiss.add(1); // WR-04: count early-exit so Trend cannot vacuously pass
       sleep(1);
       return;
     }
@@ -247,6 +270,7 @@ export function matchPoll() {
 
   if (!ticketId) {
     // 409 means already enqueued but we don't have the ticket id — skip polling.
+    matchPollEnqueueMiss.add(1); // WR-04: count early-exit so Trend cannot vacuously pass
     sleep(1);
     return;
   }

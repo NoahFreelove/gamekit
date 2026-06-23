@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
 using GameKit.Core.Health;
+using GameKit.Core.Services;
+using GameKit.Matchmaking.Services;
 using GameKit.Matchmaking.Data;
 using GameKit.Matchmaking.Health;
 using GameKit.Matchmaking.Telemetry;
@@ -84,6 +86,13 @@ public static partial class MatchmakingBuilderExtensions
         //    GameKitDbContext at runtime (Plan 05-02 defines the configurations).
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IModelBuilderExtension, MatchmakingModelBuilderExtension>());
+
+        // SEC-04 GAP 1: GDPR pre-delete hook — removes party_members WHERE PlayerId = player.
+        // party_members.PlayerId FK is ON DELETE RESTRICT; without this hook the player delete
+        // throws Postgres 23503 and rolls back the erasure. Registered as Scoped (matches DbContext lifetime).
+        // Owned-party rows are handled by the Postgres CASCADE on parties.OwnerPlayerId.
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IGdprDeleteExtension, MatchmakingGdprDeleteExtension>());
 
         // 3. Migration runner — applies __ef_migrations_matchmaking at startup under the
         //    Matchmaking advisory-lock key.

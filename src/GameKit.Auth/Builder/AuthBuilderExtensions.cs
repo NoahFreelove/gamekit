@@ -19,6 +19,7 @@ using GameKit.Auth.Services;
 using GameKit.Core.Builder;
 using GameKit.Core.Data;
 using GameKit.Core.Health;
+using GameKit.Core.Services;
 using GameKit.Core.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,6 +61,12 @@ public static class AuthBuilderExtensions
         // 1. Register the Auth model-builder extension so AUTH entities land in GameKitDbContext.
         builder.Services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IModelBuilderExtension, AuthModelBuilderExtension>());
+
+        // SEC-04 GAP 2: GDPR pre-delete hook — removes account_merges WHERE TargetPlayerId = player.
+        // account_merges.TargetPlayerId FK is ON DELETE RESTRICT; without this hook the player delete
+        // throws Postgres 23503 and rolls back the erasure. Registered as Scoped (matches DbContext lifetime).
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Scoped<IGdprDeleteExtension, AuthGdprDeleteExtension>());
 
         // 1a. Auth migration runner — hosted service applies __ef_migrations_auth after Core migrations
         //     run in UseGameKit, and before Kestrel accepts traffic. See AuthMigrationHostedService.

@@ -710,7 +710,9 @@ public async Task HubEvents_AfterReplicaRestart()
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+*All four resolved during planning (iteration 1). #1 → `IMatchmakerLease : ILeaderLease` alias-forward (plan 16-01). #2 → `LeaseStatus` moved to `GameKit.Core.Services` (plan 16-01). #3 → migration `20260622000000_AddGameSessionIdempotencyKey` (plan 16-02). #4 → Admin hub coverage ADDED, not deferred: `AdminSignalRReplicaTests` in `tests/GameKit.Admin.Integration.Tests` proving the `gamekit:admin:events` relay survives replica restart + Redis reconnect (plan 16-06, Task 3).*
 
 1. **`IMatchmakerLease` backward compatibility**
    - What we know: `IMatchmakerLease` is currently in `GameKit.Matchmaking.Services`; `MatchmakerLeaderHealthCheck` and `MatchmakingReconcilerService` depend on it

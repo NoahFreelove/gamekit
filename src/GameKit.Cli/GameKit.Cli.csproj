@@ -22,6 +22,13 @@
     <!-- Plan 04-04: GameKit.Rankings brings ServiceToken entities + RankingsMigrationModelCustomizer
          (internal, reachable via InternalsVisibleTo("GameKit.Cli") on GameKit.Rankings). -->
     <ProjectReference Include="..\GameKit.Rankings\GameKit.Rankings.csproj" />
+    <!-- Plan 17-03: GameKit.Auth, GameKit.Matchmaking, and GameKit.Lobby are required so the
+         CLI can build per-package migration DbContexts for migrations list (DR-04)
+         and migrations apply dry-run (DR-05). All three MigrationModelCustomizers
+         are public sealed so no InternalsVisibleTo grant is needed. -->
+    <ProjectReference Include="..\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <ProjectReference Include="..\GameKit.Lobby\GameKit.Lobby.csproj" />
     <PackageReference Include="Spectre.Console.Cli" />
   </ItemGroup>
 </Project>

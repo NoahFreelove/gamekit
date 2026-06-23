@@ -3,12 +3,15 @@
 
 using System;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using GameKit.Auth;
 using GameKit.Auth.Apple.Configuration;
 using GameKit.Auth.Apple.Providers.Apple;
+using GameKit.Auth.Egress;
 using GameKit.Auth.Providers;
 using GameKit.Core.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +44,21 @@ namespace GameKit.Auth.Apple.Builder;
 public static class AppleBuilderExtensions
 {
     /// <summary>
+    /// Hosts that the Apple Sign-In backchannel must reach to exchange authorization codes
+    /// for tokens. Added to <see cref="GameKitAuthOptions.AllowedProviderHosts"/> at
+    /// registration time so the egress allow-list covers the Apple backchannel.
+    /// </summary>
+    /// <remarks>
+    /// The Apple token endpoint is <c>https://appleid.apple.com/auth/token</c>.
+    /// SEC-05: these hosts are declared in code rather than read from configuration so that
+    /// a misconfigured appsettings.json can never silently clear them.
+    /// </remarks>
+    internal static readonly string[] AppleProviderHosts =
+    {
+        "appleid.apple.com",
+    };
+
+    /// <summary>
     /// Registers the Apple Sign-In <see cref="IOAuthProvider"/> (unconditionally) and the
     /// <c>AspNet.Security.OAuth.Apple</c> scheme (only when credentials are present).
     /// </summary>
@@ -64,6 +82,22 @@ public static class AppleBuilderExtensions
         // assembly only (FromAssemblyOf<IOAuthProvider>()). Sibling-package providers MUST
         // self-register here — they are NOT auto-discovered. See RESEARCH §Pitfall 4.
         builder.Services.AddScoped<IOAuthProvider, AppleOAuthProvider>();
+
+        // SEC-05: Append Apple backchannel hosts to the egress allow-list. GameKitAuthOptions
+        // is registered as a singleton by AddAuth(); resolving it here ensures the SAME
+        // options instance that EgressAllowListHandler snapshots at construction time is the
+        // one we're augmenting. This approach (b per plan) keeps provider hosts co-located
+        // with the provider package that needs them, rather than forcing them into
+        // DefaultAllowedHosts (which is scoped to the two built-in Steam+Discord providers).
+        var authOpts = builder.Services.BuildServiceProvider().GetService<GameKitAuthOptions>();
+        if (authOpts is not null)
+        {
+            foreach (var host in AppleProviderHosts)
+            {
+                if (!authOpts.AllowedProviderHosts.Contains(host, StringComparer.OrdinalIgnoreCase))
+                    authOpts.AllowedProviderHosts.Add(host);
+            }
+        }
 
         // Register the Apple authentication scheme only when credentials are present.
         // Without ServiceId+PrivateKeyBase64 the Apple handler would throw on the first
@@ -97,6 +131,24 @@ public static class AppleBuilderExtensions
                     apple.TeamId = teamId;   // non-null: guard above ensures TeamId is present
                     apple.KeyId = keyId;     // non-null: guard above ensures KeyId is present
                     apple.CallbackPath = callbackPath;
+
+                    // SEC-05: Route the Apple backchannel through EgressAllowListHandler so
+                    // token-exchange calls to appleid.apple.com go through the egress allow-list.
+                    // EgressAllowListHandler is a DelegatingHandler; it requires an InnerHandler
+                    // (HttpClientHandler) to forward the request after the host check passes.
+                    // We use the GameKitAuthOptions singleton that AddAuth() registered — the
+                    // same instance the DI-registered EgressAllowListHandler snapshots —
+                    // so the Apple provider host added above is visible to this handler.
+                    var resolvedOpts = builder.Services.BuildServiceProvider().GetService<GameKitAuthOptions>();
+                    if (resolvedOpts is not null)
+                    {
+                        var inner = new HttpClientHandler();
+                        var egressHandler = new EgressAllowListHandler(resolvedOpts)
+                        {
+                            InnerHandler = inner,
+                        };
+                        apple.BackchannelHttpHandler = egressHandler;
+                    }
 
                     // T-07-04-01: GenerateClientSecret MUST be true. Apple client secrets
                     // are short-lived ES256 JWTs signed with the .p8 key. A static pre-generated

@@ -6,14 +6,14 @@ current_phase: 21
 current_phase_name: final-demo-3d-multiplayer-platformer
 status: executing
 stopped_at: Phase 21 context gathered
-last_updated: "2026-06-23T02:09:52.044Z"
+last_updated: "2026-06-23T02:19:56.324Z"
 last_activity: 2026-06-23
 last_activity_desc: Phase 21 execution started
 progress:
   total_phases: 10
   completed_phases: 3
   total_plans: 27
-  completed_plans: 20
+  completed_plans: 21
   percent: 30
 ---
 
@@ -31,7 +31,7 @@ progress:
 ## Current Position
 
 Phase: 21 (final-demo-3d-multiplayer-platformer) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-06-23 — Phase 21 execution started
 
@@ -120,6 +120,7 @@ Last activity: 2026-06-23 — Phase 21 execution started
 | Phase 15 P03 | 4min | 3 tasks | 6 files |
 | Phase 15 P06 | 3min | 3 tasks | 5 files |
 | Phase 21 P01 | 10min | 3 tasks | 12 files |
+| Phase 21 P02 | 6m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -339,7 +340,7 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-06-23T02:09:52.038Z
+**Last session:** 2026-06-23T02:19:47.663Z
 **Stopped at:** Phase 21 context gathered
 **Resume file:** .planning/phases/21-final-demo-3d-multiplayer-platformer/21-CONTEXT.md
 
@@ -375,3 +376,6 @@ None.
 - [Phase ?]: LobbyConnectionTracker injected via constructor into LobbyHub; ReadyCheckCompleted in LobbyService authoritative all-ready gate; ActivityContext optional param on MarkReadyAsync
 - [Phase ?]: Approach A (collector namespace=gamekit) confirmed: otel-collector-contrib:0.154.0 supports exporters.prometheus.namespace; all GameKit metrics appear as gamekit_* in Prometheus
 - [Phase ?]: AddGameKitObservability() extended to 3 sources + 3 meters (Matchmaking.Ticker/Rankings.Ticker/Lobby sources + Matchmaking/Rankings/Lobby meters) — Phase-15 criterion #3 scrape path complete
+- [Phase ?]: D-09 AMENDMENT: Fixed-delta Elo replaces margin-scaled; MatchOutcome has no Score field
+- [Phase ?]: BestTimeMatchmakingStrategy: cold-start (RD>=300) uses NeutralBracketMs=60000 overriding conjunctive rule (D-08)
+- [Phase ?]: Name discriminators locked: time-margin (IRankingAlgorithm) + best-time (IMatchmakingStrategy) for 21-04 host wiring

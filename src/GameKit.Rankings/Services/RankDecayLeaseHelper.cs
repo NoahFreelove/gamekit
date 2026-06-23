@@ -60,6 +60,9 @@ public sealed class RankDecayLeaseHelper : ILeaderLease
         ILogger<RankDecayLeaseHelper> logger,
         IOptions<GameKitRankingsOptions> opts)
     {
+        ArgumentNullException.ThrowIfNull(redis);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(opts);
         _redis = redis;
         _logger = logger;
         _opts = opts.Value;

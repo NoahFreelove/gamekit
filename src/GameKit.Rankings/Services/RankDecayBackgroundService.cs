@@ -67,6 +67,11 @@ internal sealed class RankDecayBackgroundService : BackgroundService
         IOptions<GameKitRankingsOptions> opts,
         ILogger<RankDecayBackgroundService> logger)
     {
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(opts);
+        ArgumentNullException.ThrowIfNull(logger);
         _scopeFactory = scopeFactory;
         _lease = lease;
         _clock = clock;

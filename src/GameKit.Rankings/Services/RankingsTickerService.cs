@@ -82,6 +82,12 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
         IOptions<GameKitRankingsOptions> opts,
         ILogger<RankingsTickerService> logger)
     {
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentNullException.ThrowIfNull(algorithm);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(opts);
+        ArgumentNullException.ThrowIfNull(logger);
         _scopeFactory = scopeFactory;
         _lease = lease;
         _algorithm = algorithm;

@@ -93,8 +93,8 @@ internal sealed class MigrationsListCommand : AsyncCommand<MigrationsListCommand
         }
 
         AnsiConsole.Write(table);
-        AnsiConsole.MarkupLine("");
-        AnsiConsole.MarkupLine("[grey]Recommended application order:[/] Core → Auth → Admin → Rankings → Matchmaking → Lobby");
+        Console.WriteLine();
+        Console.WriteLine("Recommended application order: Core → Auth → Admin → Rankings → Matchmaking → Lobby");
 
         return exitCode;
     }

@@ -12,6 +12,7 @@ using GameKit.Lobby.Data;
 using GameKit.Matchmaking.Data;
 using GameKit.Rankings.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace GameKit.Cli.Commands.Migrations;
@@ -133,7 +134,12 @@ public static class PackageMigrationContextFactory
             {
                 npg.MigrationsAssembly(package.MigrationsAssemblyFullName);
                 npg.MigrationsHistoryTable(package.MigrationsHistoryTable, package.SchemaName);
-            });
+            })
+            // Suppress PendingModelChangesWarning: the DrOrderingMarker migrations are
+            // intentionally zero-DDL ordering anchors (no schema changes, no Designer.cs).
+            // EF Core warns when the runtime model doesn't match the last migration snapshot,
+            // but that's expected here — the ordering migrations carry no model delta.
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 
         // ReplaceService<TService, TImplementation>() is a generic instance method on DbContextOptionsBuilder.
         // We need to call it with a runtime-determined customizer type, so use reflection to invoke

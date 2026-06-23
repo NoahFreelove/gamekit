@@ -36,7 +36,7 @@
 - [x] **Phase 15: Per-Package OTel Instrumentation** — Activity spans + RED metrics + W3C trace propagation wired into every package (completed 2026-06-22)
 - [x] **Phase 16: Multi-Replica Hardening** — `ILeaderLease` abstraction + SIGTERM drain + idempotency + split-brain CI gate (completed 2026-06-22)
 - [x] **Phase 17: Backup / DR + Migration Ops** — CLI commands + Postgres/Redis runbooks + DR round-trip CI test + migration-ops docs (completed 2026-06-23)
-- [ ] **Phase 18: Security Audit** — JWT/admin/GDPR/egress/rate-limit audit tests + CVE CI gate + security checklist
+- [x] **Phase 18: Security Audit** — JWT/admin/GDPR/egress/rate-limit audit tests + CVE CI gate + security checklist (completed 2026-06-23)
 - [ ] **Phase 19: Load / Performance Testing** — BenchmarkDotNet micro-benchmarks + k6 load scenarios + CI regression gate + tuning guide
 - [ ] **Phase 20: Docs & Tutorial** — DocFX API reference + getting-started tutorial + upgrade guide + runbook library
 - [ ] **Phase 21: Final Demo — 3D Multiplayer Platformer** — single loadable image (admin server + GameKit + fully-customized example) you `docker load`/run, then play a 3D multiplayer game in the web browser
@@ -301,7 +301,7 @@ Plans:
 | 15. Per-Package OTel Instrumentation | v2.1 | 6/6 | Complete    | 2026-06-22 |
 | 16. Multi-Replica Hardening | v2.1 | 6/6 | Complete | 2026-06-22 |
 | 17. Backup / DR + Migration Ops | v2.1 | 6/6 | Complete | 2026-06-23 |
-| 18. Security Audit | v2.1 | 0/TBD | Not started | — |
+| 18. Security Audit | v2.1 | 6/6 | Complete | 2026-06-23 |
 | 19. Load / Performance Testing | v2.1 | 0/TBD | Not started | — |
 | 20. Docs & Tutorial | v2.1 | 0/TBD | Not started | — |
 | 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 0/TBD | Not started | — |

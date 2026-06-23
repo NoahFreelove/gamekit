@@ -122,6 +122,12 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --configuration Release -warnaserror
 
+      - name: Restore docfx tool
+        run: dotnet tool restore
+
+      - name: DocFX API reference gate (DOCS-01)
+        run: dotnet docfx docfx.json --warningsAsErrors
+
       - name: Unit tests (fast, no containers)
         run: dotnet test --no-build --configuration Release --filter "Category!=Integration" --logger "trx" --results-directory TestResults/unit
 

@@ -56,6 +56,15 @@ services:
       Platformer__WebApiBaseUrl: "http://localhost:8080"
       Platformer__ServiceTokenName: "platformer-gameserver-embedded"
 
+      # DEMO ONLY: seed a superadmin so /admin is usable without running `dotnet gamekit admin create`.
+      # The seeder is a no-op in Production (ASPNETCORE_ENVIRONMENT=Production) regardless of these values.
+      # To disable seeding:  set Platformer__DemoAdmin__Enabled to "false".
+      # To change the password: override Platformer__DemoAdmin__Password in a docker-compose.override.yml.
+      # For production use: set ASPNETCORE_ENVIRONMENT=Production and bootstrap via `dotnet gamekit admin create`.
+      Platformer__DemoAdmin__Enabled: "true"
+      Platformer__DemoAdmin__Username: "root"
+      Platformer__DemoAdmin__Password: "platformer-demo-admin"
+
       # Observability — no SaaS OTLP endpoint configured (must-NOT: zero cloud egress).
       # To enable local OTel export, add an overlay compose file with an OTLP collector.
       # GameKit__Observability__OtlpEndpoint: ""  # intentionally absent

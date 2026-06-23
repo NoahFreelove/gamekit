@@ -15,6 +15,7 @@ using GameKit.Rankings.Entities;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OpenTelemetry;
 using OpenTelemetry.Trace;
+using Platformer3D;
 using Platformer3D.Algorithms;
 using Platformer3D.GameServer;
 using Platformer3D.Strategy;
@@ -145,6 +146,13 @@ gameKitBuilder.AddGameKitAdmin(admin =>
 {
     admin.MountPath = "/admin";
 });
+
+// Demo admin seeder — runs at startup after Admin migration creates admin_users.
+// Seeds a single superadmin when admin_users is empty AND Platformer:DemoAdmin:Enabled=true.
+// SECURITY: no-ops in Production; only active in Staging/Development (DEMO ONLY).
+// Registered AFTER AddGameKitAdmin (which registers AdminMigrationHostedService first)
+// so admin_users exists when the seeder runs.
+builder.Services.AddHostedService<DemoAdminSeederHostedService>();
 
 // D-13: HttpClient named "platformer.web-api" for the embedded game server's loopback
 // POST /api/sessions/{id}/complete call. BaseAddress is set at runtime by the game server

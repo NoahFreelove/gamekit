@@ -41,6 +41,52 @@ Open `http://localhost:8080/admin` for the admin console.
 > **Note:** The first startup runs EF Core AutoMigrate, which may take 10–20 s.
 > The app service's `start_period: 60s` healthcheck window covers this.
 
+### Admin Console Credentials (DEMO ONLY)
+
+> **WARNING — DEMO ONLY:** These credentials are seeded automatically on first startup
+> for demo convenience. They are not suitable for production use. See the security note
+> below for production guidance.
+
+| Field    | Value                  |
+|----------|------------------------|
+| URL      | `http://localhost:8080/admin` |
+| Username | `root`                 |
+| Password | `platformer-demo-admin` |
+
+The demo seeder runs at startup and creates a `superadmin` on the first boot when
+`admin_users` is empty. It is idempotent — restarting the stack with an existing
+database does NOT change or re-create the admin.
+
+#### Override the demo password
+
+Set the environment variable in a `docker-compose.override.yml` (never in the main
+`docker-compose.yml` for real deployments):
+
+```yaml
+# docker-compose.override.yml
+services:
+  app:
+    environment:
+      Platformer__DemoAdmin__Password: "my-custom-password"
+```
+
+#### Disable demo seeding
+
+Set `Platformer__DemoAdmin__Enabled: "false"` in the app environment, or switch to
+`ASPNETCORE_ENVIRONMENT: "Production"` (the seeder is always a no-op in Production).
+
+#### Production guidance
+
+For production deployments:
+1. Set `ASPNETCORE_ENVIRONMENT: "Production"`.
+2. Remove or set `Platformer__DemoAdmin__Enabled: "false"`.
+3. Bootstrap the first admin using the CLI after applying migrations:
+   ```bash
+   dotnet gamekit admin create -u <username> -p <password> -c "<connection-string>"
+   ```
+   The first admin created is automatically promoted to `superadmin`.
+4. The app will refuse to start in Production until at least one superadmin exists.
+
 ### Port mapping
 
 | Service  | Internal | Published to host | Notes                          |
@@ -134,6 +180,10 @@ Docker network (internal only):
   `demo_app_pw`) are demo-grade. Do not use in production.
 - **Guest tokens:** Stored in browser `localStorage` in the demo client. This is
   intentionally insecure and documented as a demo pattern in `wwwroot/index.html`.
+- **Demo admin credentials:** Username `root` / password `platformer-demo-admin` are
+  seeded automatically for the demo. The seeder is gated to non-Production environments
+  only. For production, set `ASPNETCORE_ENVIRONMENT=Production` — the seeder becomes a
+  no-op and the app requires a superadmin bootstrapped via `dotnet gamekit admin create`.
 
 ---
 

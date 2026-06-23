@@ -112,11 +112,13 @@ internal sealed class MigrationsApplyCommand : AsyncCommand<MigrationsApplyComma
 
         foreach (var pkg in PackageMigrationContextFactory.Packages)
         {
-            AnsiConsole.MarkupLine($"[grey]  [{pkg.CanonicalOrder}/6] {pkg.DisplayName}...[/]");
+            // Use Console.WriteLine for the progress prefix to avoid Spectre interpreting
+            // '[1/6]' as markup (the '/' inside brackets triggers a style lookup).
+            Console.WriteLine($"  [{pkg.CanonicalOrder}/6] {pkg.DisplayName}...");
             await using var ctx = PackageMigrationContextFactory.BuildContext(pkg, conn);
             await MigrationRunner.MigrateWithLockAsync(ctx, pkg.AdvisoryLockKey, CancellationToken.None)
                 .ConfigureAwait(false);
-            AnsiConsole.MarkupLine($"[green]  [{pkg.CanonicalOrder}/6] {pkg.DisplayName} — OK[/]");
+            Console.WriteLine($"  [{pkg.CanonicalOrder}/6] {pkg.DisplayName} - OK");
         }
 
         AnsiConsole.MarkupLine("[green]All packages up to date.[/]");

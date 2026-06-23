@@ -39,7 +39,7 @@
 - [ ] **Phase 18: Security Audit** — JWT/admin/GDPR/egress/rate-limit audit tests + CVE CI gate + security checklist
 - [ ] **Phase 19: Load / Performance Testing** — BenchmarkDotNet micro-benchmarks + k6 load scenarios + CI regression gate + tuning guide
 - [ ] **Phase 20: Docs & Tutorial** — DocFX API reference + getting-started tutorial + upgrade guide + runbook library
-- [ ] **Phase 21: Final Demo — 3D Multiplayer Platformer** — single loadable image (admin server + GameKit + fully-customized example) you `docker load`/run, then play a 3D multiplayer game in the web browser
+- [x] **Phase 21: Final Demo — 3D Multiplayer Platformer** — single loadable image (admin server + GameKit + fully-customized example) you `docker load`/run, then play a 3D multiplayer game in the web browser (completed 2026-06-23)
 
 ## Phase Details
 
@@ -246,7 +246,7 @@ Plans:
   - GPL compatibility of any bundled engine/runtime bits must be checked before vendoring (per project license constraint).
   - Likely the v2.1 capstone; could alternatively be split into its own demo milestone if scope (real 3D game + game server + secure auth + image packaging) proves too large for one phase — decide at /gsd-spec-phase / /gsd-discuss-phase 21.
 
-**Plans**: 5/6 plans executed
+**Plans**: 6/6 plans complete
 
 Plans:
 **Wave 1**
@@ -268,7 +268,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 21-06-PLAN.md — Integration/smoke: resolution, guest, player-JWT-401/403, idempotency, lobby→1v1+abort, full-loop+concurrent, compose-port, human-verify (R5, R7, R8, R9, R10)
+- [x] 21-06-PLAN.md — Integration/smoke: resolution, guest, player-JWT-401/403, idempotency, lobby→1v1+abort, full-loop+concurrent, compose-port, human-verify (R5, R7, R8, R9, R10)
 
 **UI hint**: yes
 
@@ -291,7 +291,7 @@ Plans:
 | 18. Security Audit | v2.1 | 0/TBD | Not started | — |
 | 19. Load / Performance Testing | v2.1 | 0/TBD | Not started | — |
 | 20. Docs & Tutorial | v2.1 | 0/TBD | Not started | — |
-| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 5/6 | In Progress|  |
+| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 6/6 | Complete   | 2026-06-23 |
 
 ---
 

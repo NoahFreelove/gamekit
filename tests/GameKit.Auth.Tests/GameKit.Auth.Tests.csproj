@@ -16,6 +16,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\GameKit.Auth\GameKit.Auth.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth.Apple\GameKit.Auth.Apple.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Auth.Google\GameKit.Auth.Google.csproj" />
     <ProjectReference Include="..\GameKit.TestFixtures\GameKit.TestFixtures.csproj" />
   </ItemGroup>
 </Project>

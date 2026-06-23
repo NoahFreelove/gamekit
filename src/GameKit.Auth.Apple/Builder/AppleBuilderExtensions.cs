@@ -53,7 +53,11 @@ public static class AppleBuilderExtensions
     /// SEC-05: these hosts are declared in code rather than read from configuration so that
     /// a misconfigured appsettings.json can never silently clear them.
     /// </remarks>
-    internal static readonly string[] AppleProviderHosts =
+    /// <summary>
+    /// The Apple backchannel provider hosts allowlisted by this package.
+    /// Exposed as a public constant so consumers and tests can verify the allowlist.
+    /// </summary>
+    public static readonly string[] AppleProviderHosts =
     {
         "appleid.apple.com",
     };

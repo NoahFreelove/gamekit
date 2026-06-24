@@ -189,7 +189,7 @@ async function connectHub() {
 
   _conn.on('ReceiveStateUpdateAsync', handleStateUpdate);
 
-  await _conn.startAsync();
+  await _conn.start();   // SignalR JS client lifecycle method is start() (not the C# startAsync())
   await _conn.invoke('JoinLobbyAsync', _lobbyId);
   setLobbyStatus('Connected to lobby. Click Ready when you are ready to race!');
   enableReadyButton(true);

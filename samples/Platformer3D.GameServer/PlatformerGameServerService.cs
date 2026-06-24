@@ -93,18 +93,22 @@ public sealed class PlatformerGameServerService : IHostedService
     /// </summary>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var tokenName = _configuration["Platformer:ServiceTokenName"]
+        var baseName = _configuration["Platformer:ServiceTokenName"]
             ?? "platformer-gameserver-embedded";
 
         using var scope = _scopeFactory.CreateScope();
         var tokenSvc = scope.ServiceProvider.GetRequiredService<IServiceTokenService>();
 
-        // Revoke any previous token (false-on-missing, no throw — A5 / Pitfall 2).
-        var wasRevoked = await tokenSvc.RevokeAsync(tokenName, cancellationToken);
-        if (wasRevoked)
-            _logger.LogInformation("Revoked pre-existing service token '{Name}'.", tokenName);
+        // Revoke any legacy fixed-name token from older builds (false-on-missing, no throw).
+        await tokenSvc.RevokeAsync(baseName, cancellationToken);
 
-        // Issue fresh token — raw value held in memory only, NEVER written to a log or response.
+        // Issue a fresh token under a UNIQUE per-start name. ServiceTokenService enforces a
+        // unique index on Name, and RevokeAsync only marks (keeps) the row — so reusing a fixed
+        // name across restarts throws ServiceTokenNameAlreadyExistsException once the row is
+        // persisted (e.g. `docker compose restart` / `up` without `down -v`). A unique name per
+        // start makes the embedded server restart-safe; the name is only a label — auth validates
+        // the token by its hash (TokenHash unique index), never by name. (D-15: GameServer-only.)
+        var tokenName = $"{baseName}-{Guid.NewGuid():N}";
         var (raw, _) = await tokenSvc.IssueAsync(tokenName, expiresAt: null, cancellationToken);
         _serviceTokenRaw = raw;
 

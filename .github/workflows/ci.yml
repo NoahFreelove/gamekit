@@ -105,7 +105,7 @@ jobs:
       # in Directory.Build.props (which already makes dotnet restore + build fail on advisory).
       # Running this step explicitly ensures the vulnerability list is visible in CI logs
       # and satisfies ROADMAP Phase 18 success criterion #1 ("explicit CI step running on
-      # every push to main").
+      # every push to master").
       # NOTE: No step in this workflow passes -p:NuGetAudit=false — the MessagePack
       # advisory (GHSA-hv8m-jj95-wg3x) is eliminated by the 3.1.7 transitive pin, not
       # silenced. The prior -p:NuGetAudit=false workaround is now obsolete.
@@ -132,12 +132,12 @@ jobs:
         run: dotnet test --no-build --configuration Release --filter "Category!=Integration" --logger "trx" --results-directory TestResults/unit
 
       # DOCS-02: Pre-pull the exact Testcontainers image tags that PostgresFixture and
-      # RedisFixture request so first-run Docker pull latency is bounded on the main-branch
+      # RedisFixture request so first-run Docker pull latency is bounded on the master-branch
       # runner. Tags are read verbatim from tests/GameKit.TestFixtures/PostgresFixture.cs
       # (postgres:17.9) and RedisFixture.cs (redis:8.6.2) — do NOT invent tags.
       # continue-on-error: true so a renamed upstream image tag cannot block CI.
       - name: Pre-pull Testcontainers images (DOCS-02)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         continue-on-error: true
         run: |
           docker pull postgres:17.9
@@ -147,17 +147,17 @@ jobs:
         env:
           TESTCONTAINERS_RYUK_DISABLED: "false"
         # Exclude the tutorial smoke-test project — it is run exclusively by the dedicated
-        # "Tutorial smoke test (DOCS-02)" step below (push-to-main only).  Running it here
+        # "Tutorial smoke test (DOCS-02)" step below (push-to-master only).  Running it here
         # as well would double-pull containers and double-bill CI time on every push.
         run: dotnet test --no-build --configuration Release --filter "Category=Integration&FullyQualifiedName!~GameKit.Tutorial" --logger "trx" --results-directory TestResults/integration
 
       # DOCS-02: Dedicated visible CI gate for the tutorial smoke test. Excluded from the
       # solution-wide "Integration tests (Testcontainers)" step above (see filter comment)
-      # so it runs exactly once — here — on push to main.
+      # so it runs exactly once — here — on push to master.
       # Uses --no-build because the earlier "Build" step compiled the whole solution.
       # No -p:NuGetAudit=false — the audit gate remains active.
       - name: Tutorial smoke test (DOCS-02)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         env:
           TESTCONTAINERS_RYUK_DISABLED: "false"
         run: dotnet test tests/GameKit.Tutorial.SmokeTests/GameKit.Tutorial.SmokeTests.csproj --no-build --configuration Release --filter "Category=Integration" --logger "trx" --results-directory TestResults/tutorial-smoke
@@ -171,7 +171,7 @@ jobs:
           retention-days: 14
 
   # ---------------------------------------------------------------------------
-  # benchmarks job — push to main only (PERF-06)
+  # benchmarks job — push to master only (PERF-06)
   #
   # This job is intentionally EXCLUDED from pull_request runs:
   #   * Benchmarks take 10+ minutes for the full suite; the fast build-and-test
@@ -189,13 +189,13 @@ jobs:
   # skips gracefully rather than hard-failing.
   # ---------------------------------------------------------------------------
   benchmarks:
-    name: Benchmarks + Regression Gate (push-to-main only)
+    name: Benchmarks + Regression Gate (push-to-master only)
     runs-on: ubuntu-24.04
 
-    # Gate: run only on push events to main — skip on all pull_request events.
-    # The existing `on:` block covers both push:main and pull_request:main, so
-    # we use a per-job condition to restrict this expensive job to main pushes.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Gate: run only on push events to master — skip on all pull_request events.
+    # The existing `on:` block covers both push:master and pull_request:master, so
+    # we use a per-job condition to restrict this expensive job to master pushes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
 
     steps:
       - uses: actions/checkout@v5

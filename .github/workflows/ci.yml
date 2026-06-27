@@ -129,7 +129,12 @@ jobs:
         run: dotnet docfx docfx.json --warningsAsErrors
 
       - name: Unit tests (fast, no containers)
-        run: dotnet test --no-build --configuration Release --filter "Category!=Integration" --logger "trx" --results-directory TestResults/unit
+        # Exclude Category=LoadTest: the 15-minute sustained-load perf test
+        # (GameKit.Matchmaking.LoadTests) asserts a throughput budget that the shared CI
+        # runner can't hold, and it is by design opt-in / nightly (see that project's
+        # README). The fast LoadTestSmoke check still runs here. Category!=Integration
+        # keeps container-backed tests in the dedicated step below.
+        run: dotnet test --no-build --configuration Release --filter "Category!=Integration&Category!=LoadTest" --logger "trx" --results-directory TestResults/unit
 
       # DOCS-02: Pre-pull the exact Testcontainers image tags that PostgresFixture and
       # RedisFixture request so first-run Docker pull latency is bounded on the master-branch
@@ -224,17 +229,22 @@ jobs:
             --artifacts BenchmarkRun
 
       - name: Benchmark regression gate (PERF-06)
-        # CR-01 fix: BDN emits one *-report-full.json per benchmark CLASS, not one combined
-        # file (four classes → four files).  The original step fed only the alphabetically-first
-        # file to CompareBaseline; the other three classes were never checked.  This step now
-        # merges all per-class JSON files into a single combined report before comparing, so
-        # all 7 baseline methods are regression-checked on every push.
+        # CR-01 fix: BDN emits one report per benchmark CLASS, not one combined file (four
+        # classes → four files).  The original step fed only the alphabetically-first file to
+        # CompareBaseline; the other three classes were never checked.  This step now merges
+        # all per-class JSON files into a single combined report before comparing, so all
+        # baseline methods are regression-checked on every push.
+        #
+        # The `--exporters json` BDN run writes `*-report-full-compressed.json` (minified;
+        # same schema as the uncompressed full report, with the Benchmarks[] array), so the
+        # glob below must match that name — the old `*-report-full.json` matched nothing,
+        # which tripped the "No benchmark report emitted" guard and failed this job.
         #
         # CR-02 fix: an empty Benchmarks array (crashed BDN run) is now a FAILURE in
         # CompareBaseline (see benchmarks/CompareBaseline/Program.cs), not a warning.
         run: |
           REPORT_DIR="BenchmarkRun/results"
-          REPORTS=$(ls "${REPORT_DIR}"/*-report-full.json 2>/dev/null || true)
+          REPORTS=$(ls "${REPORT_DIR}"/*-report-full-compressed.json 2>/dev/null || true)
           if [ -z "$REPORTS" ]; then
             echo "ERROR: No benchmark report emitted — benchmark run may have failed."
             exit 1

@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 # Phase 21: Final Demo — 3D Multiplayer Platformer - Pattern Map
 
 **Mapped:** 2026-06-22
@@ -628,3 +629,4 @@ http.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 **Analog search scope:** `samples/`, `src/GameKit.Matchmaking/`, `src/GameKit.Rankings/`, `src/GameKit.Core/`, `tests/`, repo root
 **Files read:** 14
 **Pattern extraction date:** 2026-06-22
+<!-- REUSE-IgnoreEnd -->

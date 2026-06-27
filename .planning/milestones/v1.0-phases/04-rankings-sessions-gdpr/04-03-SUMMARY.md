@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 ---
 phase: 04-rankings-sessions-gdpr
 plan: "03"
@@ -217,3 +218,4 @@ None — all types are fully implemented, algorithm produces Glickman-paper-corr
 - All 4 tests: PASS
 - LicenseHeaderTests: PASS
 - dotnet build GameKit.Rankings: 0 warnings, 0 errors
+<!-- REUSE-IgnoreEnd -->

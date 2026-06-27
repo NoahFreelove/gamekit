@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 GameKit contributors
+# REUSE-IgnoreStart
 
 # Fast, zero-dep SPDX header check for local pre-commit use.
 # The authoritative CI check is fsfe/reuse-action@v6 (.github/workflows/license-check.yml);
@@ -26,3 +27,4 @@ if [ "$missing" -gt 0 ]; then
 fi
 
 echo "OK — all .cs files have SPDX headers."
+# REUSE-IgnoreEnd

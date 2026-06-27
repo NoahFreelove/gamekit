@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 # Phase 11: GameKit.Lobby — Research
 
 **Researched:** 2026-06-06
@@ -1115,3 +1116,4 @@ These directives apply to all code in `GameKit.Lobby`:
 ### Ready for Planning
 
 Research complete. Planner can now create PLAN.md files.
+<!-- REUSE-IgnoreEnd -->

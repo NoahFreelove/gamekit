@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 GameKit contributors
+// REUSE-IgnoreStart
 
 using System.IO;
 using GameKit.TestFixtures;
@@ -93,3 +94,4 @@ public sealed class InitSqlGrantTests
         Assert.Contains("SPDX-License-Identifier: GPL-3.0-or-later", sql, System.StringComparison.Ordinal);
     }
 }
+// REUSE-IgnoreEnd

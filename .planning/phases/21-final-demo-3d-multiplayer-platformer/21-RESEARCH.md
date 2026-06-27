@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 # Phase 21: Final Demo — 3D Multiplayer Platformer — Research
 
 **Researched:** 2026-06-22
@@ -1140,3 +1141,4 @@ Files under `samples/Platformer3D/wwwroot/js/`.
 
 **Research date:** 2026-06-22
 **Valid until:** 2026-07-22 (30 days -- stable GameKit packages; three.js version should be reverified if > 7 days old)
+<!-- REUSE-IgnoreEnd -->

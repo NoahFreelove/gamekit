@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 ---
 phase: "21-final-demo-3d-multiplayer-platformer"
 plan: "05"
@@ -221,3 +222,4 @@ Files exist:
 Commits exist:
 - `79610a3` — FOUND (Task 1)
 - `3d7feb7` — FOUND (Task 2)
+<!-- REUSE-IgnoreEnd -->

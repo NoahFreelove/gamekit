@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 ---
 phase: 06-presence-openapi-distribution
 plan: 10
@@ -324,3 +325,4 @@ The `dotnet new install` + `dotnet new gamekit -n MyDemoGame` + `dotnet build` +
 - Operator review of the prose is a quality judgment that does not block phase advancement; any future "the air-gapped doc has a typo" finding flows to a normal docs PR, not to a Phase 6 verify gate.
 
 Status: complete.
+<!-- REUSE-IgnoreEnd -->

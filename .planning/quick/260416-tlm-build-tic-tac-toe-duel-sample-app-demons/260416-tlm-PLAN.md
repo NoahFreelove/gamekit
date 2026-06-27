@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 ---
 phase: 260416-tlm-quick
 plan: 01
@@ -548,3 +549,4 @@ After all 3 tasks:
 <output>
 After completion, create `.planning/quick/260416-tlm-build-tic-tac-toe-duel-sample-app-demons/260416-tlm-SUMMARY.md` summarizing files added, files removed, the endpoint surface, how to run, and the Phase-2 follow-ups (replace `/demo/players/register` with `GameKit.Auth`; attach rate limiting; add `/api/sessions` as the proper non-demo surface).
 </output>
+<!-- REUSE-IgnoreEnd -->

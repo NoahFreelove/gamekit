@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 # Phase 21: Browser Multiplayer Client-Wiring Spec
 
 **Researched:** 2026-06-23
@@ -1039,3 +1040,4 @@ run concurrent players in the same host and prove no cross-contamination.
 - `REUSE.toml` — existing annotation pattern for three.js
 - `THIRD-PARTY-NOTICES.md` — existing MIT vendored-library format
 - `Directory.Packages.props` — SignalR server version `10.0.8`
+<!-- REUSE-IgnoreEnd -->

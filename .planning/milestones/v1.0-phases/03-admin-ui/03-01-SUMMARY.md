@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 ---
 phase: 03-admin-ui
 plan: 01
@@ -179,3 +180,4 @@ Verification run after writing SUMMARY.md:
   - `02b1028` — FOUND (task 1)
   - `878a372` — FOUND (task 2)
   - `2889eb3` — FOUND (task 3)
+<!-- REUSE-IgnoreEnd -->

@@ -68,3 +68,19 @@ path = ["samples/Platformer3D/**", "samples/Platformer3D.GameServer/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
 SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Throwaway UI sketch mockups under .planning/sketches (HTML/CSS/JSX)
+[[annotations]]
+path = [".planning/**/*.jsx", ".planning/**/*.html", ".planning/**/*.css"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# Shell scripts, the PII allow-list, and nested .gitignore/.sln copies that the
+# root-only entries above don't reach. precedence=aggregate so any file that
+# already has an in-file header keeps it and only the missing field is filled.
+[[annotations]]
+path = ["**/*.sh", "**/.gitignore", "**/.gitkeep", "**/*.sln", "src/GameKit.Build/pii-allowlist.txt"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"

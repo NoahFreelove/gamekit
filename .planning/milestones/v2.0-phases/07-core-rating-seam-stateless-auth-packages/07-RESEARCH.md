@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 # Phase 7: Core Rating Seam + Stateless Auth Packages — Research
 
 **Researched:** 2026-06-05
@@ -841,3 +842,4 @@ google.Events.OnCreatingTicket = async ctx =>
 
 **Research date:** 2026-06-05
 **Valid until:** 2026-09-05 (stable packages; Apple/Epic endpoint URLs may change)
+<!-- REUSE-IgnoreEnd -->

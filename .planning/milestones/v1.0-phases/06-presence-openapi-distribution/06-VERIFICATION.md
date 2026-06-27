@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 ---
 phase: 06-presence-openapi-distribution
 verified: 2026-05-26T05:55:05Z
@@ -378,3 +379,4 @@ No blockers. No warnings. Phase 6 is complete and the v1 release train is techni
 *Verified: 2026-05-26T05:55:05Z*
 *Verifier: claude (gsd-verifier, Opus 4.7 1M)*
 *HEAD: 81c0ee7a068456ac4e2d3c6ad117df0dbd2b92ff*
+<!-- REUSE-IgnoreEnd -->

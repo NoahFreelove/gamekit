@@ -1,3 +1,4 @@
+<!-- REUSE-IgnoreStart -->
 # Third-Party Notices — Glicko2/Fixtures
 
 This directory contains test fixtures derived from the Glicko-2 reference implementation by
@@ -45,3 +46,4 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+<!-- REUSE-IgnoreEnd -->

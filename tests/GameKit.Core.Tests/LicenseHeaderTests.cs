@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 GameKit contributors
+// REUSE-IgnoreStart
 
 using System.IO;
 using System.Linq;
@@ -88,3 +89,4 @@ public class LicenseHeaderTests
             $"Files missing SPDX header:\n{string.Join("\n", missing.Select(p => Path.GetRelativePath(root, p)))}");
     }
 }
+// REUSE-IgnoreEnd

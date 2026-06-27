@@ -8,334 +8,248 @@
   <title>Platformer3D — GameKit Phase 21 Demo</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; background: #0a0a1a; color: #e0e0e0; font-family: system-ui, sans-serif; }
+    html, body { height: 100%; background: #0a0a1a; color: #e6e6f0; font-family: system-ui, -apple-system, sans-serif; }
+    body { overflow: hidden; }
 
-    /* --- auth screen --- */
-    #auth-screen {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 1.5rem;
-      gap: 1rem;
+    /* ── Screen system: only .active is shown ─────────────────────────────── */
+    .screen { display: none; position: fixed; inset: 0; }
+    .screen.active { display: flex; }
+    .screen.center { align-items: center; justify-content: center; padding: 1.25rem; overflow-y: auto; }
+
+    .card {
+      background: #12122a;
+      border: 1px solid #2a2a5a;
+      border-radius: 12px;
+      padding: 1.75rem;
+      width: 100%;
+      max-width: 460px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
     }
-    #auth-screen h1 { font-size: 2rem; color: #90caf9; text-align: center; }
+    h1 { font-size: 2rem; color: #90caf9; text-align: center; letter-spacing: 0.5px; }
+    h2 { font-size: 1.15rem; color: #90caf9; margin-bottom: 0.85rem; }
+    .sub { color: #9aa; font-size: 0.85rem; text-align: center; }
+    .muted { color: #888; font-size: 0.82rem; }
+
     .banner-demo {
-      background: #1a1a00;
-      border-left: 4px solid #ffc107;
-      padding: 0.6rem 0.9rem;
-      font-size: 0.82rem;
-      max-width: 420px;
-      border-radius: 3px;
-      color: #bdb98a;
-    }
-    .auth-panel {
-      background: #12122a;
-      border: 1px solid #2a2a5a;
-      border-radius: 8px;
-      padding: 1.5rem;
-      width: 100%;
-      max-width: 420px;
-    }
-    .auth-panel h2 { font-size: 1.1rem; color: #90caf9; margin-bottom: 1rem; }
-
-    /* guest button */
-    #btn-guest {
-      width: 100%;
-      padding: 0.75rem;
-      background: #1565c0;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    #btn-guest:hover:not(:disabled) { background: #1976d2; }
-    #btn-guest:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    .muted { color: #888; font-size: 0.85rem; margin-top: 0.4rem; }
-    #auth-error { color: #ef9a9a; font-size: 0.85rem; margin-top: 0.5rem; min-height: 1.2em; }
-
-    /* --- lobby/party panel (below guest button) --- */
-    .lobby-panel {
-      background: #12122a;
-      border: 1px solid #2a2a5a;
-      border-radius: 8px;
-      padding: 1rem 1.5rem;
-      width: 100%;
-      max-width: 420px;
-    }
-    .lobby-panel h3 { font-size: 0.95rem; color: #90caf9; margin-bottom: 0.75rem; }
-    .lobby-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
-    .lobby-row input {
-      flex: 1;
-      background: #1a1a3a;
-      border: 1px solid #3a3a6a;
-      border-radius: 4px;
-      color: #e0e0e0;
-      padding: 0.4rem 0.6rem;
-      font-size: 0.9rem;
-    }
-    .lobby-row button {
-      padding: 0.4rem 0.75rem;
-      background: #1a237e;
-      border: 1px solid #3949ab;
-      border-radius: 4px;
-      color: #e0e0e0;
-      cursor: pointer;
-      font-size: 0.85rem;
-    }
-    .lobby-row button:hover:not(:disabled) { background: #283593; }
-    .lobby-row button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    /* --- game screen --- */
-    #game-section {
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      width: 100%;
-      height: 100%;
-    }
-    /* While game is active, suppress body scrollbar */
-    body.game-active { overflow: hidden; }
-    #game-canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
+      background: #1a1a00; border-left: 4px solid #ffc107;
+      padding: 0.55rem 0.8rem; font-size: 0.78rem; border-radius: 4px;
+      color: #cbc88f; margin: 0.9rem 0;
     }
 
-    /* HUD overlay (shown when pointer not locked) */
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    button { font-family: inherit; cursor: pointer; transition: filter .15s, background .15s, opacity .15s; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .btn {
+      display: block; width: 100%; padding: 0.8rem 1rem; margin-top: 0.6rem;
+      border: none; border-radius: 8px; color: #fff; font-size: 1rem; text-align: left;
+    }
+    .btn:hover:not(:disabled) { filter: brightness(1.12); }
+    .btn-primary { background: #1565c0; }
+    .btn-ranked  { background: linear-gradient(90deg,#6a1b9a,#8e24aa); }
+    .btn-party   { background: linear-gradient(90deg,#00695c,#00897b); }
+    .btn-solo    { background: linear-gradient(90deg,#37474f,#455a64); }
+    .btn-board   { background: linear-gradient(90deg,#283593,#3949ab); }
+    .btn .b-title { font-weight: 600; font-size: 1.02rem; }
+    .btn .b-desc  { display: block; font-size: 0.76rem; opacity: 0.85; margin-top: 2px; font-weight: 400; }
+    .btn-sm { display: inline-block; width: auto; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 6px; background: #1a237e; border: 1px solid #3949ab; color: #e6e6f0; margin-top: 0.5rem; }
+    .btn-ghost { background: transparent; border: 1px solid #3a3a6a; color: #b9b9d6; }
+
+    .row { display: flex; gap: 0.5rem; align-items: center; }
+    input[type=text] {
+      flex: 1; background: #1a1a3a; border: 1px solid #3a3a6a; border-radius: 6px;
+      color: #e6e6f0; padding: 0.55rem 0.7rem; font-size: 0.92rem;
+    }
+
+    /* ── Rank header chip on the menu ─────────────────────────────────────── */
+    .rank-chip {
+      background: #0f0f28; border: 1px solid #2a2a5a; border-radius: 10px;
+      padding: 0.7rem 0.9rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.8rem;
+    }
+    .rank-chip .rating { font-size: 1.6rem; font-weight: 700; color: #ffd54f; line-height: 1; }
+    .rank-chip .meta { font-size: 0.78rem; color: #9aa; }
+    .rank-chip .wl { font-size: 0.9rem; color: #cfcfe6; }
+
+    /* ── Searching screen ─────────────────────────────────────────────────── */
+    .spinner {
+      width: 54px; height: 54px; border: 5px solid #2a2a5a; border-top-color: #8e24aa;
+      border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .search-time { font-size: 1.4rem; color: #ce93d8; font-variant-numeric: tabular-nums; }
+
+    /* ── Game screen ──────────────────────────────────────────────────────── */
+    #screen-game { background: #000; }
+    #game-canvas { display: block; width: 100%; height: 100%; }
+    #game-hud-top {
+      position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between;
+      align-items: center; padding: 0.5rem 0.9rem; pointer-events: none;
+      background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0));
+    }
+    #game-mode-badge { font-size: 0.8rem; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(142,36,170,0.85); color:#fff; }
+    #game-mode-badge.casual { background: rgba(0,137,123,0.9); }
+    #game-mode-badge.solo { background: rgba(69,90,100,0.9); }
+    #game-timer { font-size: 1.5rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #000; }
     #game-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.55);
-      gap: 0.75rem;
-      pointer-events: none;
+      position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; background: rgba(0,0,0,0.55); gap: 0.6rem; pointer-events: none;
     }
-    #game-overlay .overlay-title {
-      font-size: 1.4rem;
-      color: #90caf9;
-    }
-    #game-overlay .overlay-hint {
-      font-size: 0.9rem;
-      color: #bbb;
-    }
-
-    /* Status bar */
+    #game-overlay.hidden { display: none; }
+    #game-overlay .ov-title { font-size: 1.5rem; color: #90caf9; }
+    #game-overlay .ov-hint { font-size: 0.9rem; color: #cfcfe6; }
     #game-status-bar {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(0,0,0,0.5);
-      padding: 0.4rem 1rem;
-      font-size: 0.85rem;
-      color: #e0e0e0;
+      position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.55);
+      padding: 0.4rem 1rem; font-size: 0.82rem; color: #e6e6f0;
     }
-    #game-status { display: inline; }
+    #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 18px; height: 18px; pointer-events: none; opacity: .55; }
+    #crosshair::before, #crosshair::after { content:''; position:absolute; background:#fff; }
+    #crosshair::before { width:2px; height:100%; left:50%; transform:translateX(-50%); }
+    #crosshair::after  { width:100%; height:2px; top:50%; transform:translateY(-50%); }
 
-    /* Multiplayer toggle button (top-right HUD corner) */
-    #btn-multiplayer-toggle {
-      position: absolute;
-      top: 0.6rem;
-      right: 0.8rem;
-      z-index: 110;
-      padding: 0.35rem 0.7rem;
-      background: rgba(26,35,126,0.85);
-      border: 1px solid #3949ab;
-      border-radius: 5px;
-      color: #e0e0e0;
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-    #btn-multiplayer-toggle:hover { background: rgba(40,53,147,0.9); }
+    /* ── Results screen ───────────────────────────────────────────────────── */
+    .result-banner { font-size: 2.4rem; font-weight: 800; text-align: center; letter-spacing: 1px; }
+    .result-banner.win  { color: #66bb6a; }
+    .result-banner.lose { color: #ef5350; }
+    .result-banner.draw { color: #ffca28; }
+    .result-banner.solo { color: #90caf9; }
+    .times { display: flex; gap: 0.75rem; margin: 1rem 0; }
+    .time-box { flex: 1; background: #0f0f28; border: 1px solid #2a2a5a; border-radius: 8px; padding: 0.7rem; text-align: center; }
+    .time-box .lbl { font-size: 0.72rem; color: #9aa; text-transform: uppercase; letter-spacing: 0.5px; }
+    .time-box .val { font-size: 1.3rem; font-weight: 700; color: #e6e6f0; font-variant-numeric: tabular-nums; }
+    .time-box.you { border-color: #5e35b1; }
+    .rating-delta { text-align: center; margin: 0.6rem 0 0.2rem; font-size: 1.05rem; }
+    .rating-delta .up { color: #66bb6a; } .rating-delta .down { color: #ef5350; }
+    .rating-delta .num { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-    /* Multiplayer slide-out panel */
-    #multiplayer-panel {
-      position: absolute;
-      top: 2.5rem;
-      right: 0.8rem;
-      z-index: 110;
-      width: 280px;
-      background: rgba(18,18,42,0.95);
-      border: 1px solid #2a2a5a;
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      font-size: 0.82rem;
-    }
-    #multiplayer-panel h4 { color: #90caf9; margin-bottom: 0.5rem; font-size: 0.9rem; }
-    #multiplayer-panel .lobby-row { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
-    #multiplayer-panel .lobby-row input {
-      flex: 1;
-      background: #1a1a3a;
-      border: 1px solid #3a3a6a;
-      border-radius: 4px;
-      color: #e0e0e0;
-      padding: 0.3rem 0.5rem;
-      font-size: 0.82rem;
-    }
-    #multiplayer-panel .lobby-row button {
-      padding: 0.3rem 0.6rem;
-      background: #1a237e;
-      border: 1px solid #3949ab;
-      border-radius: 4px;
-      color: #e0e0e0;
-      cursor: pointer;
-      font-size: 0.78rem;
-    }
-    #multiplayer-panel .lobby-row button:hover:not(:disabled) { background: #283593; }
-    #multiplayer-panel .lobby-row button:disabled { opacity: 0.5; cursor: not-allowed; }
-    #mp-status { color: #bbb; font-size: 0.78rem; margin-top: 0.3rem; }
-    #mp-lb-area { display: none; font-size: 0.75rem; color: #ccc; margin-top: 0.5rem; }
+    /* ── Leaderboard ──────────────────────────────────────────────────────── */
+    table.lb { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.5rem; }
+    table.lb th, table.lb td { padding: 0.45rem 0.5rem; text-align: left; border-bottom: 1px solid #20204a; }
+    table.lb th { color: #90caf9; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; }
+    table.lb tr.me { background: rgba(94,53,177,0.25); }
+    table.lb td.r { text-align: right; font-variant-numeric: tabular-nums; }
 
-    /* Replay button (shown after finish) */
-    #btn-replay {
-      display: none;
-      padding: 0.5rem 1.2rem;
-      background: #1b5e20;
-      border: 1px solid #388e3c;
-      border-radius: 6px;
-      color: #e0e0e0;
-      font-size: 0.9rem;
-      cursor: pointer;
-      pointer-events: all;
-    }
-    #btn-replay:hover { background: #2e7d32; }
-
-    /* Crosshair */
-    #crosshair {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 20px;
-      height: 20px;
-      pointer-events: none;
-      opacity: 0.6;
-    }
-    #crosshair::before, #crosshair::after {
-      content: '';
-      position: absolute;
-      background: #fff;
-    }
-    #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
-    #crosshair::after  { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
-
+    .stack > * + * { margin-top: 0.55rem; }
     .hidden { display: none !important; }
+    .err { color: #ef9a9a; font-size: 0.85rem; min-height: 1.1em; }
+    .members { font-size: 0.85rem; color: #cfcfe6; margin-top: 0.4rem; }
+    .members .rdy { color: #66bb6a; } .members .wait { color: #ffca28; }
+    code.invite { display:block; background:#0f0f28; border:1px dashed #3a3a6a; border-radius:6px; padding:0.5rem; font-size:0.82rem; word-break:break-all; color:#90caf9; margin-top:0.3rem; cursor:pointer; }
   </style>
 </head>
 <body>
 
-  <!-- ============================================================ -->
-  <!-- Auth / lobby screen — shown before the game starts           -->
-  <!-- ============================================================ -->
-  <div id="auth-screen">
-    <h1>Platformer3D</h1>
-    <p class="muted" style="text-align:center">GameKit Phase 21 — 3D Multiplayer Platformer Demo</p>
-
-    <div class="banner-demo">
-      <strong>Demo-only client:</strong> the refresh token is stored in
-      <code>localStorage</code> (XSS-vulnerable). Do not copy this pattern into
-      production. See <code>README.md</code> for alternatives.
+  <!-- ═══ Sign-in ═══════════════════════════════════════════════════════════ -->
+  <div id="screen-signin" class="screen center active">
+    <div class="card">
+      <h1>Platformer3D</h1>
+      <p class="sub">GameKit Phase 21 — 3D Multiplayer Platformer</p>
+      <div class="banner-demo">
+        <strong>Demo client:</strong> the refresh token is stored in <code>localStorage</code>
+        (XSS-vulnerable). Don't copy this into production — see <code>README.md</code>.
+      </div>
+      <button id="btn-guest" class="btn btn-primary"><span class="b-title">Play as Guest</span><span class="b-desc">One click — no email, password, or OAuth</span></button>
+      <div id="signin-err" class="err" style="margin-top:.6rem"></div>
     </div>
-
-    <!-- Auth panel — guest sign-in only (no email/phone/name fields) -->
-    <section id="auth-panel" class="auth-panel">
-      <h2>Sign in</h2>
-      <button id="btn-guest">Play as Guest</button>
-      <p class="muted">One click — no email, no password, no OAuth required.</p>
-      <div id="auth-error"></div>
-    </section>
-
-    <!-- Lobby / party UI hooks — 21-04 SignalR wiring binds to these elements -->
-    <section class="lobby-panel">
-      <h3>Party &amp; Match</h3>
-      <div class="lobby-row">
-        <button id="btn-create-lobby" disabled>Create Party</button>
-        <span id="lobby-code-display" class="muted" style="display:none;word-break:break-all;flex:1"></span>
-      </div>
-      <div class="lobby-row">
-        <input id="invite-code-input" type="text" placeholder="Paste invite code to join" />
-        <button id="btn-join-lobby" disabled>Join</button>
-      </div>
-      <div class="lobby-row">
-        <button id="btn-ready" disabled>Ready</button>
-        <span class="muted" id="lobby-status-text">Sign in first.</span>
-      </div>
-      <div class="lobby-row">
-        <input id="match-id-input" type="text" placeholder="Match ID (UUID) — direct WS test bypass" />
-      </div>
-    </section>
-
-    <!-- Leaderboard panel — populated post-match by lobby.js -->
-    <section class="lobby-panel" style="margin-top:0.5rem">
-      <div id="leaderboard-area" style="display:none;font-size:0.82rem;color:#ccc"></div>
-      <p class="muted" id="leaderboard-hint">Leaderboard appears after your first completed match.</p>
-    </section>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- Game viewport — hidden until guest sign-in succeeds          -->
-  <!-- ============================================================ -->
-  <div id="game-section" class="hidden">
+  <!-- ═══ Main menu ═════════════════════════════════════════════════════════ -->
+  <div id="screen-menu" class="screen center">
+    <div class="card">
+      <h1>Platformer3D</h1>
+      <div id="rank-chip" class="rank-chip" style="margin-top:1rem">
+        <div><div class="rating" id="menu-rating">—</div><div class="meta">your rating</div></div>
+        <div style="flex:1"><div class="wl" id="menu-wl">Loading…</div><div class="meta" id="menu-rank-note"></div></div>
+      </div>
+      <button id="btn-ranked" class="btn btn-ranked"><span class="b-title">⚔️ Ranked Match</span><span class="b-desc">Find a 1v1 opponent — fastest run wins, rating at stake</span></button>
+      <button id="btn-party"  class="btn btn-party"><span class="b-title">👥 Play with a Friend</span><span class="b-desc">Create or join a party — unranked 1v1, just for fun</span></button>
+      <button id="btn-solo"   class="btn btn-solo"><span class="b-title">🏃 Solo Practice</span><span class="b-desc">Free run, no opponent, no rating — learn the course</span></button>
+      <button id="btn-board"  class="btn btn-board"><span class="b-title">🏆 Leaderboard</span><span class="b-desc">See the top-ranked players</span></button>
+      <p class="muted" style="margin-top:.9rem;text-align:center">WASD move · Space jump · reach every checkpoint then the finish · fastest time wins</p>
+    </div>
+  </div>
 
+  <!-- ═══ Party ═════════════════════════════════════════════════════════════ -->
+  <div id="screen-party" class="screen center">
+    <div class="card stack">
+      <h2>Play with a Friend</h2>
+      <p class="muted">Friend matches are <strong>unranked</strong> — for fun, no rating at stake.</p>
+
+      <div id="party-pick">
+        <button id="btn-create-party" class="btn btn-party"><span class="b-title">Create a Party</span><span class="b-desc">Get an invite code to share</span></button>
+        <p class="muted" style="text-align:center;margin:.6rem 0">— or —</p>
+        <div class="row"><input id="invite-input" type="text" placeholder="Paste a friend's invite code" /><button id="btn-join-party" class="btn-sm">Join</button></div>
+      </div>
+
+      <div id="party-active" class="hidden">
+        <div id="party-code-wrap" class="hidden">
+          <div class="muted">Share this invite code with your friend:</div>
+          <code id="party-code" class="invite" title="Click to copy"></code>
+        </div>
+        <div id="party-members" class="members"></div>
+        <button id="btn-ready" class="btn btn-party" disabled><span class="b-title">Ready</span><span class="b-desc">Both players must be ready to start</span></button>
+      </div>
+
+      <div id="party-status" class="muted"></div>
+      <button id="btn-party-back" class="btn-sm btn-ghost">← Back to menu</button>
+    </div>
+  </div>
+
+  <!-- ═══ Searching ═════════════════════════════════════════════════════════ -->
+  <div id="screen-searching" class="screen center">
+    <div class="card" style="text-align:center">
+      <div class="spinner"></div>
+      <h2 style="text-align:center" id="search-title">Searching for an opponent…</h2>
+      <p class="muted" id="search-sub">Ranked 1v1 — the fastest run wins.</p>
+      <div class="search-time" id="search-time">0:00</div>
+      <div id="search-status" class="muted" style="margin-top:.5rem"></div>
+      <button id="btn-cancel-search" class="btn-sm btn-ghost" style="margin-top:1rem">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ═══ Game ══════════════════════════════════════════════════════════════ -->
+  <div id="screen-game" class="screen">
     <canvas id="game-canvas"></canvas>
-
-    <!-- Pointer-lock overlay (visible when NOT locked) -->
+    <div id="game-hud-top">
+      <span id="game-mode-badge">Ranked</span>
+      <span id="game-timer">0.00</span>
+    </div>
     <div id="game-overlay">
-      <span class="overlay-title">Platformer3D</span>
-      <span class="overlay-hint" id="overlay-hint-primary">Click to capture mouse and start</span>
-      <span class="overlay-hint">WASD = move &nbsp;|&nbsp; Space = jump &nbsp;|&nbsp; Esc = release mouse</span>
-      <button id="btn-replay">Play Again (R)</button>
+      <span class="ov-title" id="overlay-title">Platformer3D</span>
+      <span class="ov-hint" id="overlay-hint">Click to capture the mouse, then move to start the timer</span>
+      <span class="ov-hint">WASD = move · Space = jump · Esc = release mouse</span>
     </div>
-
-    <!-- Crosshair (visible only when locked) -->
     <div id="crosshair"></div>
+    <div id="game-status-bar"><span id="game-status">Initialising…</span></div>
+  </div>
 
-    <!-- Multiplayer toggle -->
-    <button id="btn-multiplayer-toggle">Multiplayer / Party</button>
-
-    <!-- Multiplayer slide-out panel -->
-    <div id="multiplayer-panel" class="hidden">
-      <h4>Party &amp; Match</h4>
-      <div class="lobby-row">
-        <button id="btn-create-lobby-mp" disabled>Create Party</button>
-        <span id="lobby-code-display-mp" class="muted" style="display:none;word-break:break-all;flex:1;font-size:0.75rem"></span>
-      </div>
-      <div class="lobby-row">
-        <input id="invite-code-input-mp" type="text" placeholder="Paste invite code to join" />
-        <button id="btn-join-lobby-mp" disabled>Join</button>
-      </div>
-      <div class="lobby-row">
-        <button id="btn-ready-mp" disabled>Ready</button>
-      </div>
-      <div id="mp-status">Sign in then open the party controls.</div>
-      <div id="mp-lb-area"></div>
+  <!-- ═══ Results ═══════════════════════════════════════════════════════════ -->
+  <div id="screen-results" class="screen center">
+    <div class="card">
+      <div id="result-banner" class="result-banner">—</div>
+      <div class="times" id="result-times"></div>
+      <div id="result-rating" class="rating-delta"></div>
+      <div id="result-note" class="muted" style="text-align:center;margin-top:.4rem"></div>
+      <button id="btn-results-again" class="btn btn-primary" style="margin-top:1rem"><span class="b-title">Back to Menu</span></button>
+      <button id="btn-results-board" class="btn-sm btn-ghost" style="margin-top:.6rem">View Leaderboard</button>
     </div>
+  </div>
 
-    <!-- Status bar -->
-    <div id="game-status-bar">
-      <span id="game-status">Initialising…</span>
+  <!-- ═══ Leaderboard ═══════════════════════════════════════════════════════ -->
+  <div id="screen-leaderboard" class="screen center">
+    <div class="card">
+      <h2>🏆 Leaderboard</h2>
+      <div id="lb-body"><p class="muted">Loading…</p></div>
+      <div class="row" style="margin-top:1rem">
+        <button id="btn-lb-refresh" class="btn-sm">Refresh</button>
+        <button id="btn-lb-back" class="btn-sm btn-ghost">← Back to menu</button>
+      </div>
     </div>
-
   </div>
 
   <!--
-    IMPORTANT: three.js is loaded locally from /js/three.module.js (vendored MIT, r184).
-    SignalR JS client loaded locally from /js/signalr.min.js (vendored MIT, 10.0.0).
-    NO CDN script tags. All assets served from wwwroot/ — no outbound cloud/CDN calls.
+    three.js (vendored MIT r184) + SignalR JS (vendored MIT 10.0.0) — NO CDN.
+    SignalR IIFE bundle exposes window.signalR; must load before the app module.
   -->
-  <!-- SignalR IIFE browser bundle — exposes window.signalR global. Must load before lobby.js. -->
   <script src="/js/signalr.min.js"></script>
-  <!-- Lobby/party wiring — imports signalR from window.signalR set above. -->
-  <script type="module" src="/js/lobby.js"></script>
-  <script type="module" src="/js/game.js"></script>
-
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>

@@ -106,6 +106,41 @@ public sealed class TeamAssignmentTests
         Assert.Empty(assignments);
     }
 
+    /// <summary>
+    /// Inter-party self-match (Phase 21): a SINGLE 2-member party (two friends queued together
+    /// for a 1v1) is split across the two teams so they become opponents — NOT placed together
+    /// on team 0 by the party-cohesive path.
+    /// </summary>
+    [Fact]
+    public void SinglePartyOfTwo_SplitsMembersAcrossOpposingTeams()
+    {
+        var party = NewParty(2, "duo");
+
+        var svc = new TeamAssignmentService();
+        var assignments = svc.AssignTeams(new[] { party });
+
+        Assert.Equal(2, assignments.Count);
+        var teams = assignments.Values.Distinct().OrderBy(t => t).ToList();
+        Assert.Equal(new[] { 0, 1 }, teams); // exactly one player per team
+    }
+
+    /// <summary>
+    /// The self-split also handles a single party with more than two members deterministically
+    /// (round-robin) — both teams are populated, no member is dropped.
+    /// </summary>
+    [Fact]
+    public void SinglePartyOfThree_RoundRobinPopulatesBothTeams()
+    {
+        var party = NewParty(3, "trio");
+
+        var svc = new TeamAssignmentService();
+        var assignments = svc.AssignTeams(new[] { party });
+
+        Assert.Equal(3, assignments.Count);
+        Assert.Equal(2, assignments.Values.Count(t => t == 0)); // members 0,2
+        Assert.Equal(1, assignments.Values.Count(t => t == 1)); // member 1
+    }
+
     private static QueuedParty NewParty(int memberCount, string poolName)
     {
         var members = Enumerable.Range(0, memberCount)

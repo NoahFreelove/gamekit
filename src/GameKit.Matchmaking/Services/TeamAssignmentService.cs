@@ -33,6 +33,14 @@ namespace GameKit.Matchmaking.Services;
 /// changing the surface.
 /// </para>
 /// <para>
+/// <b>Inter-party self-match (Phase 21):</b> when the input is a SINGLE party of more than one
+/// member — a full party that fills the whole match roster on its own, e.g. two friends in a
+/// 1v1 "inter-party" match — party cohesion cannot apply (there is only one party), so the
+/// alternating-party algorithm would place every member on team 0. This case is detected and
+/// the lone party's members are split round-robin across teams 0/1 so they become genuine
+/// opponents. A normal multi-party match never reaches this branch.
+/// </para>
+/// <para>
 /// <b>Statelessness:</b> the service holds no state and is safe to register as a singleton.
 /// </para>
 /// </remarks>
@@ -49,6 +57,22 @@ public sealed class TeamAssignmentService
 
         if (matchedParties.Count == 0)
             return new Dictionary<Guid, int>(0);
+
+        // Inter-party self-match (Phase 21): a SINGLE party that fills the whole match roster
+        // on its own — e.g. a 2-member 1v1 "inter-party" match where two friends oppose each
+        // other. There is only one party, so party cohesion cannot apply and the alternating
+        // algorithm below would place every member on team 0. Split this lone party's members
+        // round-robin across the two teams instead so they are genuine opponents. This branch
+        // only fires for the matcher's self-match path (one matched ticket carrying >1 member);
+        // a normal multi-party match always has >= 2 parties and skips it.
+        if (matchedParties.Count == 1 && matchedParties[0].Members.Count > 1)
+        {
+            var members = matchedParties[0].Members;
+            var split = new Dictionary<Guid, int>(members.Count);
+            for (var i = 0; i < members.Count; i++)
+                split[members[i].PlayerId] = i % 2;
+            return split;
+        }
 
         // Fisher–Yates shuffle using CSPRNG. Copy first to avoid mutating the caller's list.
         var shuffled = new QueuedParty[matchedParties.Count];

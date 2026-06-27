@@ -49,3 +49,7 @@ using System.Runtime.CompilerServices;
 // Rankings entities (Ladder) in the runtime DbContext. Mirrors the
 // GameKit.OpenApi.Integration.Tests grant above.
 [assembly: InternalsVisibleTo("GameKit.Tutorial.SmokeTests")]
+// Plan 21-06: Platformer3D integration tests compose the full five-package stack and apply
+// RankingsModelBuilderExtension in PlatformerTestModelCustomizer. Mirrors the
+// Matchmaking.Integration.Tests + Lobby.Integration.Tests grants above.
+[assembly: InternalsVisibleTo("GameKit.Platformer3D.Integration.Tests")]

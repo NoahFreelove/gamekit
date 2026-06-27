@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameKit.Platformer3D.Tests</RootNamespace>
+    <AssemblyName>GameKit.Platformer3D.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <WarningsAsErrors />
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio, coverlet.collector
+         are auto-added by tests/Directory.Build.props — do not repeat here. -->
+    <PackageReference Include="Moq" />
+    <!-- InMemory EF provider for DemoAdminSeederHostedService unit tests. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Reference the host sample project so unit tests can construct BestTimeMatchmakingStrategy
+         and TimeMarginRankingAlgorithm (live in samples/Platformer3D) once 21-02 writes them. -->
+    <ProjectReference Include="..\..\samples\Platformer3D\Platformer3D.csproj" />
+    <!-- Direct GameKit references for strategy + algorithm types -->
+    <ProjectReference Include="..\..\src\GameKit.Matchmaking\GameKit.Matchmaking.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
+  </ItemGroup>
+</Project>

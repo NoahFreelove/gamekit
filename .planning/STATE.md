@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Operability & Hardening
-current_phase: 20
+current_phase: 21
+current_phase_name: final-demo-3d-multiplayer-platformer
 status: completed
-stopped_at: Phase 21 context gathered
-last_updated: "2026-06-23T15:13:51.177Z"
-last_activity: 2026-06-23
-last_activity_desc: Phase 20 marked complete
+stopped_at: Phase 21 complete (merged to master)
+last_updated: "2026-06-26T00:00:00.000Z"
+last_activity: 2026-06-26
+last_activity_desc: Phase 21 complete — inter-party 1v1, no-elo, demo overhaul; merged to master
 progress:
   total_phases: 10
-  completed_phases: 8
+  completed_phases: 10
   total_plans: 49
-  completed_plans: 43
-  percent: 80
-current_phase_name: Docs & Tutorial
+  completed_plans: 49
+  percent: 100
 ---
 
 # STATE: GameKit
@@ -26,14 +26,14 @@ current_phase_name: Docs & Tutorial
 **License:** GPL
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 20 — Docs & Tutorial
+**Current Focus:** Phase 21 — Final Demo — 3D Multiplayer Platformer (COMPLETE)
 
 ## Current Position
 
-Phase: 20 — COMPLETE
-Plan: 1 of 5
-Status: Phase 20 complete
-Last activity: 2026-06-23 — Phase 20 marked complete
+Phase: 21 (final-demo-3d-multiplayer-platformer) — COMPLETE (merged to master)
+Plan: 6 of 6
+Status: Phase complete — inter-party 1v1, no-elo, and demo functional overhaul shipped
+Last activity: 2026-06-26 — Phase 21 complete, merged to master
 
 ## Performance Metrics
 
@@ -120,6 +120,13 @@ Last activity: 2026-06-23 — Phase 20 marked complete
 | Phase 15 P03 | 4min | 3 tasks | 6 files |
 | Phase 15 P06 | 3min | 3 tasks | 5 files |
 | Phase 19 P01 | 11 minutes | 3 tasks | 9 files |
+| Phase 21 P01 | 10min | 3 tasks | 12 files |
+| Phase 21 P02 | 6m | 2 tasks | 4 files |
+| Phase 21 P03 | 6min | 2 tasks | 9 files |
+| Phase 21 P04 | 18min | - tasks | - files |
+| Phase 21-final-demo-3d-multiplayer-platformer P06 | 75m | 2 tasks | 8 files |
+| Phase 21-final-demo-3d-multiplayer-platformer P06 | 35 | 3 tasks | 6 files |
+| Phase 21 Pbrowser-multiplayer | 8m | 6 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -339,7 +346,7 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-06-23T11:17:39.967Z
+**Last session:** 2026-06-26T00:00:00.000Z
 **Stopped at:** Phase 21 context gathered
 **Resume file:** .planning/phases/21-final-demo-3d-multiplayer-platformer/21-CONTEXT.md
 
@@ -376,3 +383,13 @@ None.
 - [Phase ?]: Approach A (collector namespace=gamekit) confirmed: otel-collector-contrib:0.154.0 supports exporters.prometheus.namespace; all GameKit metrics appear as gamekit_* in Prometheus
 - [Phase ?]: AddGameKitObservability() extended to 3 sources + 3 meters (Matchmaking.Ticker/Rankings.Ticker/Lobby sources + Matchmaking/Rankings/Lobby meters) — Phase-15 criterion #3 scrape path complete
 - [Phase ?]: BDN console app separated from xUnit sustain-load harness; Remove directives neutralize tests/Directory.Build.props auto-injection (Pitfall §7)
+- [Phase ?]: D-09 AMENDMENT: Fixed-delta Elo replaces margin-scaled; MatchOutcome has no Score field
+- [Phase ?]: BestTimeMatchmakingStrategy: cold-start (RD>=300) uses NeutralBracketMs=60000 overriding conjunctive rule (D-08)
+- [Phase ?]: Name discriminators locked: time-margin (IRankingAlgorithm) + best-time (IMatchmakingStrategy) for 21-04 host wiring
+- [Phase ?]: A3: services.Replace after AddMatchmaking
+- [Phase ?]: Deterministic Idempotency-Key per session: platformer-session-{sessionId} for R7/D-05 idempotent session completion
+- [Phase ?]: RatingPeriod = 1 minute on platformer Rankings ladder for live demo visibility (Pitfall 8)
+- [Phase ?]: SeedLobbyAsync (direct SQL) used for solo MaxMembers=1 lobbies to bypass Open→ReadyChecking gap
+- [Phase ?]: IRankingsTicker.RunOnceAsync() invoked in tests to flush PendingRatingUpdate without 60s ticker delay
+- [Phase ?]: Session Pending→Active start call added to PlatformerGameServerService on first WS connection
+- [Phase ?]: DemoAdminSeeder uses config gate + Production guard — seeds superadmin only in non-Production on empty admin_users

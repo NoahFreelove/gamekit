@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!--
+      Plan 21-01 (D-13): embedded game-server class library — runs as an IHostedService
+      inside the Platformer3D host project (not a standalone process like TicTacToeDuel.GameServer).
+      GameServer consumes IServiceTokenService and session contracts via GameKit.Core + GameKit.Rankings.
+    -->
+    <RootNamespace>Platformer3D.GameServer</RootNamespace>
+    <AssemblyName>Platformer3D.GameServer</AssemblyName>
+
+    <!-- Sample — never packaged. -->
+    <IsPackable>false</IsPackable>
+
+    <!-- Sample apps are exempted from the repo-wide CS1591 enforcement
+         (no public API surface to document). -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- D-13: the embedded game server only needs Core (DI, session contracts) and Rankings
+         (IServiceTokenService for service-credential JWT authentication). -->
+    <ProjectReference Include="..\..\src\GameKit.Core\GameKit.Core.csproj" />
+    <ProjectReference Include="..\..\src\GameKit.Rankings\GameKit.Rankings.csproj" />
+  </ItemGroup>
+</Project>

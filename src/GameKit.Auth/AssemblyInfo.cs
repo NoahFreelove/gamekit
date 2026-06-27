@@ -44,6 +44,10 @@ using System.Runtime.CompilerServices;
 // AuthMigrationModelCustomizer to the runtime DbContext via TutorialRuntimeModelCustomizer.
 // Mirrors the GameKit.OpenApi.Integration.Tests grant above.
 [assembly: InternalsVisibleTo("GameKit.Tutorial.SmokeTests")]
+// Plan 21-06: Platformer3D integration tests compose the full five-package stack in one
+// PlatformerTestApp runtime host. The runtime DbContext customizer applies
+// AuthModelBuilderExtension directly. Mirrors Presence + OpenApi grants above.
+[assembly: InternalsVisibleTo("GameKit.Platformer3D.Integration.Tests")]
 
 namespace GameKit.Auth;
 

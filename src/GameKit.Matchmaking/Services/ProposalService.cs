@@ -313,6 +313,29 @@ public sealed class ProposalService : IProposalService
 
         var teams = _teamAssignment.AssignTeams(parties);
 
+        // Anti-abuse (Phase 21 — inter-party 1v1): a match is UNRANKED when two OPPOSING
+        // participants came from the SAME party/ticket. That only happens for an inter-party
+        // match (two friends who queued together as one party, split across teams for a 1v1).
+        // Awarding rating there is trivially exploitable — "party up, let your friend AFK,
+        // farm free elo" — so the session is created with a NULL LadderId, which the rating
+        // pipeline treats as unranked end-to-end (SessionCompleteService builds null-ladder
+        // snapshots → PendingRatingUpdatesAdapter skips the PlayerRank read AND the rating
+        // update). Normal stranger matchmaking keeps every party wholly on one team (party
+        // cohesion), so each ticket maps to a single team and this never trips → stays ranked.
+        var isInterPartyMatch = parties.Any(p =>
+            p.Members
+                .Select(m => teams.TryGetValue(m.PlayerId, out var t) ? t : -1)
+                .Distinct()
+                .Count() > 1);
+        Guid? sessionLadderId = isInterPartyMatch ? null : fields.LadderId;
+        if (isInterPartyMatch)
+        {
+            _logger?.LogInformation(
+                "ProposalService.CreateSessionAsync: proposal {ProposalId} is an inter-party match " +
+                "(opposing players share a party) — creating session {SessionId} as UNRANKED (null LadderId).",
+                proposalId, sessionId);
+        }
+
         var participants = new List<SessionParticipant>();
         foreach (var (playerId, team) in teams)
         {
@@ -342,7 +365,7 @@ public sealed class ProposalService : IProposalService
         var sqlParams = new object[]
         {
             new NpgsqlParameter("id", sessionId),
-            new NpgsqlParameter("ladderId", fields.LadderId),
+            new NpgsqlParameter("ladderId", (object?)sessionLadderId ?? DBNull.Value),
             new NpgsqlParameter("idempotencyKey", idempotencyKey),
             new NpgsqlParameter("createdAt", now),
             new NpgsqlParameter("startedAt", now),

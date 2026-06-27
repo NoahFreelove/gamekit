@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 GameKit contributors
+#
+# .dockerignore — trim the build context so docker build sends only what the
+# Dockerfile needs. The build context is the REPO ROOT (not samples/Platformer3D/).
+# This reduces context size and avoids leaking secrets / planning artifacts.
+
+# Build artifacts — never needed in the image
+**/bin/
+**/obj/
+
+# Git history
+.git/
+.gitattributes
+.gitignore
+
+# Planning and CI artifacts — not part of the app
+.planning/
+.claude/
+.github/
+
+# Development infrastructure
+tests/
+docker-compose*.yml
+
+# IDE / editor state
+.idea/
+.vscode/
+*.user
+*.suo
+*.DotSettings
+
+# OS artifacts
+.DS_Store
+Thumbs.db

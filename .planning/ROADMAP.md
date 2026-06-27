@@ -39,7 +39,7 @@
 - [x] **Phase 18: Security Audit** — JWT/admin/GDPR/egress/rate-limit audit tests + CVE CI gate + security checklist (completed 2026-06-23)
 - [x] **Phase 19: Load / Performance Testing** — BenchmarkDotNet micro-benchmarks + k6 load scenarios + CI regression gate + tuning guide (completed 2026-06-23)
 - [x] **Phase 20: Docs & Tutorial** — DocFX API reference + getting-started tutorial + upgrade guide + runbook library (completed 2026-06-23)
-- [ ] **Phase 21: Final Demo — 3D Multiplayer Platformer** — single loadable image (admin server + GameKit + fully-customized example) you `docker load`/run, then play a 3D multiplayer game in the web browser
+- [x] **Phase 21: Final Demo — 3D Multiplayer Platformer** — single loadable image (admin server + GameKit + fully-customized example) you `docker load`/run, then play a 3D multiplayer game in the web browser (completed 2026-06-23)
 
 ## Phase Details
 
@@ -275,29 +275,29 @@ Plans:
   - GPL compatibility of any bundled engine/runtime bits must be checked before vendoring (per project license constraint).
   - Likely the v2.1 capstone; could alternatively be split into its own demo milestone if scope (real 3D game + game server + secure auth + image packaging) proves too large for one phase — decide at /gsd-spec-phase / /gsd-discuss-phase 21.
 
-**Plans**: 6 plans
+**Plans**: 7/6 plans complete
 
 Plans:
 **Wave 1**
 
-- [ ] 21-01-PLAN.md — Foundation: two sample project shells + two test projects + Testcontainers fixture + reuse CLI + sln wiring (R1)
+- [x] 21-01-PLAN.md — Foundation: two sample project shells + two test projects + Testcontainers fixture + reuse CLI + sln wiring (R1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 21-02-PLAN.md — Custom IMatchmakingStrategy (best-time) + custom IRankingAlgorithm (fixed-delta, D-09 amended) + unit tests (R5, R6)
-- [ ] 21-03-PLAN.md — three.js browser client (vendored, no CDN) + guest onboarding + level + REUSE/notices (R2, R8, R11)
+- [x] 21-02-PLAN.md — Custom IMatchmakingStrategy (best-time) + custom IRankingAlgorithm (fixed-delta, D-09 amended) + unit tests (R5, R6)
+- [x] 21-03-PLAN.md — three.js browser client (vendored, no CDN) + guest onboarding + level + REUSE/notices (R2, R8, R11)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 21-04-PLAN.md — Host composition (custom seams resolved, admin, WebSocket) + embedded GameServer IHostedService + run-summary validation (R4, R5, R6, R7, R8, R9)
+- [x] 21-04-PLAN.md — Host composition (custom seams resolved, admin, WebSocket) + embedded GameServer IHostedService + run-summary validation (R4, R5, R6, R7, R8, R9)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 21-05-PLAN.md — Multi-stage Dockerfile + single compose (only app port) + offline docker save tarball (R3, R11)
+- [x] 21-05-PLAN.md — Multi-stage Dockerfile + single compose (only app port) + offline docker save tarball (R3, R11)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 21-06-PLAN.md — Integration/smoke: resolution, guest, player-JWT-401/403, idempotency, lobby→1v1+abort, full-loop+concurrent, compose-port, human-verify (R5, R7, R8, R9, R10)
+- [x] 21-06-PLAN.md — Integration/smoke: resolution, guest, player-JWT-401/403, idempotency, lobby→1v1+abort, full-loop+concurrent, compose-port, human-verify (R5, R7, R8, R9, R10)
 
 **UI hint**: yes
 
@@ -320,7 +320,7 @@ Plans:
 | 18. Security Audit | v2.1 | 6/6 | Complete | 2026-06-23 |
 | 19. Load / Performance Testing | v2.1 | 5/5 | Complete | 2026-06-23 |
 | 20. Docs & Tutorial | v2.1 | 5/5 | Complete | 2026-06-23 |
-| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | 0/TBD | Not started | — |
+| 21. Final Demo — 3D Multiplayer Platformer | v2.1 | Complete | Complete | 2026-06-26 |
 
 ---
 

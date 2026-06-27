@@ -1,0 +1,255 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (c) 2026 GameKit contributors -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Platformer3D — GameKit Phase 21 Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0a0a1a; color: #e6e6f0; font-family: system-ui, -apple-system, sans-serif; }
+    body { overflow: hidden; }
+
+    /* ── Screen system: only .active is shown ─────────────────────────────── */
+    .screen { display: none; position: fixed; inset: 0; }
+    .screen.active { display: flex; }
+    .screen.center { align-items: center; justify-content: center; padding: 1.25rem; overflow-y: auto; }
+
+    .card {
+      background: #12122a;
+      border: 1px solid #2a2a5a;
+      border-radius: 12px;
+      padding: 1.75rem;
+      width: 100%;
+      max-width: 460px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    }
+    h1 { font-size: 2rem; color: #90caf9; text-align: center; letter-spacing: 0.5px; }
+    h2 { font-size: 1.15rem; color: #90caf9; margin-bottom: 0.85rem; }
+    .sub { color: #9aa; font-size: 0.85rem; text-align: center; }
+    .muted { color: #888; font-size: 0.82rem; }
+
+    .banner-demo {
+      background: #1a1a00; border-left: 4px solid #ffc107;
+      padding: 0.55rem 0.8rem; font-size: 0.78rem; border-radius: 4px;
+      color: #cbc88f; margin: 0.9rem 0;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    button { font-family: inherit; cursor: pointer; transition: filter .15s, background .15s, opacity .15s; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .btn {
+      display: block; width: 100%; padding: 0.8rem 1rem; margin-top: 0.6rem;
+      border: none; border-radius: 8px; color: #fff; font-size: 1rem; text-align: left;
+    }
+    .btn:hover:not(:disabled) { filter: brightness(1.12); }
+    .btn-primary { background: #1565c0; }
+    .btn-ranked  { background: linear-gradient(90deg,#6a1b9a,#8e24aa); }
+    .btn-party   { background: linear-gradient(90deg,#00695c,#00897b); }
+    .btn-solo    { background: linear-gradient(90deg,#37474f,#455a64); }
+    .btn-board   { background: linear-gradient(90deg,#283593,#3949ab); }
+    .btn .b-title { font-weight: 600; font-size: 1.02rem; }
+    .btn .b-desc  { display: block; font-size: 0.76rem; opacity: 0.85; margin-top: 2px; font-weight: 400; }
+    .btn-sm { display: inline-block; width: auto; padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 6px; background: #1a237e; border: 1px solid #3949ab; color: #e6e6f0; margin-top: 0.5rem; }
+    .btn-ghost { background: transparent; border: 1px solid #3a3a6a; color: #b9b9d6; }
+
+    .row { display: flex; gap: 0.5rem; align-items: center; }
+    input[type=text] {
+      flex: 1; background: #1a1a3a; border: 1px solid #3a3a6a; border-radius: 6px;
+      color: #e6e6f0; padding: 0.55rem 0.7rem; font-size: 0.92rem;
+    }
+
+    /* ── Rank header chip on the menu ─────────────────────────────────────── */
+    .rank-chip {
+      background: #0f0f28; border: 1px solid #2a2a5a; border-radius: 10px;
+      padding: 0.7rem 0.9rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.8rem;
+    }
+    .rank-chip .rating { font-size: 1.6rem; font-weight: 700; color: #ffd54f; line-height: 1; }
+    .rank-chip .meta { font-size: 0.78rem; color: #9aa; }
+    .rank-chip .wl { font-size: 0.9rem; color: #cfcfe6; }
+
+    /* ── Searching screen ─────────────────────────────────────────────────── */
+    .spinner {
+      width: 54px; height: 54px; border: 5px solid #2a2a5a; border-top-color: #8e24aa;
+      border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .search-time { font-size: 1.4rem; color: #ce93d8; font-variant-numeric: tabular-nums; }
+
+    /* ── Game screen ──────────────────────────────────────────────────────── */
+    #screen-game { background: #000; }
+    #game-canvas { display: block; width: 100%; height: 100%; }
+    #game-hud-top {
+      position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between;
+      align-items: center; padding: 0.5rem 0.9rem; pointer-events: none;
+      background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0));
+    }
+    #game-mode-badge { font-size: 0.8rem; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(142,36,170,0.85); color:#fff; }
+    #game-mode-badge.casual { background: rgba(0,137,123,0.9); }
+    #game-mode-badge.solo { background: rgba(69,90,100,0.9); }
+    #game-timer { font-size: 1.5rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; text-shadow: 0 1px 3px #000; }
+    #game-overlay {
+      position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; background: rgba(0,0,0,0.55); gap: 0.6rem; pointer-events: none;
+    }
+    #game-overlay.hidden { display: none; }
+    #game-overlay .ov-title { font-size: 1.5rem; color: #90caf9; }
+    #game-overlay .ov-hint { font-size: 0.9rem; color: #cfcfe6; }
+    #game-status-bar {
+      position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.55);
+      padding: 0.4rem 1rem; font-size: 0.82rem; color: #e6e6f0;
+    }
+    #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 18px; height: 18px; pointer-events: none; opacity: .55; }
+    #crosshair::before, #crosshair::after { content:''; position:absolute; background:#fff; }
+    #crosshair::before { width:2px; height:100%; left:50%; transform:translateX(-50%); }
+    #crosshair::after  { width:100%; height:2px; top:50%; transform:translateY(-50%); }
+
+    /* ── Results screen ───────────────────────────────────────────────────── */
+    .result-banner { font-size: 2.4rem; font-weight: 800; text-align: center; letter-spacing: 1px; }
+    .result-banner.win  { color: #66bb6a; }
+    .result-banner.lose { color: #ef5350; }
+    .result-banner.draw { color: #ffca28; }
+    .result-banner.solo { color: #90caf9; }
+    .times { display: flex; gap: 0.75rem; margin: 1rem 0; }
+    .time-box { flex: 1; background: #0f0f28; border: 1px solid #2a2a5a; border-radius: 8px; padding: 0.7rem; text-align: center; }
+    .time-box .lbl { font-size: 0.72rem; color: #9aa; text-transform: uppercase; letter-spacing: 0.5px; }
+    .time-box .val { font-size: 1.3rem; font-weight: 700; color: #e6e6f0; font-variant-numeric: tabular-nums; }
+    .time-box.you { border-color: #5e35b1; }
+    .rating-delta { text-align: center; margin: 0.6rem 0 0.2rem; font-size: 1.05rem; }
+    .rating-delta .up { color: #66bb6a; } .rating-delta .down { color: #ef5350; }
+    .rating-delta .num { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* ── Leaderboard ──────────────────────────────────────────────────────── */
+    table.lb { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.5rem; }
+    table.lb th, table.lb td { padding: 0.45rem 0.5rem; text-align: left; border-bottom: 1px solid #20204a; }
+    table.lb th { color: #90caf9; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px; }
+    table.lb tr.me { background: rgba(94,53,177,0.25); }
+    table.lb td.r { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .stack > * + * { margin-top: 0.55rem; }
+    .hidden { display: none !important; }
+    .err { color: #ef9a9a; font-size: 0.85rem; min-height: 1.1em; }
+    .members { font-size: 0.85rem; color: #cfcfe6; margin-top: 0.4rem; }
+    .members .rdy { color: #66bb6a; } .members .wait { color: #ffca28; }
+    code.invite { display:block; background:#0f0f28; border:1px dashed #3a3a6a; border-radius:6px; padding:0.5rem; font-size:0.82rem; word-break:break-all; color:#90caf9; margin-top:0.3rem; cursor:pointer; }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ Sign-in ═══════════════════════════════════════════════════════════ -->
+  <div id="screen-signin" class="screen center active">
+    <div class="card">
+      <h1>Platformer3D</h1>
+      <p class="sub">GameKit Phase 21 — 3D Multiplayer Platformer</p>
+      <div class="banner-demo">
+        <strong>Demo client:</strong> the refresh token is stored in <code>localStorage</code>
+        (XSS-vulnerable). Don't copy this into production — see <code>README.md</code>.
+      </div>
+      <button id="btn-guest" class="btn btn-primary"><span class="b-title">Play as Guest</span><span class="b-desc">One click — no email, password, or OAuth</span></button>
+      <div id="signin-err" class="err" style="margin-top:.6rem"></div>
+    </div>
+  </div>
+
+  <!-- ═══ Main menu ═════════════════════════════════════════════════════════ -->
+  <div id="screen-menu" class="screen center">
+    <div class="card">
+      <h1>Platformer3D</h1>
+      <div id="rank-chip" class="rank-chip" style="margin-top:1rem">
+        <div><div class="rating" id="menu-rating">—</div><div class="meta">your rating</div></div>
+        <div style="flex:1"><div class="wl" id="menu-wl">Loading…</div><div class="meta" id="menu-rank-note"></div></div>
+      </div>
+      <button id="btn-ranked" class="btn btn-ranked"><span class="b-title">⚔️ Ranked Match</span><span class="b-desc">Find a 1v1 opponent — fastest run wins, rating at stake</span></button>
+      <button id="btn-party"  class="btn btn-party"><span class="b-title">👥 Play with a Friend</span><span class="b-desc">Create or join a party — unranked 1v1, just for fun</span></button>
+      <button id="btn-solo"   class="btn btn-solo"><span class="b-title">🏃 Solo Practice</span><span class="b-desc">Free run, no opponent, no rating — learn the course</span></button>
+      <button id="btn-board"  class="btn btn-board"><span class="b-title">🏆 Leaderboard</span><span class="b-desc">See the top-ranked players</span></button>
+      <p class="muted" style="margin-top:.9rem;text-align:center">WASD move · Space jump · reach every checkpoint then the finish · fastest time wins</p>
+    </div>
+  </div>
+
+  <!-- ═══ Party ═════════════════════════════════════════════════════════════ -->
+  <div id="screen-party" class="screen center">
+    <div class="card stack">
+      <h2>Play with a Friend</h2>
+      <p class="muted">Friend matches are <strong>unranked</strong> — for fun, no rating at stake.</p>
+
+      <div id="party-pick">
+        <button id="btn-create-party" class="btn btn-party"><span class="b-title">Create a Party</span><span class="b-desc">Get an invite code to share</span></button>
+        <p class="muted" style="text-align:center;margin:.6rem 0">— or —</p>
+        <div class="row"><input id="invite-input" type="text" placeholder="Paste a friend's invite code" /><button id="btn-join-party" class="btn-sm">Join</button></div>
+      </div>
+
+      <div id="party-active" class="hidden">
+        <div id="party-code-wrap" class="hidden">
+          <div class="muted">Share this invite code with your friend:</div>
+          <code id="party-code" class="invite" title="Click to copy"></code>
+        </div>
+        <div id="party-members" class="members"></div>
+        <button id="btn-ready" class="btn btn-party" disabled><span class="b-title">Ready</span><span class="b-desc">Both players must be ready to start</span></button>
+      </div>
+
+      <div id="party-status" class="muted"></div>
+      <button id="btn-party-back" class="btn-sm btn-ghost">← Back to menu</button>
+    </div>
+  </div>
+
+  <!-- ═══ Searching ═════════════════════════════════════════════════════════ -->
+  <div id="screen-searching" class="screen center">
+    <div class="card" style="text-align:center">
+      <div class="spinner"></div>
+      <h2 style="text-align:center" id="search-title">Searching for an opponent…</h2>
+      <p class="muted" id="search-sub">Ranked 1v1 — the fastest run wins.</p>
+      <div class="search-time" id="search-time">0:00</div>
+      <div id="search-status" class="muted" style="margin-top:.5rem"></div>
+      <button id="btn-cancel-search" class="btn-sm btn-ghost" style="margin-top:1rem">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ═══ Game ══════════════════════════════════════════════════════════════ -->
+  <div id="screen-game" class="screen">
+    <canvas id="game-canvas"></canvas>
+    <div id="game-hud-top">
+      <span id="game-mode-badge">Ranked</span>
+      <span id="game-timer">0.00</span>
+    </div>
+    <div id="game-overlay">
+      <span class="ov-title" id="overlay-title">Platformer3D</span>
+      <span class="ov-hint" id="overlay-hint">Click to capture the mouse, then move to start the timer</span>
+      <span class="ov-hint">WASD = move · Space = jump · Esc = release mouse</span>
+    </div>
+    <div id="crosshair"></div>
+    <div id="game-status-bar"><span id="game-status">Initialising…</span></div>
+  </div>
+
+  <!-- ═══ Results ═══════════════════════════════════════════════════════════ -->
+  <div id="screen-results" class="screen center">
+    <div class="card">
+      <div id="result-banner" class="result-banner">—</div>
+      <div class="times" id="result-times"></div>
+      <div id="result-rating" class="rating-delta"></div>
+      <div id="result-note" class="muted" style="text-align:center;margin-top:.4rem"></div>
+      <button id="btn-results-again" class="btn btn-primary" style="margin-top:1rem"><span class="b-title">Back to Menu</span></button>
+      <button id="btn-results-board" class="btn-sm btn-ghost" style="margin-top:.6rem">View Leaderboard</button>
+    </div>
+  </div>
+
+  <!-- ═══ Leaderboard ═══════════════════════════════════════════════════════ -->
+  <div id="screen-leaderboard" class="screen center">
+    <div class="card">
+      <h2>🏆 Leaderboard</h2>
+      <div id="lb-body"><p class="muted">Loading…</p></div>
+      <div class="row" style="margin-top:1rem">
+        <button id="btn-lb-refresh" class="btn-sm">Refresh</button>
+        <button id="btn-lb-back" class="btn-sm btn-ghost">← Back to menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!--
+    three.js (vendored MIT r184) + SignalR JS (vendored MIT 10.0.0) — NO CDN.
+    SignalR IIFE bundle exposes window.signalR; must load before the app module.
+  -->
+  <script src="/js/signalr.min.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

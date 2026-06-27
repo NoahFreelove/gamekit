@@ -32,3 +32,7 @@ using System.Runtime.CompilerServices;
 // proposal forms between two guest players. Mirrors the
 // GameKit.OpenApi.Integration.Tests grant above.
 [assembly: InternalsVisibleTo("GameKit.Tutorial.SmokeTests")]
+// Plan 21-06: Platformer3D integration tests apply MatchmakingModelBuilderExtension in
+// PlatformerTestModelCustomizer to build the full five-package runtime DbContext.
+// Mirrors the Matchmaking.Integration.Tests + Lobby.Integration.Tests grants above.
+[assembly: InternalsVisibleTo("GameKit.Platformer3D.Integration.Tests")]

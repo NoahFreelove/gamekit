@@ -31,6 +31,94 @@ or promote products derived from this software without specific prior written pe
 // Modified work Copyright (c) 2026 GameKit contributors (GPL-3.0-or-later)
 ```
 
+---
+
+## three.js
+
+**Purpose:** WebGL 3D engine powering the Platformer3D browser client.
+Bundled locally (no CDN) at `samples/Platformer3D/wwwroot/js/three.module.js`,
+`samples/Platformer3D/wwwroot/js/three.core.js`, and
+`samples/Platformer3D/wwwroot/js/addons/PointerLockControls.js`.
+
+**Upstream URL:** https://github.com/mrdoob/three.js
+
+**Version vendored:** r184
+
+**SPDX-License-Identifier:** `MIT`
+
+**Full verbatim LICENSE text (from upstream tag `r184`):**
+
+```
+The MIT License
+
+Copyright © 2010-2026 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+---
+
+## @microsoft/signalr
+
+**Purpose:** Browser SignalR client for the Platformer3D lobby/party hub connection
+(`/hubs/lobby`). Bundled locally (no CDN) at
+`samples/Platformer3D/wwwroot/js/signalr.min.js` (IIFE browser bundle exposing
+the `signalR` global).
+
+**Upstream URL:** https://github.com/dotnet/aspnetcore
+
+**npm Package:** `@microsoft/signalr`
+
+**Version vendored:** 10.0.0
+
+**SPDX-License-Identifier:** `MIT`
+
+**Full verbatim LICENSE text (from npm package `@microsoft/signalr@10.0.0`):**
+
+```
+The MIT License (MIT)
+
+Copyright (c) .NET Foundation and Contributors
+
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+---
+
 **Full verbatim LICENSE text (from upstream commit `59033eec`):**
 
 ```

@@ -16,8 +16,8 @@
     <Copyright>Copyright (c) 2026 GameKit contributors</Copyright>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageProjectUrl>https://github.com/OWNER/gamekit</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/OWNER/gamekit.git</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/NoahFreelove/gamekit</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/NoahFreelove/gamekit.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>

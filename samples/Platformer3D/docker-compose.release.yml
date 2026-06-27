@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 GameKit contributors
+#
+# docker-compose.release.yml — run the published GameKit demo server with ZERO build / checkout.
+# Pulls the prebuilt image from GHCR alongside Postgres + Redis.
+#
+#   curl -fsSL https://raw.githubusercontent.com/NoahFreelove/gamekit/v0.1.0/samples/Platformer3D/docker-compose.release.yml -o docker-compose.yml
+#   GAMEKIT_TAG=v0.1.0 docker compose up      # or omit GAMEKIT_TAG to use :latest
+#
+# Open http://localhost:8080 once healthy. Admin console: /admin  (root / platformer-demo-admin).
+# Only the app port (8080) is published; Postgres/Redis stay on the internal network.
+
+services:
+  app:
+    image: ghcr.io/noahfreelove/gamekit:${GAMEKIT_TAG:-latest}
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      # Staging relaxes the superadmin gate so the stack boots without a pre-seeded admin.
+      ASPNETCORE_ENVIRONMENT: "Staging"
+      # Self-contained DB setup: a single Postgres superuser handles both migrations (DDL) and
+      # runtime (DML), so no init SQL / role bootstrap is needed for pull-and-run. EF Core
+      # auto-migrates the schema on first boot. For production, split owner/app roles and inject
+      # real credentials + JWT keys.
+      ConnectionStrings__GameKit: "Host=postgres;Port=5432;Database=gamekit;Username=postgres;Password=postgres_demo_pw"
+      ConnectionStrings__GameKitMigrations: "Host=postgres;Port=5432;Database=gamekit;Username=postgres;Password=postgres_demo_pw"
+      ConnectionStrings__Redis: "redis:6379"
+      # DEMO ONLY JWT keys (baked into the image at build time — regenerated each build).
+      GameKit__Auth__Jwt__Issuer: "platformer3d"
+      GameKit__Auth__Jwt__Audience: "platformer3d"
+      GameKit__Auth__Jwt__PrivateKeyPemPath: "/app/keys/private.pem"
+      GameKit__Auth__Jwt__PublicKeyPemPath: "/app/keys/public.pem"
+      GameKit__Auth__Jwt__Kid: "platformer3d-demo-1"
+      Platformer__WebApiBaseUrl: "http://localhost:8080"
+      Platformer__ServiceTokenName: "platformer-gameserver-embedded"
+      # DEMO ONLY: auto-seed a superadmin so /admin is usable. No-op in Production.
+      Platformer__DemoAdmin__Enabled: "true"
+      Platformer__DemoAdmin__Username: "root"
+      Platformer__DemoAdmin__Password: "platformer-demo-admin"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17.9
+    # NO host ports — reachable only by the app on the internal network.
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_demo_pw
+      POSTGRES_DB: gamekit
+    volumes:
+      - gamekit-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.6.2
+    # NO host ports — reachable only by the app on the internal network.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - gamekit-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  gamekit-postgres-data:
+  gamekit-redis-data:

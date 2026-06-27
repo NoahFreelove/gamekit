@@ -55,8 +55,16 @@ jobs:
           cache-to: type=gha,mode=max
 
   nuget:
-    name: Pack & push libraries (GitHub Packages)
+    name: Pack & push libraries (nuget.org + GitHub Packages)
     runs-on: ubuntu-latest
+    # `environment: release` must match the Environment field of the nuget.org
+    # Trusted Publishing policy. The GitHub OIDC token only carries the environment
+    # claim when the job declares it, and nuget.org's token exchange checks that claim.
+    environment: release
+    permissions:
+      contents: read
+      packages: write   # push the libraries to GitHub Packages
+      id-token: write   # mint the GitHub OIDC token for nuget.org Trusted Publishing
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,10 +73,26 @@ jobs:
         with:
           global-json-file: global.json
       - name: Pack libraries (src/* — GameKit.Build is IsPackable=false and is skipped)
+        # No -p:NuGetAudit=false: the MessagePack 3.1.7 pin (Directory.Packages.props)
+        # removed GHSA-hv8m-jj95-wg3x, so the SEC-07 audit gate (NuGetAuditMode=all,
+        # level=high) packs clean and stays ON to catch any new supply-chain advisory.
         run: |
           for proj in src/*/*.csproj; do
-            dotnet pack "$proj" -c Release -o ./artifacts -p:NuGetAudit=false
+            dotnet pack "$proj" -c Release -o ./artifacts
           done
+      # --- nuget.org via Trusted Publishing: OIDC mints a short-lived (1h) key, no stored secret ---
+      - name: NuGet login (OIDC → short-lived nuget.org API key)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: NoahFreelove   # nuget.org profile name (public, not the account email)
+      - name: Push to nuget.org
+        run: >
+          dotnet nuget push "./artifacts/*.nupkg"
+          --source "https://api.nuget.org/v3/index.json"
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+          --skip-duplicate
+      # --- GitHub Packages: kept as a mirror; redundant now that nuget.org is primary ---
       - name: Push to GitHub Packages
         run: >
           dotnet nuget push "./artifacts/*.nupkg"
@@ -100,6 +124,9 @@ jobs:
             - `ghcr.io/noahfreelove/gamekit:${{ github.ref_name }}` (also `ghcr.io/noahfreelove/gamekit:latest`)
 
             ### NuGet packages
-            The `GameKit.*` libraries for this version are published to this repo's GitHub Packages feed.
+            Published to **nuget.org** — install with `dotnet add package GameKit.Core` (likewise
+            `GameKit.Auth`, `GameKit.Rankings`, `GameKit.Matchmaking`, `GameKit.Lobby`,
+            `GameKit.Presence`, `GameKit.OpenApi`, `GameKit.Admin.UI`, …). Also mirrored to this
+            repo's GitHub Packages feed.
           files: |
             samples/Platformer3D/docker-compose.release.yml

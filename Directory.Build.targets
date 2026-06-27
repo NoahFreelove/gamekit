@@ -1,0 +1,17 @@
+<Project>
+  <!-- docfx's metadata pass (DocFxMetadata=true, set in docfx.json) loads each csproj
+       through its own Roslyn/MSBuild workspace and cannot resolve the GameKit.Build
+       Roslyn source generator (it reports a FailedToResolveAnalyzer warning). The DOCS-01
+       gate runs docfx in warnings-as-errors mode, so those per-project warnings fail the
+       build, and for GameKit.OpenApi the un-run generator also produced a hard CS0234.
+
+       For that throwaway metadata pass only, drop the GameKit.Build analyzer reference
+       from every project. The single project that consumes the generated GameKitMarker in
+       hand-written source (GameKit.OpenApi) compiles a stub instead (see its .csproj).
+       This file is imported at the END of every project, after the ProjectReference items
+       are defined, so the Remove can see them. Real builds never set DocFxMetadata, so the
+       generator runs exactly as before and this is invisible outside docfx. -->
+  <ItemGroup Condition="'$(DocFxMetadata)' == 'true'">
+    <ProjectReference Remove="$(MSBuildThisFileDirectory)src/GameKit.Build/GameKit.Build.csproj" />
+  </ItemGroup>
+</Project>

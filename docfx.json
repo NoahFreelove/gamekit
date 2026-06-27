@@ -10,7 +10,8 @@
       ],
       "dest": "api",
       "includePrivateMembers": false,
-      "disableDefaultFilter": false
+      "disableDefaultFilter": false,
+      "properties": { "DocFxMetadata": "true" }
     }
   ],
   "build": {

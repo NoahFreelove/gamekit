@@ -36,4 +36,18 @@
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <!-- docfx's metadata pass can't load the GameKit.Build source generator, so
+       Directory.Build.targets drops the analyzer for that pass (DocFxMetadata=true) and
+       GameKit.OpenApi.Internal.GameKitMarker is never generated — which would break
+       GameKitInfoTransformer with CS0234. GameKit.OpenApi is the only project that uses
+       that generated symbol in hand-written source, so compile a stub GameKitMarker for
+       docfx only. The stub is auto-included by the SDK glob, so Remove it unconditionally
+       first; real builds keep the generator's GameKitMarker and never the stub. -->
+  <ItemGroup>
+    <Compile Remove="GameKitMarker.DocFxStub.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(DocFxMetadata)' == 'true'">
+    <Compile Include="GameKitMarker.DocFxStub.cs" />
+  </ItemGroup>
 </Project>

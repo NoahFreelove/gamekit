@@ -47,6 +47,16 @@ namespace Platformer3D.Strategy;
 /// </remarks>
 public sealed class BestTimeMatchmakingStrategy : IMatchmakingStrategy
 {
+    // ─── Match composition (Phase 21 — inter-party 1v1) ──────────────────────
+
+    /// <summary>
+    /// Total player count of a Platformer3D match. The demo is a head-to-head 1v1, so a full
+    /// match holds exactly two players. A party whose member count reaches this value already
+    /// holds the entire roster and is matched on its own (see <see cref="Match"/>); smaller
+    /// parties (a single queued player) pair with another same-size party to fill the roster.
+    /// </summary>
+    public const int MatchPlayerCount = 2;
+
     // ─── Cold-start constants (D-08) ─────────────────────────────────────────
 
     /// <summary>
@@ -99,6 +109,18 @@ public sealed class BestTimeMatchmakingStrategy : IMatchmakingStrategy
         if (cfg is null)
             return null;
 
+        // ── Inter-party 1v1 (Phase 21 — full-party self-match) ───────────────────
+        // A party that already holds the full match roster (>= MatchPlayerCount members) is a
+        // complete 1v1 on its own: its two members are the opponents. Form the match directly
+        // from this single ticket without waiting for a pool partner. The matchmaker pipeline
+        // honours a single-ticket MatchResult end-to-end (atomic-claim → proposal → accept →
+        // session), and TeamAssignmentService splits the lone party across the two teams.
+        // This is the console-style "inter-party match" the demo enables for two friends who
+        // queued together as one party. (Package gates were relaxed to offer a lone candidate
+        // to the strategy — see MatchmakerTickerService.ProcessPoolAsync.)
+        if (candidate.Members.Count >= MatchPlayerCount)
+            return BuildSelfMatchResult(candidate);
+
         // Compute candidate's bracket (or neutral if cold-start).
         var candidateQueueSeconds = (now - candidate.QueuedAt).TotalSeconds;
         var candidateBracket = BracketMs(candidate, candidateQueueSeconds);
@@ -109,6 +131,13 @@ public sealed class BestTimeMatchmakingStrategy : IMatchmakingStrategy
 
             // A ticket cannot match itself.
             if (p.TicketId == candidate.TicketId)
+                continue;
+
+            // Roster-fit guard: only pair parties of EQUAL size so the combined roster never
+            // overflows MatchPlayerCount. In the demo the candidate here is always a single
+            // queued player (a full party self-matched above), so this pairs solo-with-solo
+            // and never drags a full party into a lop-sided 1v2.
+            if (p.Members.Count != candidate.Members.Count)
                 continue;
 
             // Verify the pool entry has a config (defensive; skip invalid entries).
@@ -211,6 +240,30 @@ public sealed class BestTimeMatchmakingStrategy : IMatchmakingStrategy
         return new MatchResult(
             ProposalId: Guid.NewGuid(),
             MatchedTickets: new[] { a, b },
+            TeamAssignments: teamAssignments);
+    }
+
+    /// <summary>
+    /// Builds the <see cref="MatchResult"/> for an inter-party 1v1 self-match: a single party
+    /// that fills the entire match roster on its own (Phase 21). The match is formed from the
+    /// candidate's OWN members, split across the two teams so the friends are opponents.
+    /// </summary>
+    /// <remarks>
+    /// The returned <see cref="MatchResult.MatchedTickets"/> contains exactly one ticket (the
+    /// candidate). The <see cref="MatchResult.TeamAssignments"/> here mirror the authoritative
+    /// split performed by <c>TeamAssignmentService</c> at session-creation time (member i →
+    /// team i % 2) so the in-memory result is internally consistent, even though the matcher
+    /// re-derives teams from the proposal's player ids on the all-accept path.
+    /// </remarks>
+    private static MatchResult BuildSelfMatchResult(QueuedParty fullParty)
+    {
+        var teamAssignments = new Dictionary<Guid, int>(fullParty.Members.Count);
+        for (var i = 0; i < fullParty.Members.Count; i++)
+            teamAssignments[fullParty.Members[i].PlayerId] = i % 2;
+
+        return new MatchResult(
+            ProposalId: Guid.NewGuid(),
+            MatchedTickets: new[] { fullParty },
             TeamAssignments: teamAssignments);
     }
 }

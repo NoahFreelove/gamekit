@@ -1,5 +1,21 @@
 # Phase 21 — Continuation Handoff (resume in a fresh session)
 
+> **✅ RESOLVED 2026-06-24 — inter-party 1v1 implemented & verified.** See `21-inter-party-1v1-SUMMARY.md`.
+> Chosen approach: **Option B (minimal matchmaking self-match)** — reuses the entire proven
+> proposal→accept→session pipeline with ZERO client changes. Three surgical edits:
+> 1. `MatchmakerTickerService.ProcessPoolAsync` — relax the single-candidate gates so a lone full
+>    party is offered to the strategy (the `IMatchmakingStrategy` contract already permits an empty
+>    pool; default EloRange returns null → behaviour-preserving).
+> 2. `TeamAssignmentService.AssignTeams` — split a lone multi-member party round-robin across teams
+>    0/1 (party-cohesive split would put both friends on team 0). Only fires for the self-match path.
+> 3. `samples/.../BestTimeMatchmakingStrategy` — a party with ≥ `MatchPlayerCount` (2) members
+>    self-matches into a 1v1 immediately; pool-scan adds an equal-size guard (no 1v2 overflow).
+> Commits `c9cf0b2` (package mechanism), `de4f9e8` (demo policy), `f22e0cf` (tests). All affected
+> suites green: MM unit 117, P3D unit 48, MM integration 84, P3D integration 27 (incl. new
+> `InterParty_TwoMemberParty_SelfMatchesIntoOneVsOne` end-to-end test), e2e protocol 19/19. Stack
+> rebuilt & healthy on :8080. **Remaining: user 2-tab browser confirmation.** The original open-task
+> brief below is kept for historical context.
+
 **Written:** 2026-06-24 · **Branch/worktree:** `phase-21-demo` at `/home/noah/Desktop/projects/gamekit/.claude/worktrees/phase-21-demo` (NOT merged to master; master has the parallel phases-16→20 autonomous run — keep them isolated, merge later per D-15).
 
 ## TL;DR of the open task

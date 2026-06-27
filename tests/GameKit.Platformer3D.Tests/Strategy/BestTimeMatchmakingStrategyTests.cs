@@ -44,6 +44,31 @@ public sealed class BestTimeMatchmakingStrategyTests
     private static QueuedParty MakeColdStartParty(double aggregateRating = 1500.0, double secondsInQueue = 0.0)
         => MakeParty(aggregateRating, ratingDeviation: 350.0, secondsInQueue: secondsInQueue);
 
+    /// <summary>
+    /// Makes a multi-member party (an "inter-party" group queued as one ticket). Used to
+    /// exercise the Phase 21 full-party self-match path.
+    /// </summary>
+    private static QueuedParty MakeFullParty(
+        int memberCount = BestTimeMatchmakingStrategy.MatchPlayerCount,
+        double aggregateRating = 1500.0,
+        double ratingDeviation = 50.0,
+        double secondsInQueue = 0.0,
+        string poolName = "platformer")
+    {
+        var queuedAt = BaseNow - TimeSpan.FromSeconds(secondsInQueue);
+        var members = new List<QueuedPartyMember>(memberCount);
+        for (var i = 0; i < memberCount; i++)
+            members.Add(new QueuedPartyMember(Guid.NewGuid(), aggregateRating, ratingDeviation, 0.06));
+        return new QueuedParty(
+            TicketId: Guid.NewGuid(),
+            PartyId: Guid.NewGuid(),
+            LadderId: Guid.NewGuid(),
+            PoolName: poolName,
+            Members: members,
+            AggregateRating: aggregateRating,
+            QueuedAt: queuedAt);
+    }
+
     private static IReadOnlyList<MatchmakingLadderConfig> MakeSingleLadder() =>
         new[]
         {
@@ -249,5 +274,61 @@ public sealed class BestTimeMatchmakingStrategyTests
         Assert.NotNull(result);
         Assert.Contains(candidate, result!.MatchedTickets);
         Assert.Contains(poolEntry, result.MatchedTickets);
+    }
+
+    // ─── Phase 21: inter-party 1v1 (full-party self-match) ────────────────────
+
+    /// <summary>
+    /// A full 2-member party (two friends queued together) forms an inter-party 1v1 from its
+    /// OWN members with an empty pool — a single matched ticket, members split across teams 0/1.
+    /// </summary>
+    [Fact]
+    public void FullTwoMemberParty_SelfMatches_OnEmptyPool()
+    {
+        var strategy = new BestTimeMatchmakingStrategy(MakeSingleLadder());
+        var party = MakeFullParty(); // 2 members
+
+        var result = strategy.Match(party, Array.Empty<QueuedParty>(), BaseNow);
+
+        Assert.NotNull(result);
+        Assert.Single(result!.MatchedTickets);
+        Assert.Same(party, result.MatchedTickets[0]);
+        // The two members land on opposing teams.
+        var teams = result.TeamAssignments.Values.Distinct().OrderBy(t => t).ToList();
+        Assert.Equal(new[] { 0, 1 }, teams);
+    }
+
+    /// <summary>
+    /// A full party self-matches immediately even at t=0 and regardless of pool contents — it
+    /// already holds the whole roster, so it never waits for or pairs with strangers.
+    /// </summary>
+    [Fact]
+    public void FullTwoMemberParty_SelfMatches_IgnoringPool()
+    {
+        var strategy = new BestTimeMatchmakingStrategy(MakeSingleLadder());
+        var party = MakeFullParty(secondsInQueue: 0.0);
+        var unrelatedSolo = MakeParty(1500.0);
+
+        var result = strategy.Match(party, new[] { unrelatedSolo }, BaseNow);
+
+        Assert.NotNull(result);
+        Assert.Single(result!.MatchedTickets);
+        Assert.Same(party, result.MatchedTickets[0]);
+    }
+
+    /// <summary>
+    /// Roster-fit guard: a single queued player (partial party) must NOT pair with a full
+    /// 2-member party — that would overflow the 1v1 roster into a lop-sided 1v2. Returns null.
+    /// </summary>
+    [Fact]
+    public void SoloCandidate_DoesNotPairWithFullParty()
+    {
+        var strategy = new BestTimeMatchmakingStrategy(MakeSingleLadder());
+        var solo = MakeParty(1500.0);            // 1 member
+        var fullParty = MakeFullParty(aggregateRating: 1500.0); // 2 members, same rating
+
+        var result = strategy.Match(solo, new[] { fullParty }, BaseNow);
+
+        Assert.Null(result);
     }
 }

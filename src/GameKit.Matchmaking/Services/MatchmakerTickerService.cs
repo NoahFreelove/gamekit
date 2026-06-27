@@ -378,9 +378,15 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
 
             poolActivity?.SetTag("candidates.evaluated", entries.Length);
 
-            if (entries.Length < 2)
+            if (entries.Length == 0)
             {
-                // Need at least two queued parties for a match.
+                // Nothing queued in this pool — skip. A SINGLE queued party is no longer
+                // skipped here: a full party that fills the match roster on its own (e.g. a
+                // 2-member 1v1 "inter-party" match) is offered to the strategy for a
+                // self-match. The IMatchmakingStrategy contract already documents that the
+                // pool argument "may be empty"; default strategies (EloRange) return null in
+                // that case, so this is behaviour-preserving except for strategies that opt in
+                // to self-matching a complete party.
                 continue;
             }
 
@@ -411,7 +417,9 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
             var hashFanoutMs = phaseSw.ElapsedMilliseconds;
             poolActivity?.SetTag("phase.hash_fanout_ms", hashFanoutMs);
 
-            if (candidates.Count < 2)
+            // A single materialised candidate is kept: it may be a full party eligible for a
+            // self-match (see the entries.Length guard above). Only an empty list is skipped.
+            if (candidates.Count == 0)
                 continue;
 
             // Iterate candidates oldest-first; for each, the rest are the pool.
@@ -471,9 +479,12 @@ internal sealed class MatchmakerTickerService : BackgroundService, IMatchmakerTi
                     if (claimed.Contains(candidates[j].TicketId)) continue;
                     poolScratch.Add(candidates[j]);
                 }
-                if (poolScratch.Count == 0)
-                    continue;
 
+                // poolScratch MAY be empty (lone candidate, or every other candidate already
+                // claimed this tick). We still invoke the strategy: a full party can form a
+                // self-match (inter-party 1v1) from its own members with no pool partner. The
+                // IMatchmakingStrategy contract permits an empty pool; non-self-matching
+                // strategies return null and the candidate is re-discovered next tick.
                 var match = _strategy.Match(candidate, poolScratch, now);
                 if (match is null)
                     continue;

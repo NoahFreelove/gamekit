@@ -160,6 +160,128 @@ public sealed class LobbyToMatchTests : IAsyncLifetime
         Assert.Equal(matchedA.SessionId, matchedB.SessionId);
         Assert.Equal("matched", matchedA.Status, StringComparer.OrdinalIgnoreCase);
         Assert.Equal("matched", matchedB.Status, StringComparer.OrdinalIgnoreCase);
+
+        // Normal stranger matchmaking (two separate solo parties) stays RANKED — the session
+        // keeps its LadderId so the rating pipeline applies. (Contrast with the inter-party
+        // self-match, which is unranked.)
+        var soloMatchLadderId = await GetSessionLadderIdAsync(matchedA.SessionId!.Value);
+        Assert.Equal(_app.PlatformerLadderId, soloMatchLadderId);
+    }
+
+    // ─── Inter-party 1v1 (Phase 21) ──────────────────────────────────────────
+
+    /// <summary>
+    /// Phase 21 inter-party 1v1: TWO friends in ONE party (owner creates a 2-person lobby, a
+    /// second player joins → Open→ReadyChecking). Both mark ready → the all-ready gate enqueues
+    /// a SINGLE party ticket carrying both members. The matcher's full-party self-match forms a
+    /// 1v1 directly from that one ticket; both members land in the SAME session as opponents
+    /// (one on team 0, one on team 1).
+    /// <para>
+    /// This is the flow that was previously stuck forever ("Waiting for all players…"): the
+    /// single party ticket never self-paired. It exercises the relaxed ticker gates +
+    /// BestTimeMatchmakingStrategy self-match + TeamAssignmentService lone-party split.
+    /// </para>
+    /// </summary>
+    [Fact(DisplayName = "R9: one 2-member party ready-check → single ticket self-matches → both land in same session on opposing teams")]
+    public async Task InterParty_TwoMemberParty_SelfMatchesIntoOneVsOne()
+    {
+        // Arrange: two guests; owner creates a 2-person lobby, joiner joins (→ ReadyChecking).
+        var owner = Guid.NewGuid();
+        var joiner = Guid.NewGuid();
+        _app.EnsurePlayerRow(owner);
+        _app.EnsurePlayerRow(joiner);
+
+        using (var ownerClient = _app.CreateAuthenticatedClient(owner))
+        using (var joinerClient = _app.CreateAuthenticatedClient(joiner))
+        {
+            var createResp = await ownerClient.PostAsJsonAsync("/api/lobbies",
+                new CreateLobbyRequest(MaxMembers: 2, LadderId: _app.PlatformerLadderId));
+            Assert.Equal(HttpStatusCode.OK, createResp.StatusCode);
+            var createBody = await createResp.Content.ReadFromJsonAsync<JsonElement>();
+            var lobbyId = Guid.Parse(createBody.GetProperty("lobbyId").GetString()!);
+
+            var joinResp = await joinerClient.PostAsJsonAsync(
+                $"/api/lobbies/{lobbyId}/join",
+                new JoinLobbyRequest(LobbyId: lobbyId));
+            Assert.Equal(HttpStatusCode.OK, joinResp.StatusCode);
+
+            // Both members connect to the hub for the same lobby and mark ready.
+            var connOwner = _app.ConnectLobbyHub(owner);
+            var connJoiner = _app.ConnectLobbyHub(joiner);
+
+            var inGameOwner = new TaskCompletionSource<LobbyStateUpdate>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var inGameJoiner = new TaskCompletionSource<LobbyStateUpdate>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            connOwner.On<LobbyStateUpdate>("ReceiveStateUpdateAsync", upd =>
+            {
+                if (upd.State == LobbyState.InGame) inGameOwner.TrySetResult(upd);
+            });
+            connJoiner.On<LobbyStateUpdate>("ReceiveStateUpdateAsync", upd =>
+            {
+                if (upd.State == LobbyState.InGame) inGameJoiner.TrySetResult(upd);
+            });
+
+            await connOwner.StartAsync();
+            await connJoiner.StartAsync();
+            try
+            {
+                await connOwner.InvokeAsync("JoinLobbyAsync", lobbyId);
+                await connJoiner.InvokeAsync("JoinLobbyAsync", lobbyId);
+
+                // Mark ready sequentially on the SAME lobby — owner first (1/2 ready, no gate),
+                // then joiner (2/2 ready → all-ready gate fires once → one party ticket). The
+                // two-solo happy-path test marks ready concurrently because each is on its OWN
+                // lobby; here both members share one lobby, so the gate must fire on the last.
+                await connOwner.InvokeAsync("MarkReadyAsync", lobbyId);
+                await connJoiner.InvokeAsync("MarkReadyAsync", lobbyId);
+
+                using var hubCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                await Task.WhenAll(
+                    inGameOwner.Task.WaitAsync(hubCts.Token),
+                    inGameJoiner.Task.WaitAsync(hubCts.Token));
+            }
+            finally
+            {
+                await connOwner.StopAsync();
+                await connJoiner.StopAsync();
+                await connOwner.DisposeAsync();
+                await connJoiner.DisposeAsync();
+            }
+        }
+
+        // Assert: a SINGLE party ticket covers both members (not one ticket each).
+        var (ticketOwner, ticketJoiner) = await GetTicketIdsAsync(owner, joiner);
+        Assert.Equal(ticketOwner, ticketJoiner); // one shared party ticket
+        var partyTicketId = ticketOwner;
+
+        // Both members poll the SAME party ticket (as both browser tabs would via /demo/my-ticket).
+        using var pollOwner = _app.CreateAuthenticatedClient(owner);
+        using var pollJoiner = _app.CreateAuthenticatedClient(joiner);
+
+        var (matchedOwner, matchedJoiner) = await PollBothUntilMatchedAsync(
+            pollOwner, partyTicketId,
+            pollJoiner, partyTicketId,
+            TimeSpan.FromSeconds(30));
+
+        // Both see the same session id.
+        Assert.NotNull(matchedOwner.SessionId);
+        Assert.Equal(matchedOwner.SessionId, matchedJoiner.SessionId);
+
+        // The session has exactly two participants — the two friends — on OPPOSING teams.
+        var sessionId = matchedOwner.SessionId!.Value;
+        var participants = await GetSessionParticipantsAsync(sessionId);
+        Assert.Equal(2, participants.Count);
+        Assert.True(participants.ContainsKey(owner), "Owner must be a participant.");
+        Assert.True(participants.ContainsKey(joiner), "Joiner must be a participant.");
+        Assert.NotEqual(participants[owner], participants[joiner]); // opposing teams
+        var teams = new SortedSet<int> { participants[owner], participants[joiner] };
+        Assert.Equal(new[] { 0, 1 }, teams);
+
+        // Anti-abuse: the inter-party match is UNRANKED — the session has a null LadderId, so
+        // the rating pipeline awards no elo (prevents "party up, friend AFKs → free elo").
+        var ladderId = await GetSessionLadderIdAsync(sessionId);
+        Assert.Null(ladderId);
     }
 
     // ─── Abort path ───────────────────────────────────────────────────────────
@@ -269,6 +391,36 @@ public sealed class LobbyToMatchTests : IAsyncLifetime
             await Task.Delay(200, cts.Token);
         }
         throw new TimeoutException($"Ticket {ticketId} did not reach 'matched' within {timeout}.");
+    }
+
+    /// <summary>Reads game_sessions.LadderId for a session (null = unranked).</summary>
+    private async Task<Guid?> GetSessionLadderIdAsync(Guid sessionId)
+    {
+        await using var conn = new NpgsqlConnection(_app.ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"SELECT ""LadderId"" FROM gamekit.game_sessions WHERE ""Id"" = @sid";
+        cmd.Parameters.AddWithValue("sid", sessionId);
+        var result = await cmd.ExecuteScalarAsync();
+        return result is null || result is DBNull ? (Guid?)null : (Guid)result;
+    }
+
+    /// <summary>Reads the session's participants as a player-id → team-index map.</summary>
+    private async Task<Dictionary<Guid, int>> GetSessionParticipantsAsync(Guid sessionId)
+    {
+        await using var conn = new NpgsqlConnection(_app.ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"SELECT ""PlayerId"", ""Team""
+            FROM gamekit.session_participants
+            WHERE ""SessionId"" = @sid AND ""PlayerId"" IS NOT NULL";
+        cmd.Parameters.AddWithValue("sid", sessionId);
+
+        var map = new Dictionary<Guid, int>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            map[reader.GetGuid(0)] = reader.GetInt32(1);
+        return map;
     }
 
     private async Task<int> CountQueuedOrProposedTicketsAsync(Guid playerId)

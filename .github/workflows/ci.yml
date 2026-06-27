@@ -250,17 +250,10 @@ jobs:
           # Merge all per-class report files into a single combined report by concatenating
           # their Benchmarks arrays.  python3 is always available on ubuntu-24.04 runners.
           COMBINED="${REPORT_DIR}/combined-report-full.json"
-          python3 - $REPORTS "$COMBINED" <<'MERGE_SCRIPT'
-import sys, json
-files, out = sys.argv[1:-1], sys.argv[-1]
-benchmarks = []
-for f in files:
-    with open(f) as fh:
-        doc = json.load(fh)
-    benchmarks.extend(doc.get("Benchmarks", []))
-with open(out, "w") as fh:
-    json.dump({"Benchmarks": benchmarks}, fh, indent=2)
-MERGE_SCRIPT
+          # NOTE: single-line `python3 -c` on purpose. A multi-line stdin heredoc must be
+          # dedented to column 0, which ends this `run: |` YAML block scalar early and makes
+          # the ENTIRE workflow file fail to parse (GitHub: 0s startup failure, no jobs run).
+          python3 -c "import sys, json; files=sys.argv[1:-1]; out=sys.argv[-1]; b=[x for f in files for x in json.load(open(f)).get('Benchmarks', [])]; json.dump({'Benchmarks': b}, open(out, 'w'), indent=2)" $REPORTS "$COMBINED"
 
           COUNT=$(echo $REPORTS | wc -w)
           echo "Merged ${COUNT} report file(s) into ${COMBINED}"

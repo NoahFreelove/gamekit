@@ -79,7 +79,18 @@ gameKitBuilder.AddAuth(auth =>
 // from gameKitBuilder below, not from AddLadder's return value.
 gameKitBuilder.AddRankings(opts =>
 {
-    // Default ranking options are production-safe. No overrides needed for the demo.
+    // Live-demo responsiveness: drain pending rating updates every few seconds so the
+    // after-match rating change and the leaderboard update visibly within seconds rather
+    // than at the production-default 60s cadence. (Demo-only — production should keep the
+    // default.) Combined with the short RatingPeriod below, a completed 1v1 applies its
+    // rating delta in ~5s, which the browser results screen polls for and displays.
+    opts.Ticker.TickIntervalSeconds = 3;
+
+    // Demo: minimal placement so a player is "ranked" almost immediately. (Production default is
+    // 10 — a longer provisional period before a rating is publicly shown.) The /demo/leaderboard
+    // endpoint shows raw ratings regardless of placement, but this also clears the menu's
+    // "placement matches" note quickly.
+    opts.Decay.PlacementMatchCount = 1;
 })
 .AddLadder("platformer", c =>
 {
@@ -87,7 +98,7 @@ gameKitBuilder.AddRankings(opts =>
     c.DefaultRating     = 1000;
     c.DefaultRd         = 350;
     c.DefaultVolatility = 0.06;
-    c.RatingPeriod      = System.TimeSpan.FromMinutes(1);  // Short period for live demo (Pitfall 8)
+    c.RatingPeriod      = System.TimeSpan.FromSeconds(5);  // Short period for snappy live-demo rating updates
     c.ResetPolicy       = SeasonResetPolicy.SoftRegress;
 });
 
@@ -164,6 +175,34 @@ builder.Services.AddHttpClient("platformer.web-api");
 // as an IHostedService (so ASP.NET Core calls StartAsync at startup).
 builder.Services.AddSingleton<PlatformerGameServerService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<PlatformerGameServerService>());
+
+// Browsers cannot set an Authorization header on a WebSocket upgrade, so the demo client passes
+// the JWT as ?access_token=<JWT> on the /ws/game/{id} URL. GameKit.Lobby already adds this
+// query-string token extraction for /hubs/lobby (LobbyJwtBearerPostConfigure); mirror it here
+// for the embedded GameServer's /ws/game path so authenticated run-summary submissions work
+// from the browser — without it the run WS is anonymous, the run is never recorded, and a 1v1
+// match never completes. Chains the existing OnMessageReceived so the lobby-hub extraction is
+// preserved. (D-15: host-only; scoped to the /ws/game path so ordinary HTTP requests are unaffected.)
+builder.Services.PostConfigureAll<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(options =>
+{
+    var existingHandler = options.Events?.OnMessageReceived;
+    options.Events ??= new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents();
+    options.Events.OnMessageReceived = async context =>
+    {
+        if (existingHandler is not null)
+            await existingHandler(context);
+
+        if (string.IsNullOrEmpty(context.Token))
+        {
+            var accessToken = context.Request.Query["access_token"].ToString();
+            if (!string.IsNullOrEmpty(accessToken) &&
+                context.HttpContext.Request.Path.StartsWithSegments("/ws/game"))
+            {
+                context.Token = accessToken;
+            }
+        }
+    };
+});
 
 var app = builder.Build();
 
@@ -255,11 +294,218 @@ app.MapGet("/demo/my-ticket", async (
         : Results.Ok(row);
 }).RequireAuthorization();
 
-// Demo leaderboard — read-only, anonymous. Returns top-20 players on the platformer ladder.
-// Uses ILeaderboardService (registered via AddRankings). No admin auth required for the demo.
+// Demo helper — dissolve the caller's active matchmaking parties. The browser calls this
+// before creating/joining a friend party so a lingering party from a previous match doesn't
+// trip PartyConflictException inside the lobby's ready-check. (D-15: host-only.)
+app.MapPost("/demo/leave-party", async (
+    Microsoft.AspNetCore.Http.HttpContext ctx,
+    GameKit.Matchmaking.Services.IPartyService partyService,
+    GameKit.Core.Data.GameKitDbContext db,
+    System.Threading.CancellationToken ct) =>
+{
+    var sub = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+              ?? ctx.User.FindFirst("sub")?.Value;
+    if (sub is null || !Guid.TryParse(sub, out var playerId))
+        return Results.Unauthorized();
+
+    var dissolved = await DissolveActivePartiesAsync(db, partyService, playerId, ct);
+    return Results.Ok(new { dissolved });
+}).RequireAuthorization();
+
+// Local helper shared by /demo/quick-match and /demo/leave-party. Dissolves every active
+// party (state Open/Queueing/InMatch) the player belongs to, using each party's real OwnerId
+// as the actor so member-only players are cleaned up too. Best-effort: per-party failures are
+// swallowed so one stuck party never blocks the rest.
+static async Task<int> DissolveActivePartiesAsync(
+    GameKit.Core.Data.GameKitDbContext db,
+    GameKit.Matchmaking.Services.IPartyService partyService,
+    Guid playerId,
+    System.Threading.CancellationToken ct)
+{
+    var parties = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .ToListAsync(
+            db.Set<GameKit.Matchmaking.Entities.PartyMember>()
+              .Where(pm => pm.PlayerId == playerId)
+              .Join(db.Set<GameKit.Matchmaking.Entities.Party>(),
+                    pm => pm.PartyId, p => p.Id, (pm, p) => new { p.Id, p.OwnerPlayerId, p.State })
+              .Where(x => (int)x.State == 0 || (int)x.State == 1 || (int)x.State == 2),
+            ct);
+
+    var dissolved = 0;
+    foreach (var p in parties.GroupBy(x => x.Id).Select(g => g.First()))
+    {
+        try { await partyService.DissolveAsync(p.Id, p.OwnerPlayerId, ct); dissolved++; }
+        catch { /* best-effort cleanup */ }
+    }
+    return dissolved;
+}
+
+// True when the exception chain contains a Postgres serialization_failure (40001) or
+// deadlock_detected (40P01) — both are safe to retry.
+static bool IsTransientSerializationFailure(Exception ex)
+{
+    for (var e = ex; e is not null; e = e.InnerException)
+    {
+        if (e is Npgsql.PostgresException pg && (pg.SqlState == "40001" || pg.SqlState == "40P01"))
+            return true;
+    }
+    return false;
+}
+
+// Demo helper — RANKED quick-match. Creates a solo party for the caller and enqueues it on
+// the platformer ladder's default pool, returning the ticket id the browser then polls via
+// GET /api/mm/queue/{ticketId}/status. Two different players who both hit this endpoint are
+// paired into a ranked 1v1 by the matchmaker. Idempotent: if the caller already has an active
+// ticket it is returned as-is (avoids orphan parties on a double-click).
+// D-15 compliant: lives entirely within samples/Platformer3D/Program.cs.
+app.MapPost("/demo/quick-match", async (
+    Microsoft.AspNetCore.Http.HttpContext ctx,
+    GameKit.Matchmaking.Services.IPartyService partyService,
+    GameKit.Matchmaking.Services.IMatchmakingService matchmaking,
+    GameKit.Core.Data.GameKitDbContext db,
+    System.Threading.CancellationToken ct) =>
+{
+    var sub = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+              ?? ctx.User.FindFirst("sub")?.Value;
+    if (sub is null || !Guid.TryParse(sub, out var playerId))
+        return Results.Unauthorized();
+
+    // Reuse any active ticket (Queued=0 / Proposed=1) the caller already holds.
+    var existing = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(
+            db.Set<GameKit.Matchmaking.Entities.MatchmakingTicket>()
+              .Join(db.Set<GameKit.Matchmaking.Entities.PartyMember>(),
+                    t => t.PartyId, pm => pm.PartyId, (t, pm) => new { Ticket = t, Member = pm })
+              .Where(x => x.Member.PlayerId == playerId
+                       && ((int)x.Ticket.Status == 0 || (int)x.Ticket.Status == 1))
+              .OrderByDescending(x => x.Ticket.QueuedAt)
+              .Select(x => new { ticketId = x.Ticket.Id }),
+            ct);
+    if (existing is not null)
+        return Results.Ok(new { ticketId = existing.ticketId, reused = true });
+
+    var ladder = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Set<GameKit.Rankings.Entities.Ladder>().Where(l => l.Name == "platformer"), ct);
+    if (ladder is null)
+        return Results.NotFound(new { error = "ladder_not_found" });
+
+    // Retry the dissolve → create-party → enqueue sequence on transient Postgres serialization
+    // failures (40001): two players clicking Ranked at the same moment collide on the parties
+    // tables under SERIALIZABLE isolation. Dissolving first on every attempt cleans up any party
+    // a previous failed attempt left behind, so retries never orphan a party.
+    for (var attempt = 0; ; attempt++)
+    {
+        try
+        {
+            await DissolveActivePartiesAsync(db, partyService, playerId, ct);
+            var party = await partyService.CreateAsync(playerId, ct);
+            var result = await matchmaking.EnqueueAsync(playerId, ladder.Id, "default", party.Id, ct);
+            if (result.Outcome == GameKit.Matchmaking.Services.EnqueueOutcome.Queued && result.TicketId is not null)
+                return Results.Ok(new { ticketId = result.TicketId.Value, reused = false });
+
+            return Results.Json(
+                new { error = "enqueue_failed", outcome = result.Outcome.ToString(), detail = result.Detail },
+                statusCode: 409);
+        }
+        catch (Exception ex) when (attempt < 5 && IsTransientSerializationFailure(ex))
+        {
+            await Task.Delay(60 * (attempt + 1), ct);
+        }
+    }
+}).RequireAuthorization();
+
+// Demo helper — the caller's current rank on the platformer ladder (rating + W/L), used by the
+// browser to render the menu header and the after-match rating delta. Returns hasRank=false for
+// a player who has not completed a ranked match yet (no PlayerRank row).
+// D-15 compliant: lives entirely within samples/Platformer3D/Program.cs.
+app.MapGet("/demo/my-rank", async (
+    Microsoft.AspNetCore.Http.HttpContext ctx,
+    GameKit.Core.Data.GameKitDbContext db,
+    System.Threading.CancellationToken ct) =>
+{
+    var sub = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+              ?? ctx.User.FindFirst("sub")?.Value;
+    if (sub is null || !Guid.TryParse(sub, out var playerId))
+        return Results.Unauthorized();
+
+    var ladder = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Set<GameKit.Rankings.Entities.Ladder>().Where(l => l.Name == "platformer"), ct);
+    if (ladder is null)
+        return Results.NotFound(new { error = "ladder_not_found" });
+
+    var rank = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(
+            db.Set<GameKit.Rankings.Entities.PlayerRank>()
+              .Where(r => r.PlayerId == playerId && r.LadderId == ladder.Id),
+            ct);
+
+    if (rank is null)
+        return Results.Ok(new { hasRank = false, rating = (double?)null, deviation = (double?)null, wins = 0, losses = 0, draws = 0, isInPlacement = true });
+
+    return Results.Ok(new
+    {
+        hasRank = true,
+        rating = rank.Rating,
+        deviation = rank.RatingDeviation,
+        wins = rank.Wins,
+        losses = rank.Losses,
+        draws = rank.Draws,
+        isInPlacement = rank.IsInPlacement,
+    });
+}).RequireAuthorization();
+
+// Demo helper — the result of a session once it has been completed by the GameServer, so the
+// browser can render the post-match screen (your result + opponent's time, who won). Returns
+// completed=false while the session is still Active (the client polls until both runs are in).
+// D-15 compliant: lives entirely within samples/Platformer3D/Program.cs.
+app.MapGet("/demo/session-result/{sessionId:guid}", async (
+    Guid sessionId,
+    Microsoft.AspNetCore.Http.HttpContext ctx,
+    GameKit.Core.Data.GameKitDbContext db,
+    System.Threading.CancellationToken ct) =>
+{
+    var sub = ctx.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+              ?? ctx.User.FindFirst("sub")?.Value;
+    if (sub is null || !Guid.TryParse(sub, out _))
+        return Results.Unauthorized();
+
+    var session = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .FirstOrDefaultAsync(db.Set<GameKit.Core.Entities.GameSession>().Where(s => s.Id == sessionId), ct);
+    if (session is null)
+        return Results.NotFound(new { error = "session_not_found" });
+
+    var raw = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .ToListAsync(
+            db.Set<GameKit.Core.Entities.SessionParticipant>()
+              .Where(p => p.SessionId == sessionId)
+              .Select(p => new { p.PlayerId, p.Team, p.Result, p.Score }),
+            ct);
+
+    var participants = raw.Select(p => new
+    {
+        playerId = p.PlayerId,
+        team = p.Team,
+        result = p.Result.HasValue ? p.Result.Value.ToString() : null,
+        timeMs = p.Score,
+    });
+
+    return Results.Ok(new
+    {
+        sessionId,
+        state = session.State.ToString(),
+        completed = session.State == GameKit.Core.Entities.GameSessionState.Completed,
+        ranked = session.LadderId != null,
+        participants,
+    });
+}).RequireAuthorization();
+
+// Demo leaderboard — read-only, anonymous. Returns top-20 players on the platformer ladder
+// with their ACTUAL ratings. Deliberately does NOT use ILeaderboardService: that service hides
+// the rating (returns null) while a player is in their placement matches (RANK-16), which in a
+// short demo means every player shows a 0 rating. Here we read PlayerRank directly so the
+// leaderboard is consistent with /demo/my-rank and the after-match results screen.
 // D-15 compliant: lives entirely within samples/Platformer3D/Program.cs.
 app.MapGet("/demo/leaderboard", async (
-    GameKit.Rankings.Services.ILeaderboardService svc,
     GameKit.Core.Data.GameKitDbContext db,
     System.Threading.CancellationToken ct) =>
 {
@@ -270,7 +516,27 @@ app.MapGet("/demo/leaderboard", async (
             ct);
     if (ladder is null)
         return Results.NotFound(new { error = "ladder_not_found" });
-    var rows = await svc.TopAsync(ladder.Id, limit: 20, seasonId: null, ct);
+
+    var ranked = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+        .ToListAsync(
+            db.Set<GameKit.Rankings.Entities.PlayerRank>()
+              .Where(r => r.LadderId == ladder.Id)
+              .OrderByDescending(r => r.Rating)
+              .Take(20)
+              .Join(db.Set<GameKit.Core.Entities.Player>(),
+                    r => r.PlayerId, p => p.Id,
+                    (r, p) => new { r.PlayerId, p.DisplayName, r.Rating, r.Wins, r.Losses }),
+            ct);
+
+    var rows = ranked.Select((x, i) => new
+    {
+        rank = i + 1,
+        playerId = x.PlayerId,
+        displayName = x.DisplayName,
+        rating = x.Rating,
+        wins = x.Wins,
+        losses = x.Losses,
+    });
     return Results.Ok(rows);
 });
 // Anonymous — read-only demo leaderboard, no auth required.

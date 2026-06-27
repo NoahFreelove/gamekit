@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -67,6 +68,16 @@ public sealed class PlatformerGameServerService : IHostedService
     // Two entries triggers the authoritative completion POST.
     private readonly ConcurrentDictionary<Guid, List<(Guid PlayerId, long CompletionMs)>> _runResults = new();
     private readonly SemaphoreSlim _runResultsLock = new(1, 1);
+
+    // Track which players have connected to each match (matchId → set of playerIds). Used by the
+    // DNF timeout to identify the opponent when only one player submits a run.
+    private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, byte>> _connectedPlayers = new();
+
+    // DNF (did-not-finish) timeout: once the FIRST player finishes a 1v1, the opponent has this
+    // long to also finish. If they don't (rage-quit / AFK / closed tab), the match is completed
+    // with the finisher as the winner so it always resolves instead of hanging forever. The
+    // session-complete POST is idempotent, so a late real completion that races this is a no-op.
+    private static readonly TimeSpan DnfTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>Constructs the embedded game server service.</summary>
     public PlatformerGameServerService(
@@ -141,6 +152,12 @@ public sealed class PlatformerGameServerService : IHostedService
             matchId,
             user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "(unknown)");
 
+        // Remember which players have connected to this match so the DNF timeout can identify
+        // the opponent if only one player ends up submitting a run.
+        var connectedIdStr = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
+        if (Guid.TryParse(connectedIdStr, out var connectedPid))
+            _connectedPlayers.GetOrAdd(matchId, _ => new ConcurrentDictionary<Guid, byte>())[connectedPid] = 1;
+
         // Transition the session from Pending → Active on the first player connection.
         // Idempotent: only the first caller per matchId sends the start request (D-13 / PRES-05).
         if (_activatedSessions.TryAdd(matchId, true))
@@ -177,6 +194,7 @@ public sealed class PlatformerGameServerService : IHostedService
 
         List<(Guid PlayerId, long CompletionMs)> results;
         bool shouldComplete;
+        bool isFirstFinisher;
 
         await _runResultsLock.WaitAsync(ct);
         try
@@ -184,6 +202,7 @@ public sealed class PlatformerGameServerService : IHostedService
             results = _runResults.GetOrAdd(matchId, _ => new List<(Guid, long)>());
             results.Add((playerId, completionMs));
             shouldComplete = results.Count >= 2;
+            isFirstFinisher = results.Count == 1;
         }
         finally
         {
@@ -198,6 +217,87 @@ public sealed class PlatformerGameServerService : IHostedService
 
             // Clean up the in-memory tracking.
             _runResults.TryRemove(matchId, out _);
+            _connectedPlayers.TryRemove(matchId, out _);
+        }
+        else if (isFirstFinisher)
+        {
+            // Arm the DNF timeout. Fire-and-forget with NO request cancellation token — the
+            // finisher's WebSocket may close (they move to the results screen) before the
+            // opponent's grace period elapses, and we still want the match to resolve.
+            _ = DnfTimeoutAsync(matchId, playerId, completionMs);
+        }
+    }
+
+    /// <summary>
+    /// After the first player finishes, waits <see cref="DnfTimeout"/> for the opponent. If the
+    /// opponent has still not submitted a run, completes the session with the finisher as the
+    /// winner (opponent = did-not-finish loss) so the match never hangs. Idempotent vs. a late
+    /// normal completion via the deterministic Idempotency-Key.
+    /// </summary>
+    private async Task DnfTimeoutAsync(Guid matchId, Guid finisherId, long finisherMs)
+    {
+        try { await Task.Delay(DnfTimeout); }
+        catch (OperationCanceledException) { return; }
+
+        bool stillPending;
+        await _runResultsLock.WaitAsync();
+        try
+        {
+            stillPending = _runResults.TryGetValue(matchId, out var r) && r.Count == 1;
+        }
+        finally
+        {
+            _runResultsLock.Release();
+        }
+        if (!stillPending)
+            return; // the opponent finished in time (or the match already completed)
+
+        var opponentId = _connectedPlayers.TryGetValue(matchId, out var players)
+            ? players.Keys.FirstOrDefault(p => p != finisherId)
+            : Guid.Empty;
+        if (opponentId == Guid.Empty)
+            opponentId = await LookupOpponentFromDbAsync(matchId, finisherId) ?? Guid.Empty;
+
+        if (opponentId == Guid.Empty)
+        {
+            _logger.LogWarning(
+                "DNF timeout for match {MatchId}: could not determine the opponent — leaving the session incomplete.",
+                matchId);
+            return;
+        }
+
+        _runResults.TryRemove(matchId, out _);
+        _connectedPlayers.TryRemove(matchId, out _);
+
+        _logger.LogInformation(
+            "DNF timeout for match {MatchId}: {Finisher} finished in {Ms}ms; opponent {Opponent} did not finish — completing with finisher as winner.",
+            matchId, finisherId, finisherMs, opponentId);
+
+        // Finisher's real time vs the opponent's sentinel (long.MaxValue) → finisher Win, opponent Loss.
+        await PostCompleteAsync(matchId, finisherId, finisherMs, opponentId, long.MaxValue, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Looks up the opponent's player id from the session's participants (fallback for the DNF
+    /// path when the opponent never opened a WebSocket on this server instance).
+    /// </summary>
+    private async Task<Guid?> LookupOpponentFromDbAsync(Guid sessionId, Guid finisherId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<GameKit.Core.Data.GameKitDbContext>();
+            var ids = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                db.Set<SessionParticipant>()
+                  .Where(p => p.SessionId == sessionId && p.PlayerId != null)
+                  .Select(p => p.PlayerId!.Value));
+            var opponent = ids.FirstOrDefault(id => id != finisherId);
+            return opponent == Guid.Empty ? null : opponent;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DNF opponent DB lookup failed for session {SessionId}.", sessionId);
+            return null;
         }
     }
 

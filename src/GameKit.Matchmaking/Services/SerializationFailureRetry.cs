@@ -40,10 +40,14 @@ internal static class SerializationFailureRetry
                 MaxRetryAttempts = 3,
                 BackoffType = DelayBackoffType.Exponential,
                 UseJitter = true,
+                // 40001 can arrive bare, wrapped by SaveChanges in a DbUpdateException, or
+                // further wrapped by EF's execution strategy in an InvalidOperationException
+                // ("...likely due to a transient failure") — handle all three forms.
                 ShouldHandle = new PredicateBuilder()
                     .Handle<DbUpdateException>(ex =>
                         ex.InnerException is PostgresException { SqlState: "40001" })
-                    .Handle<PostgresException>(ex => ex.SqlState == "40001"),
+                    .Handle<PostgresException>(ex => ex.SqlState == "40001")
+                    .Handle<InvalidOperationException>(ex => IsSerializationFailure(ex.InnerException)),
                 OnRetry = args =>
                 {
                     logger?.LogWarning(
@@ -56,5 +60,25 @@ internal static class SerializationFailureRetry
                 },
             })
             .Build();
+    }
+
+    /// <summary>
+    /// True if a Postgres <c>40001 serialization_failure</c> appears anywhere in the given
+    /// exception's inner-exception chain. EF's execution strategy re-wraps the transient 40001 in
+    /// an <see cref="InvalidOperationException"/> ("...likely due to a transient failure"), so the
+    /// retry predicate must see through that outer layer or it never fires — and the failure
+    /// escapes as an unhandled exception under concurrent SERIALIZABLE access.
+    /// </summary>
+    private static bool IsSerializationFailure(Exception? exception)
+    {
+        for (Exception? ex = exception; ex is not null; ex = ex.InnerException)
+        {
+            if (ex is PostgresException { SqlState: "40001" })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

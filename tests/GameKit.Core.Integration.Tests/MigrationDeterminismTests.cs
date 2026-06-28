@@ -14,7 +14,8 @@ namespace GameKit.Core.Integration.Tests;
 
 /// <summary>
 /// OPS-06: Migration idempotency — running <c>Database.MigrateAsync</c> twice against a fresh
-/// Postgres container produces zero pending migrations and exactly one applied migration row.
+/// Postgres container produces zero pending migrations and leaves every migration defined in
+/// the model applied (no model drift), with <c>CoreInitial</c> first.
 /// </summary>
 [Collection("Postgres")]
 [Trait("Category", "Integration")]
@@ -53,7 +54,11 @@ public class MigrationDeterminismTests
             Assert.Empty(pendingBefore);
             await MigrationRunner.MigrateWithLockAsync(ctx);
             var applied = (await ctx.Database.GetAppliedMigrationsAsync()).ToList();
-            Assert.Single(applied);
+            // Idempotency = every migration defined in the model is applied, in order, and no
+            // more (no drift). Compare against the model's defined set rather than a hard-coded
+            // count so adding a migration doesn't make this test stale.
+            var defined = ctx.Database.GetMigrations().ToList();
+            Assert.Equal(defined, applied);
             Assert.Equal("20260415000000_CoreInitial", applied[0]);
         }
     }

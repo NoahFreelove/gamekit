@@ -45,6 +45,25 @@ public class MigrationsApplyCommandTests
             pendingBefore[pkg.DisplayName] = new List<string>(pending).Count;
         }
 
+        // Count pre-existing gamekit tables. The Postgres fixture is shared across the
+        // "Postgres" xUnit collection, so a sibling test (e.g. Apply_WithoutDryRun) may have
+        // already created schema. "Zero DDL" therefore means the dry-run adds NO tables — capture
+        // the count now and assert it is UNCHANGED afterwards, rather than absolutely zero (the
+        // absolute form failed under CI test ordering).
+        async Task<int> CountGameKitTablesAsync()
+        {
+            await using var conn = new Npgsql.NpgsqlConnection(_pg.OwnerConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT COUNT(*)::int
+                FROM information_schema.tables
+                WHERE table_schema = 'gamekit'
+                  AND table_type = 'BASE TABLE'";
+            return (int)(await cmd.ExecuteScalarAsync())!;
+        }
+        var tableCountBefore = await CountGameKitTablesAsync();
+
         // Run: gamekit migrations apply --dry-run
         var psi = new ProcessStartInfo("dotnet",
             $"run --project \"{cliProj}\" -p:NuGetAudit=false -- migrations apply --dry-run --connection-string \"{_pg.OwnerConnectionString}\"")
@@ -91,22 +110,10 @@ public class MigrationsApplyCommandTests
                 $"DDL must not have been executed during dry-run (T-17-03-01).");
         }
 
-        // (d) Verify no GameKit tables were created (information_schema check)
-        // Use the owner connection string to query information_schema
-        var npgsqlConn = new Npgsql.NpgsqlConnection(_pg.OwnerConnectionString);
-        await npgsqlConn.OpenAsync();
-        await using (npgsqlConn)
-        {
-            await using var cmd = npgsqlConn.CreateCommand();
-            cmd.CommandText = @"
-                SELECT COUNT(*)::int
-                FROM information_schema.tables
-                WHERE table_schema = 'gamekit'
-                  AND table_type = 'BASE TABLE'";
-            var tableCount = (int)(await cmd.ExecuteScalarAsync())!;
-
-            Assert.Equal(0, tableCount);
-        }
+        // (d) Verify the dry-run created NO new gamekit tables (delta == 0, i.e. zero DDL),
+        //     independent of any schema a sibling test in the shared Postgres collection left.
+        var tableCountAfter = await CountGameKitTablesAsync();
+        Assert.Equal(tableCountBefore, tableCountAfter);
     }
 
     /// <summary>

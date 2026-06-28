@@ -306,6 +306,14 @@ public sealed class AdminTestHost : IAsyncDisposable
                     services.AddSingleton<IConnectionMultiplexer>(
                         ConnectionMultiplexer.Connect(redis.ConnectionString));
 
+                    // Register the GameKit health checks (postgres + conditional redis) exactly as
+                    // the real apps do (samples/*/Program.cs call AddGameKitHealthChecks). Without
+                    // this, HealthProbeService finds no "postgres"/"redis" entries and every tile
+                    // reports "Down"/"not configured" — so HealthProbeTests can never pass. Must run
+                    // AFTER the IConnectionMultiplexer registration above so the conditional redis
+                    // check is included (D-09 conditional-on-multiplexer contract; call-order Pitfall 1).
+                    b.AddGameKitHealthChecks();
+
                     // Capture log messages so tests can assert warnings (Development path of SuperadminGate).
                     services.AddLogging(log =>
                     {

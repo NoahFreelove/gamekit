@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GameKit — self-hosted game services for .NET</title>
+  <meta name="description" content="GameKit is a GPL-licensed, self-hostable .NET 10 library: auth, matchmaking, rankings, presence, lobbies, and an admin console as composable NuGet packages. Postgres + Redis + your hardware. No cloud, no telemetry.">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="wordmark" href="#top" aria-label="GameKit home">
+      <span class="wordmark-block" aria-hidden="true">&#9646;</span>GAMEKIT
+    </a>
+    <nav class="topnav" aria-label="Primary">
+      <a class="in-page" href="#modules">modules</a>
+      <a class="in-page" href="#compose">compose</a>
+      <a href="https://github.com/NoahFreelove/gamekit">github</a>
+      <a href="https://www.nuget.org/packages?q=GameKit">nuget</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow" aria-hidden="true">// self-hosted game services &middot; .NET 10 &middot; GPL-3.0</p>
+        <h1>Own your game&rsquo;s<br>backend.</h1>
+        <p class="lede">
+          GameKit is a GPL-licensed .NET&nbsp;10 library &mdash; auth, matchmaking, rankings,
+          presence, lobbies, and an admin console as composable NuGet packages you compile
+          into <em>your own</em> ASP.NET Core app. Postgres, Redis, your hardware. Nothing else.
+        </p>
+        <div class="hero-ctas">
+          <a class="btn btn-solid" href="https://github.com/NoahFreelove/gamekit">source on GitHub <span aria-hidden="true">&rarr;</span></a>
+          <a class="btn" href="https://www.nuget.org/packages?q=GameKit">packages on NuGet <span aria-hidden="true">&rarr;</span></a>
+        </div>
+      </div>
+
+      <div class="term hero-term" role="group" aria-label="Install commands">
+        <div class="term-bar"><span class="term-title">sh &mdash; zero to backend</span></div>
+        <div class="term-body">
+          <pre><code><span class="p">$</span> dotnet add package GameKit.Core
+<span class="p">$</span> dotnet add package GameKit.Auth
+<span class="p">$</span> dotnet add package GameKit.Matchmaking
+<span class="p">$</span> dotnet add package GameKit.Rankings
+<span class="p">$</span> dotnet new install GameKit.Templates
+<span class="p">$</span> dotnet new gamekit -n MyGame
+<span class="c">The template "GameKit" was created successfully.</span>
+<span class="p">$</span> docker compose up -d postgres redis
+<span class="p">$</span> dotnet run</code></pre>
+          <button class="copy-btn" type="button" data-copy="dotnet add package GameKit.Core" aria-label="Copy: dotnet add package GameKit.Core">copy</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FACT STRIP ============ -->
+  <div class="strip" role="list" aria-label="Key facts">
+    <div class="wrap strip-inner">
+      <span role="listitem"><b>GPL-3.0</b> forever free</span>
+      <span role="listitem"><b>0</b> cloud dependencies</span>
+      <span role="listitem"><b>0</b> telemetry calls</span>
+      <span role="listitem"><b>9</b> composable packages</span>
+      <span role="listitem"><b>&lt;15 min</b> to first match</span>
+    </div>
+  </div>
+
+  <!-- ============ WHAT IT IS ============ -->
+  <section class="section" id="what">
+    <div class="wrap">
+      <h2><span class="sec-num" aria-hidden="true">01</span> A library, not a server</h2>
+      <div class="split">
+        <div class="prose">
+          <p>
+            GameKit is <strong>not</strong> a standalone service you deploy next to your game.
+            It&rsquo;s a set of NuGet packages you install into your own ASP.NET Core application
+            &mdash; your <code>Program.cs</code>, your DI container, your middleware pipeline, your routes.
+            The result is a complete, production-capable backend that runs on hardware you control.
+          </p>
+          <p>
+            Every algorithm and strategy is an interface you can replace:
+            <code>IMatchmakingStrategy</code>, <code>IRankingAlgorithm</code>,
+            <code>IOAuthProvider</code>, <code>IPasswordHasher</code>. Install only what
+            you need. Own the rest. Depend on no cloud service.
+          </p>
+        </div>
+        <aside class="manifest" aria-label="Runtime dependencies">
+          <p class="manifest-head">runtime manifest</p>
+          <ul>
+            <li><span class="ok" aria-hidden="true">+</span> your ASP.NET Core app</li>
+            <li><span class="ok" aria-hidden="true">+</span> PostgreSQL</li>
+            <li><span class="ok" aria-hidden="true">+</span> Redis</li>
+            <li class="neg"><span class="no" aria-hidden="true">&ndash;</span> SaaS APIs: none</li>
+            <li class="neg"><span class="no" aria-hidden="true">&ndash;</span> phone-home: none</li>
+            <li class="neg"><span class="no" aria-hidden="true">&ndash;</span> vendor lock-in: none</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MODULES ============ -->
+  <section class="section" id="modules">
+    <div class="wrap">
+      <h2><span class="sec-num" aria-hidden="true">02</span> Install only what you need</h2>
+      <p class="section-sub">Every module is its own NuGet package. Anonymous install, no account, no key.</p>
+
+      <div class="grid" role="list">
+        <article class="card" role="listitem">
+          <h3>GameKit.Auth</h3>
+          <p>JWT issuance + refresh, Steam, Discord, guest, and password login built in. Google, Apple, Epic, and Argon2 hashing ship as sibling packages.</p>
+          <p class="card-tags">jwt &middot; oauth &middot; bcrypt/argon2</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3>GameKit.Matchmaking</h3>
+          <p>Redis-backed live queues with pools, rating brackets, parties, backfill, and a background matcher that&rsquo;s safe across replicas.</p>
+          <p class="card-tags">redis &middot; pools &middot; parties</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3>GameKit.Rankings</h3>
+          <p>Glicko-2 by default, seasons with reset policies, ladders, and leaderboards. Swap the math via <code>IRankingAlgorithm</code>.</p>
+          <p class="card-tags">glicko-2 &middot; seasons &middot; ladders</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3>GameKit.Presence</h3>
+          <p>Online / offline / in-match status from TTL-keyed Redis heartbeats. No Postgres tables, no polling loops in your game.</p>
+          <p class="card-tags">redis-only &middot; heartbeats</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3>GameKit.Lobby</h3>
+          <p>Real-time lobbies over SignalR with a REST surface and a Redis backplane for multi-replica deployments.</p>
+          <p class="card-tags">signalr &middot; realtime</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3>GameKit.Admin.UI</h3>
+          <p>Blazor Server admin console: player search, bans, audit log, queue depth, and live health &mdash; mounted inside your app.</p>
+          <p class="card-tags">blazor &middot; ops console</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3>GameKit.Core</h3>
+          <p>Entities, DbContext, the fluent builder, GDPR export / delete, account merge, and rate-limiting helpers. The one required package.</p>
+          <p class="card-tags">ef core &middot; gdpr &middot; builder</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3>GameKit.Cli</h3>
+          <p>Operator tooling: run migrations, take backups, and drill disaster recovery from the terminal &mdash; no dashboard required.</p>
+          <p class="card-tags">migrations &middot; backup &middot; dr</p>
+        </article>
+        <article class="card" role="listitem">
+          <h3>GameKit.OpenApi</h3>
+          <p>An OpenAPI document for every endpoint you mount, generated from the modules you actually installed.</p>
+          <p class="card-tags">openapi &middot; docs</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COMPOSE ============ -->
+  <section class="section" id="compose">
+    <div class="wrap">
+      <h2><span class="sec-num" aria-hidden="true">03</span> Compose it. Then replace any part of it.</h2>
+      <p class="section-sub">One fluent builder wires everything into your own DI container. Real code &mdash; this is the actual API.</p>
+
+      <div class="code-cols">
+        <div class="term term-code">
+          <div class="term-bar"><span class="term-title">Program.cs</span></div>
+          <div class="term-body">
+<pre><code><span class="k">var</span> gamekit = builder.Services
+    .<span class="f">AddGameKit</span>(o =&gt; o.ConnectionString = cs);
+
+<span class="c">// JWT + Steam / Discord / guest sign-in</span>
+gamekit.<span class="f">AddAuth</span>(a =&gt; a.Steam.Realm = realm)
+       .<span class="f">AddPresence</span>()  <span class="c">// Redis heartbeats</span>
+       .<span class="f">AddLobby</span>();    <span class="c">// SignalR lobbies</span>
+
+<span class="c">// Glicko-2 ladder + bracketed matchmaking</span>
+gamekit.<span class="f">AddRankings</span>().<span class="f">AddLadder</span>(<span class="s">"ranked"</span>);
+gamekit.<span class="f">AddMatchmaking</span>().<span class="f">AddLadder</span>(<span class="s">"ranked"</span>);
+
+<span class="k">var</span> app = builder.<span class="f">Build</span>();
+app.<span class="f">UseGameKitAuth</span>();
+app.<span class="f">UseGameKit</span>();  <span class="c">// authz + auto-migrate</span>
+app.<span class="f">MapGameKit</span>();   app.<span class="f">MapAuth</span>();
+app.<span class="f">MapMatchmaking</span>();   app.<span class="f">MapRankings</span>();
+app.<span class="f">Run</span>();</code></pre>
+          </div>
+        </div>
+
+        <div class="term term-code">
+          <div class="term-bar"><span class="term-title">Swap any strategy</span></div>
+          <div class="term-body">
+<pre><code><span class="c">// Every algorithm is an interface.</span>
+<span class="c">// Ship your own matcher &mdash; GameKit</span>
+<span class="c">// discovers it in your DI container.</span>
+
+<span class="k">public sealed class</span> <span class="t">RegionAwareStrategy</span>
+    : <span class="t">IMatchmakingStrategy</span>
+{
+    <span class="c">// pair by ping + rating bracket ...</span>
+}
+
+builder.Services.<span class="f">AddSingleton</span>&lt;
+    <span class="t">IMatchmakingStrategy</span>,
+    <span class="t">RegionAwareStrategy</span>&gt;();
+
+<span class="c">// The same seam exists everywhere:</span>
+<span class="c">//   IRankingAlgorithm &mdash; swap Glicko-2</span>
+<span class="c">//   IOAuthProvider    &mdash; bring your own IdP</span>
+<span class="c">//   IPasswordHasher   &mdash; BCrypt or Argon2</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRODUCTION ============ -->
+  <section class="section" id="production">
+    <div class="wrap">
+      <h2><span class="sec-num" aria-hidden="true">04</span> Built for the boring parts</h2>
+      <div class="ops-grid" role="list">
+        <div class="ops-item" role="listitem"><h3>Health &amp; readiness</h3><p><code>/health/live</code> and <code>/health/ready</code> endpoints, wired for your load balancer out of the box.</p></div>
+        <div class="ops-item" role="listitem"><h3>Multi-replica safe</h3><p>Leader leases for background tickers and graceful drain &mdash; scale your app horizontally without split-brain matchers.</p></div>
+        <div class="ops-item" role="listitem"><h3>Observability, opt-in</h3><p>OpenTelemetry traces and metrics for every module &mdash; and zero instrumentation cost if you never turn it on.</p></div>
+        <div class="ops-item" role="listitem"><h3>GDPR primitives</h3><p>Player data export, delete, and account merge are first-class operations, not a support ticket.</p></div>
+        <div class="ops-item" role="listitem"><h3>Ops runbooks</h3><p>Backup, disaster recovery, and per-package migrations driven by <code>gamekit</code> CLI commands and documented runbooks.</p></div>
+        <div class="ops-item" role="listitem"><h3>15-minute start</h3><p><code>dotnet new gamekit</code> &rarr; <code>docker compose up</code> &rarr; first authenticated player and first completed match.</p></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="badges" aria-label="Project guarantees">
+      <span class="badge">GPL-3.0-or-later</span>
+      <span class="badge">self-hosted</span>
+      <span class="badge">no telemetry</span>
+      <span class="badge">no cloud</span>
+    </div>
+    <nav class="footer-links" aria-label="Footer">
+      <a href="https://github.com/NoahFreelove/gamekit">GitHub</a>
+      <a href="https://www.nuget.org/packages?q=GameKit">NuGet</a>
+      <a href="https://github.com/NoahFreelove/gamekit/blob/master/LICENSE">License</a>
+      <a href="https://github.com/NoahFreelove/gamekit/blob/master/docs/tutorial/getting-started.md">Getting started</a>
+    </nav>
+    <p class="footer-note"><span class="p" aria-hidden="true">$</span> your players, your data, your hardware. <span class="cursor" aria-hidden="true">&#9646;</span></p>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# Security headers for the GameKit site (applied by Cloudflare Pages).
+# The CSP is strict on purpose: same-origin only — the page makes zero
+# external requests, matching GameKit's no-phone-home ethos.
+/*
+  Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=()

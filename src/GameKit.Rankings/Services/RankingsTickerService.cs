@@ -141,6 +141,7 @@ internal sealed class RankingsTickerService : BackgroundService, IRankingsTicker
         var acquired = await _lease.TryAcquireLeaseAsync(ct).ConfigureAwait(false);
         if (!acquired)
         {
+            RankingsMeter.LockAcquisitionFailures.Add(1);
             _logger.LogDebug("RankingsTickerService: lock not acquired — another replica is leader.");
             return TickResult.LockNotAcquired;
         }

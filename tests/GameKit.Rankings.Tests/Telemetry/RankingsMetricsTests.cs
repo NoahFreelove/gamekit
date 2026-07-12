@@ -147,6 +147,63 @@ public sealed class RankingsMetricsTests
     }
 
     [Fact]
+    public void LockAcquisitionFailures_Add_ProducesMeasurement_OnRankingsMeter()
+    {
+        // Arrange — use a distinctive sentinel value unlikely to collide with other test recordings.
+        const long sentinel = 999_003L;
+        var capturedValues = new List<long>();
+
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (instr, l) =>
+            {
+                if (instr.Meter.Name == RankingsMeter.MeterName &&
+                    instr.Name == "rankings.leader_lock.acquisition_failures")
+                    l.EnableMeasurementEvents(instr);
+            },
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, _, _) =>
+        {
+            capturedValues.Add(value);
+        });
+
+        // Start BEFORE exercising the instrument.
+        listener.Start();
+
+        // Act
+        RankingsMeter.LockAcquisitionFailures.Add(sentinel);
+
+        // Assert — the sentinel must appear among captured measurements.
+        Assert.Contains(sentinel, capturedValues);
+    }
+
+    [Fact]
+    public void LockAcquisitionFailures_HasExpectedInstrumentMetadata()
+    {
+        // Verify instrument name and unit (contract assertion — mirrors the
+        // matchmaking.leader_lock.acquisition_failures naming convention).
+        Counter<long>? captured = null;
+
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (instr, _) =>
+            {
+                if (instr.Meter.Name == RankingsMeter.MeterName &&
+                    instr.Name == "rankings.leader_lock.acquisition_failures" &&
+                    instr is Counter<long> c)
+                    captured = c;
+            },
+        };
+        listener.Start();
+
+        // Force instrument discovery by adding a value.
+        RankingsMeter.LockAcquisitionFailures.Add(0);
+
+        Assert.NotNull(captured);
+        Assert.Equal("failures", captured.Unit);
+    }
+
+    [Fact]
     public void NoForbiddenPiiTagKey_EmittedByAnyRankingsInstrument()
     {
         // OBS-04 criterion #1: no rankings instrument emits a PII tag key.
@@ -186,9 +243,10 @@ public sealed class RankingsMetricsTests
         });
         listener.Start();
 
-        // Exercise all rankings instruments (no PII tags on either).
+        // Exercise all rankings instruments (no PII tags on any).
         RankingsMeter.DecayDuration.Record(1.0);
         RankingsMeter.DecayRowsUpdated.Add(1);
+        RankingsMeter.LockAcquisitionFailures.Add(1);
         listener.RecordObservableInstruments();
 
         Assert.DoesNotContain(emittedTagKeys, k => forbiddenKeys.Contains(k));

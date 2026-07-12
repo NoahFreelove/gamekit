@@ -14,7 +14,9 @@ namespace GameKit.Rankings.Telemetry;
 /// duration of a single <c>RankDecayBackgroundService.RunOnceAsync</c> decay run, measured
 /// after lease acquisition and before lease release (Pitfall 5 — lock-wait time excluded).
 /// Also exposes the <c>rankings.decay.rows_updated</c> counter tracking how many
-/// <c>player_ranks</c> rows were updated per run.
+/// <c>player_ranks</c> rows were updated per run, and the
+/// <c>rankings.leader_lock.acquisition_failures</c> counter tracking failed leader-lease
+/// acquisitions across both Rankings lease consumers (ticker + decay).
 /// </para>
 /// <para>
 /// <b>Operator action required (Pitfall §7):</b> OpenTelemetry instruments are no-ops unless
@@ -86,4 +88,28 @@ internal static class RankingsMeter
         name: "rankings.decay.rows_updated",
         unit: "rows",
         description: "Count of player_ranks rows updated per RankDecayBackgroundService decay run");
+
+    /// <summary>
+    /// Counter incremented when <c>TryAcquireLeaseAsync</c> returns <see langword="false"/>
+    /// (another replica holds the leader lock, or a Redis error occurred).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Emitted by BOTH Rankings lease consumers — <c>RankingsTickerService.RunOnceAsync</c>
+    /// (ticker lease, <c>gamekit:rankings:ticker:lease</c>) and
+    /// <c>RankDecayBackgroundService.RunOnceAsync</c> (decay lease,
+    /// <c>gamekit:rankings:decay:lease</c>) — in the acquisition-failed branch, mirroring
+    /// <c>MatchmakingMeter.LockAcquisitionFailures</c>
+    /// (<c>matchmaking.leader_lock.acquisition_failures</c>). No tags are attached
+    /// (low-cardinality by construction; GK0001 PII gate compliant).
+    /// </para>
+    /// <para>
+    /// <b>Operator action required:</b> operators MUST call <c>AddMeter("GameKit.Rankings")</c>
+    /// in their OpenTelemetry SDK setup to receive this counter (Pitfall §7).
+    /// </para>
+    /// </remarks>
+    public static readonly Counter<long> LockAcquisitionFailures = Meter.CreateCounter<long>(
+        name: "rankings.leader_lock.acquisition_failures",
+        unit: "failures",
+        description: "Count of TryAcquireLeaseAsync calls that returned false (another replica holds leader or Redis error)");
 }

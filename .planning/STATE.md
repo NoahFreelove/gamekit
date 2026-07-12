@@ -33,7 +33,7 @@ progress:
 Phase: 21 (final-demo-3d-multiplayer-platformer) — COMPLETE (merged to master)
 Plan: 6 of 6
 Status: Phase complete — inter-party 1v1, no-elo, and demo functional overhaul shipped
-Last activity: 2026-06-26 — Phase 21 complete, merged to master
+Last activity: 2026-07-12 - Completed quick task 260712-n7f: relicensed repo from GPL-3.0-or-later to Apache-2.0
 
 ## Performance Metrics
 
@@ -344,6 +344,7 @@ None.
 | 260607-bri | Close v2.0 backlog gaps: W-1 (Lobby fail-fast clear error when IConnectionMultiplexer unregistered) + W-2 (account-merge re-points lobby_members with same-lobby dedup, raw SQL, no Lobby ref); +5 tests; full suites green (Lobby 18, AccountMerge 29, Auth 46) | 2026-06-07 | 8d355a7 | [260607-bri-close-w1-w2-backlog-gaps](./quick/260607-bri-close-w1-w2-backlog-gaps/) |
 | 260607-j3p | Fix v2.0 Lobby bug found via live sample exercise: lobbies created through the public API were stuck in Open (LOBBY-03 ready-check→matchmaking→InGame unreachable) — added auto-start-when-full Open→ReadyChecking trigger + fixed member-count over-count; +2 lifecycle tests; full Lobby suite green (20). Also wired GameKit.Lobby into the TicTacToeDuel sample (24390c6). | 2026-06-07 | d246978 | [260607-j3p-fix-lobby-open-to-readychecking](./quick/260607-j3p-fix-lobby-open-to-readychecking/) |
 | 260712-hdx | Close automatable outstanding UAT items from cross-phase audit: +3 GDPR-export HTTP tests (04-HUMAN-UAT item 5; Rankings suite 77/77), headless-browser UAT of EndSeasonDialog + RankAdjustDialog + live account merge + idempotent re-merge (all 4 PASS, DB-verified; 10-VERIFICATION flipped to verified), item 6 accepted-with-rationale, 2 NuGetAudit HIGH transitive pins (Scriban.Signed 7.2.5, Microsoft.OpenApi 2.10.0) | 2026-07-12 | 163abac | [260712-hdx-close-automatable-outstanding-uat-items-](./quick/260712-hdx-close-automatable-outstanding-uat-items-/) |
+| 260712-n7f | Relicense GPL-3.0-or-later → Apache-2.0 repo-wide: LICENSE + LICENSES/ swap, 963-file SPDX header rewrite, PackageLicenseExpression=Apache-2.0 (nupkg manifest verified), 12 csproj PackageTags de-gpl'd, prose pass (README/CONTRIBUTING/CLAUDE.md/docs/site/samples/templates), REUSE lint green 1617/1617 | 2026-07-12 | 8f83f84 | [260712-n7f-change-license-from-gpl-3-0-to-apache-2-](./quick/260712-n7f-change-license-from-gpl-3-0-to-apache-2-/) |
 
 ## Session Continuity
 

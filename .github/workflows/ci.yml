@@ -119,6 +119,17 @@ jobs:
           fi
           echo "Vulnerability scan passed — no HIGH or CRITICAL advisories found."
 
+      # SCALE-02/SCALE-03: Static split-brain gate — assert that no ReleaseLeaseAsync
+      # call in src/ passes any token other than CancellationToken.None. The stopping
+      # token is already cancelled when the finally block runs on SIGTERM; passing it
+      # makes StackExchange.Redis cancel the release command before it is sent, leaving
+      # the leader lock held until TTL (split-brain window). The script negative-matches
+      # every call-site, so any token variable name (ct, stoppingToken, token, ...) is
+      # caught. obj/ and bin/ are excluded — generated sources (OpenApi XML-comment
+      # generator) quote the method name in doc-comment strings and would false-positive.
+      - name: Lease-release token gate (SCALE-02)
+        run: bash scripts/check-lease-release-token.sh
+
       - name: Build
         run: dotnet build --no-restore --configuration Release -warnaserror
 

@@ -26,8 +26,10 @@
 set -euo pipefail
 
 # Step 1: find ALL ReleaseLeaseAsync( call-sites in src/ .cs files,
-# excluding comment lines.
-all_calls=$(grep -rn --include='*.cs' 'ReleaseLeaseAsync(' src/ 2>/dev/null \
+# excluding comment lines. obj/ and bin/ are excluded: build output contains
+# generated files (e.g. the OpenApi XML-comment source generator) whose
+# doc-comment strings mention the method name and would false-positive the gate.
+all_calls=$(grep -rn --include='*.cs' --exclude-dir=obj --exclude-dir=bin 'ReleaseLeaseAsync(' src/ 2>/dev/null \
     | grep -vE '^\S+:\d+:\s*//' || true)
 
 # Step 2: from those, keep only the lines that DO pass CancellationToken.None

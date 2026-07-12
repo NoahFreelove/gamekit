@@ -14,7 +14,7 @@
     <Authors>GameKit contributors</Authors>
     <Company>GameKit contributors</Company>
     <Copyright>Copyright (c) 2026 GameKit contributors</Copyright>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageProjectUrl>https://github.com/NoahFreelove/gamekit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/NoahFreelove/gamekit.git</RepositoryUrl>

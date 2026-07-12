@@ -50,8 +50,14 @@ namespace GameKit.DR.Tests;
 /// migration fails to apply cleanly the test will fail at the migration step with a clear error.
 /// </para>
 /// </remarks>
+// Category=Integration so CI's container-backed lane (Category=Integration, ci.yml)
+// selects this test. The previous Category=DisasterRecovery value fell through BOTH
+// CI filters: the unit lane (Category!=Integration&Category!=LoadTest) ran it without
+// Docker guarantees, and the integration lane never selected it (DR-03 audit gap).
+// The "DisasterRecovery" xunit collection below still serialises it; do NOT add a
+// second Category value — multi-valued Category interacts badly with != filters.
 [Collection("DisasterRecovery")]
-[Trait("Category", "DisasterRecovery")]
+[Trait("Category", "Integration")]
 public sealed class DrRoundTripTests
 {
     /// <summary>

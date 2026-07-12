@@ -148,14 +148,14 @@ Phase mapping populated by roadmapper 2026-06-08. All 47 requirements mapped.
 | OBS-05 | Phase 15 | Complete |
 | OBS-06 | Phase 15 | Complete |
 | SCALE-01 | Phase 16 | Complete |
-| SCALE-02 | Phase 16 | Pending |
-| SCALE-03 | Phase 16 | Pending |
+| SCALE-02 | Phase 16 | Complete |
+| SCALE-03 | Phase 16 | Complete |
 | SCALE-04 | Phase 16 | Complete |
 | SCALE-05 | Phase 16 | Complete |
 | SCALE-06 | Phase 16 | Complete |
 | DR-01 | Phase 17 | Complete |
 | DR-02 | Phase 17 | Complete |
-| DR-03 | Phase 17 | Pending |
+| DR-03 | Phase 17 | Complete |
 | DR-04 | Phase 17 | Complete |
 | DR-05 | Phase 17 | Complete |
 | DR-06 | Phase 17 | Complete |
@@ -183,4 +183,4 @@ Phase mapping populated by roadmapper 2026-06-08. All 47 requirements mapped.
 
 ---
 *Requirements defined: 2026-06-08*
-*Last updated: 2026-07-12 — v2.1 milestone audit: 44/47 Complete; SCALE-02, SCALE-03, DR-03 Pending (CI-enforcement gaps, see v2.1-MILESTONE-AUDIT.md)*
+*Last updated: 2026-07-12 — v2.1 audit gaps closed same day: 47/47 Complete (see v2.1-MILESTONE-AUDIT.md gap closure record)*

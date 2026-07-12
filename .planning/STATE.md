@@ -6,9 +6,9 @@ current_phase: 21
 current_phase_name: final-demo-3d-multiplayer-platformer
 status: completed
 stopped_at: Phase 21 complete (merged to master)
-last_updated: "2026-07-12T00:00:00.000Z"
+last_updated: "2026-07-12T20:30:00.000Z"
 last_activity: 2026-07-12
-last_activity_desc: Completed quick task 260712-hdx — closed automatable UAT items (GDPR-export HTTP tests + headless-browser UAT of admin dialogs and account merge)
+last_activity_desc: v2.1 milestone audit PASSED 47/47 after same-day gap closure (CI gate wiring, DR test lane, Rankings lease metric, 21-VERIFICATION.md); GameKit marketing site built in site/ (engine-room design, wrangler-ready)
 progress:
   total_phases: 10
   completed_phases: 10

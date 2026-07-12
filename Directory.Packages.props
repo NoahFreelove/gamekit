@@ -100,6 +100,17 @@
          precedent above (SEC-07, Phase 18-01). -->
     <PackageVersion Include="Scriban.Signed" Version="7.2.5" />
 
+    <!-- Quick task 260712-hdx: transitive pin to resolve GHSA-v5pm-xwqc-g5wc
+         (Microsoft.OpenApi circular-schema-reference DoS during parsing, HIGH severity).
+         Microsoft.AspNetCore.OpenApi 10.0.8 requires Microsoft.OpenApi 2.0.0, which falls
+         inside the vulnerable range (>= 2.0.0-preview.11, <= 2.7.4). 2.7.5 is the first
+         patched version on the 2.x line; 2.10.0 is the latest stable 2.x release — staying
+         on the same major line (not the 3.x line, which is a source-breaking OpenAPI-3.1
+         rewrite) keeps this a low-risk transitive-only pin, mirroring the MessagePack 3.1.7
+         / Scriban.Signed 7.2.5 precedents above. No GameKit package references
+         Microsoft.OpenApi directly. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.10.0" />
+
     <!-- Phase 6 OpenAPI (D-22, 06-RESEARCH §Standard Stack lines 110-113):
          Microsoft.AspNetCore.OpenApi 10.0.8 ships SEPARATELY from the
          Microsoft.AspNetCore.App shared framework (correction to earlier

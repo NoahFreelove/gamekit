@@ -7,43 +7,43 @@ SPDX-PackageDownloadLocation = "https://github.com/OWNER/gamekit"
 path = "**/*.json"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = ["**/*.yml", "**/*.yaml"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = ["**/*.md", "LICENSE", ".gitignore", ".editorconfig", "GameKit.sln", "global.json"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = ["**/*.csproj", "**/*.props", "**/*.targets"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = ["**/Migrations/*.cs", "**/Migrations/*.Designer.cs", "**/Migrations/GameKitDbContextModelSnapshot.cs"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = "REUSE.toml"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = ["src/GameKit.Rankings/Glicko2/*.cs"]
 precedence = "override"
 SPDX-FileCopyrightText = "2015 Maarten Staa"
-SPDX-License-Identifier = "BSD-3-Clause AND GPL-3.0-or-later"
+SPDX-License-Identifier = "BSD-3-Clause AND Apache-2.0"
 
 # three.js r184 (vendored MIT) — keep in sync with THIRD-PARTY-NOTICES.md
 [[annotations]]
@@ -54,27 +54,27 @@ path = [
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "2010-2026 Three.js Authors"
-SPDX-License-Identifier = "MIT AND GPL-3.0-or-later"
+SPDX-License-Identifier = "MIT AND Apache-2.0"
 
 # @microsoft/signalr 10.0.0 (vendored MIT) — keep in sync with THIRD-PARTY-NOTICES.md
 [[annotations]]
 path = "samples/Platformer3D/wwwroot/js/signalr.min.js"
 precedence = "override"
 SPDX-FileCopyrightText = ".NET Foundation and Contributors"
-SPDX-License-Identifier = "MIT AND GPL-3.0-or-later"
+SPDX-License-Identifier = "MIT AND Apache-2.0"
 
 [[annotations]]
 path = ["samples/Platformer3D/**", "samples/Platformer3D.GameServer/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"
 
 # Throwaway UI sketch mockups under .planning/sketches (HTML/CSS/JSX)
 [[annotations]]
 path = [".planning/**/*.jsx", ".planning/**/*.html", ".planning/**/*.css"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"
 
 # Shell scripts, the PII allow-list, and nested .gitignore/.sln copies that the
 # root-only entries above don't reach. precedence=aggregate so any file that
@@ -83,4 +83,4 @@ SPDX-License-Identifier = "GPL-3.0-or-later"
 path = ["**/*.sh", "**/.gitignore", "**/.gitkeep", "**/*.sln", "src/GameKit.Build/pii-allowlist.txt"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
-SPDX-License-Identifier = "GPL-3.0-or-later"
+SPDX-License-Identifier = "Apache-2.0"

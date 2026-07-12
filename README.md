@@ -2,7 +2,7 @@
 
 GPL-licensed, self-hostable .NET 10 game-services library. Composable NuGet packages for auth, player management, matchmaking, rankings, sessions, and presence. Install only what you need.
 
-**License:** GPL-3.0-or-later
+**License:** Apache-2.0
 **Runtime:** .NET 10 LTS
 **Storage:** Postgres (via EF Core 10 + Npgsql), Redis (via StackExchange.Redis)
 

@@ -1,6 +1,6 @@
 # GameKit Security Checklist
 
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 
 This document maps every security control in GameKit to the implementation file that enforces it and the test class that proves it. It covers the five surfaces audited in Phase 18: authentication (JWT), admin panel, rate limiting, egress air-gap, and GDPR delete completeness. A CVE supply-chain gate section and a full SEC-01..08 traceability table close the document.
 

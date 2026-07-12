@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 GameKit contributors
 
 // NOTE: The LIVE Epic EOS round-trip (real EOS sandbox Client ID/Secret → Epic token endpoint →

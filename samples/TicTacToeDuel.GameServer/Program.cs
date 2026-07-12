@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 GameKit contributors
 //
 // Plan 06-08 Task 1 (D-13): TicTacToeDuel.GameServer console process.

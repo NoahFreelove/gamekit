@@ -26,10 +26,10 @@ or promote products derived from this software without specific prior written pe
 **Per-file vendored-source header (for use in all `src/GameKit.Rankings/Glicko2/*.cs` files):**
 
 ```csharp
-// SPDX-License-Identifier: BSD-3-Clause AND GPL-3.0-or-later
+// SPDX-License-Identifier: BSD-3-Clause AND Apache-2.0
 // Original work Copyright (c) 2015, Maarten Staa (BSD-3-Clause)
 // https://github.com/MaartenStaa/glicko2-csharp commit 59033eec
-// Modified work Copyright (c) 2026 GameKit contributors (GPL-3.0-or-later)
+// Modified work Copyright (c) 2026 GameKit contributors (Apache-2.0)
 ```
 
 ---

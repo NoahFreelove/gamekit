@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 GameKit contributors
 # REUSE-IgnoreStart
 
@@ -11,7 +11,7 @@ set -euo pipefail
 
 missing=0
 for f in $(find src tests samples -name '*.cs' 2>/dev/null | grep -v -E '/(obj|bin)/' | grep -v 'Migrations/' ); do
-    if ! head -n 1 "$f" | grep -q 'SPDX-License-Identifier: GPL-3.0-or-later'; then
+    if ! head -n 1 "$f" | grep -q 'SPDX-License-Identifier: Apache-2.0'; then
         echo "Missing SPDX header: $f"
         missing=$((missing+1))
     fi
@@ -21,7 +21,7 @@ if [ "$missing" -gt 0 ]; then
     echo ""
     echo "ERROR: $missing file(s) missing SPDX headers."
     echo "Add this as the first two lines of each file (no blank line between):"
-    echo "  // SPDX-License-Identifier: GPL-3.0-or-later"
+    echo "  // SPDX-License-Identifier: Apache-2.0"
     echo "  // Copyright (c) 2026 GameKit contributors"
     exit 1
 fi

@@ -301,4 +301,4 @@ an admin user first with `dotnet gamekit admin create` (Step 8) and try again.
 
 ---
 
-*GPL-3.0-or-later — see repo root `LICENSE`.*
+*Apache-2.0 — see repo root `LICENSE`.*

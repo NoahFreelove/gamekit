@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Generates a throwaway RSA 2048 key pair for the generated GameKit sample.
 #
 # Lives at <project-root>/scripts/gen-test-rsa-pem.sh after the template renders.

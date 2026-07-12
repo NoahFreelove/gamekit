@@ -385,4 +385,4 @@ via the command palette (Ctrl+K → "Pause queue" / "Drain queue") under the Sup
 
 ---
 
-GPL-3.0-or-later — see repo root `LICENSE`.
+Apache-2.0 — see repo root `LICENSE`.

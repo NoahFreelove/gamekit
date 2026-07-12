@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Generates a throwaway RSA 2048 key pair for the TicTacToeDuel sample.
 # Output: samples/TicTacToeDuel/keys/dev-priv.pem + dev-pub.pem (mode 0600/0644).
 # DO NOT use the resulting keys in production.

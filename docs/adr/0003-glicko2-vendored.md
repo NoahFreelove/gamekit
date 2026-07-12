@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (c) 2026 GameKit contributors -->
 
 # ADR-0003: Glicko-2 algorithm vendored, not a NuGet dependency
@@ -24,7 +24,7 @@ noise without any reuse benefit — the algorithm itself is a fixed mathematical
 specification, not software that evolves.
 
 The `MaartenStaa/glicko2-csharp` implementation is licensed under BSD-3-Clause,
-which permits incorporation into a GPL-3.0-or-later library with attribution.
+which permits incorporation into a Apache-2.0 library with attribution.
 
 ## Decision
 
@@ -35,7 +35,7 @@ The Glicko-2 algorithm is vendored into `GameKit.Rankings` under
 2. A regression fixture asserting Glickman's original worked example from the
    PDF (the three-player example on glicko.net) passes exactly.
 3. License: the vendored files retain their original BSD-3-Clause attribution;
-   the surrounding `GameKit.Rankings` package is GPL-3.0-or-later (compatible).
+   the surrounding `GameKit.Rankings` package is Apache-2.0 (compatible).
 
 No NuGet dependency on any Glicko-2 package is added.
 

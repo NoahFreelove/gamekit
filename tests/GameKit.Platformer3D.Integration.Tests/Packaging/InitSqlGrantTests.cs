@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 GameKit contributors
 // REUSE-IgnoreStart
 
@@ -91,7 +91,7 @@ public sealed class InitSqlGrantTests
     public void InitSql_Has_Spdx_Header()
     {
         var sql = File.ReadAllText(InitSqlPath);
-        Assert.Contains("SPDX-License-Identifier: GPL-3.0-or-later", sql, System.StringComparison.Ordinal);
+        Assert.Contains("SPDX-License-Identifier: Apache-2.0", sql, System.StringComparison.Ordinal);
     }
 }
 // REUSE-IgnoreEnd

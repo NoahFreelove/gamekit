@@ -1,5 +1,5 @@
 <!--
-SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 GameKit contributors
 -->
 
@@ -126,4 +126,4 @@ GameKit.SampleGame/
 
 ---
 
-GPL-3.0-or-later — same license as GameKit itself.
+Apache-2.0 — same license as GameKit itself.

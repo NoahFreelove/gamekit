@@ -1,5 +1,5 @@
 <!--
-SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 GameKit contributors
 -->
 
@@ -70,5 +70,5 @@ themselves. The post-action is idempotent (re-running it overwrites the
 
 ## License
 
-GPL-3.0-or-later. The template ships content that itself depends on the
+Apache-2.0. The template ships content that itself depends on the
 GameKit family of packages, all of which are also GPL-licensed.

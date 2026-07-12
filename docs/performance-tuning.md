@@ -300,7 +300,7 @@ query logs (`EnableSensitiveDataLogging` + `LogTo`).
 
 ## 5. Tool Licensing Posture
 
-GameKit is GPL-3.0-or-later. All performance tooling used during development and CI
+GameKit is Apache-2.0. All performance tooling used during development and CI
 must respect this licensing posture.
 
 ### BenchmarkDotNet (PERF-01/02/06)
@@ -310,7 +310,7 @@ must respect this licensing posture.
 BenchmarkDotNet is a fine NuGet dependency. It is referenced by
 `tests/GameKit.LoadTests` (a non-packaged console app, `IsPackable=false`). It is NOT
 referenced by any `src/GameKit.*` package and therefore does NOT appear in any NuGet
-package's transitive dependency tree. The MIT license is compatible with GPL-3.0-or-later
+package's transitive dependency tree. The MIT license is compatible with Apache-2.0
 in this non-distribution context.
 
 ### k6 (PERF-03/04)
@@ -325,7 +325,7 @@ docker run --rm -i grafana/k6:latest run - < tests/k6/<scenario>.js
 
 It is **never** referenced as a NuGet package, never linked into any build artifact,
 and never shipped inside any `GameKit.*` NuGet package. The k6 `.js` scenario scripts
-in `tests/k6/` are GameKit repository files licensed under GPL-3.0-or-later.
+in `tests/k6/` are GameKit repository files licensed under Apache-2.0.
 
 The AGPLv3 copyleft applies to the k6 binary distribution (the Docker image). Test
 scripts that invoke the binary as a subprocess are not considered "derivative works"

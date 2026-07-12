@@ -1,5 +1,5 @@
 <!--
-SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 GameKit contributors
 -->
 
@@ -189,7 +189,7 @@ Docker network (internal only):
 
 ## License
 
-GPL-3.0-or-later. See `LICENSE` at the repo root.
+Apache-2.0. See `LICENSE` at the repo root.
 
 three.js is vendored under the MIT license. See `THIRD-PARTY-NOTICES.md` at the
 repo root for the full license text.

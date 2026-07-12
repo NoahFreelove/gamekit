@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 GameKit contributors
 //
 // tests/k6/matchmaking-burst.js
@@ -41,7 +41,7 @@
 // k6 LICENSING NOTE:
 //   k6 (grafana/k6) is AGPLv3. It is used here as an EXTERNAL Docker process — never as a
 //   library dependency, never linked into any GameKit package or test project. The scenario
-//   scripts (.js files) are GameKit repository files licensed under GPL-3.0-or-later. The
+//   scripts (.js files) are GameKit repository files licensed under Apache-2.0. The
 //   AGPLv3 copyleft applies to the k6 binary distribution, not to test scripts that invoke
 //   the binary as a subprocess. See tests/k6/README.md for the full licensing note.
 

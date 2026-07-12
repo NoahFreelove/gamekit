@@ -2,14 +2,14 @@
 
 ## License
 
-GameKit is GPL-3.0-or-later. By contributing, you agree your contributions are licensed under the same terms.
+GameKit is Apache-2.0. By contributing, you agree your contributions are licensed under the same terms.
 
 ## Per-File SPDX Header (mandatory)
 
 Every `*.cs` file in `src/` and `tests/` must begin with this exact two-line header:
 
 ```csharp
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 GameKit contributors
 ```
 

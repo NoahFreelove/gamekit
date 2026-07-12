@@ -169,7 +169,7 @@ _(Added in plan 19-05, gated on the GO/NO-GO spike above.)_
   a NuGet dependency, **never** linked into any build artifact, and **never** shipped inside any
   GameKit package.
 - The `.js` scripts in this directory are GameKit-owned test scripts that merely invoke the
-  external k6 binary. They are licensed under the same GPL-3.0-or-later license as the rest of
+  external k6 binary. They are licensed under the same Apache-2.0 license as the rest of
   the GameKit repository.
 - AGPLv3 copyleft applies to distributed software that links or incorporates the library. Test
   scripts that invoke the binary as a subprocess (via Docker) are not considered derivative works

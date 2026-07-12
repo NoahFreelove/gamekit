@@ -113,6 +113,21 @@
     <PackageVersion Include="MessagePack" Version="3.1.7" />
     <PackageVersion Include="MessagePack.Annotations" Version="3.1.7" />
 
+    <!-- SEC-07: Transitive pin to resolve GHSA-24c8-4792-22hx (Scriban.Signed <= 7.1.0
+         HIGH severity — unbounded allocation in array.insert_at → OOM crash).
+         Scriban.Signed is a transitive dep of WireMock.Net (test-only, via
+         GameKit.TestFixtures); 7.2.0 is the patched release and satisfies WireMock.Net's
+         version constraint. CentralPackageTransitivePinningEnabled=true (line 4)
+         propagates this pin. Transitive-only — no project references Scriban directly. -->
+    <PackageVersion Include="Scriban.Signed" Version="7.2.0" />
+
+    <!-- SEC-07: Transitive pin to resolve GHSA-v5pm-xwqc-g5wc / CVE-2026-49451
+         (Microsoft.OpenApi 2.0.0-preview.11 – 2.7.4 HIGH severity — uncontrolled
+         recursion on circular schema refs → stack-overflow DoS). Transitive via
+         Microsoft.AspNetCore.OpenApi 10.0.8 (requires >= 2.0.0); 2.7.5 is the first
+         patched 2.x release and satisfies the constraint. Transitive-only pin. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+
     <!-- Phase 11 Lobby — SignalR test client (test-only; used by HubConnectionBuilder
          in GameKit.Lobby.Integration.Tests Wave 2+ backplane + hub-auth tests).
          Microsoft first-party package; same 10.0.8 release train as StackExchangeRedis. -->

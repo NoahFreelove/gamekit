@@ -59,4 +59,4 @@ register them automatically (see ADR-0006).
   corporate IdP authentication (OIDC, SAML), revisit this decision.
 - **Dependency note:** `AspNet.Security.OpenId.Steam` depends on
   `AspNet.Security.OpenId` (the base OpenID 2.0 library from the same aspnet-
-  contrib project). Both are MIT-licensed and GPL-compatible.
+  contrib project). Both are MIT-licensed.

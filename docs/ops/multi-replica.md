@@ -16,7 +16,7 @@ GameKit supports multi-replica deployments through three mandatory mechanisms:
 
 > **Zero-cloud constraint (CLAUDE.md):** GameKit uses the Redis backplane **only**.
 > Azure SignalR Service is never used — it is a proprietary cloud dependency incompatible
-> with GameKit's GPL license and self-hosted design. Do not configure
+> with GameKit's Apache-2.0 license and self-hosted design. Do not configure
 > `AddAzureSignalR()` in a GameKit-consuming application.
 
 ---

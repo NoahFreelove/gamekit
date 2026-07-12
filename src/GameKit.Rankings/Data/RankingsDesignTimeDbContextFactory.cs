@@ -42,7 +42,7 @@ public sealed class RankingsDesignTimeDbContextFactory : IDesignTimeDbContextFac
     public GameKitDbContext CreateDbContext(string[] args)
     {
         // WR-13: never ship a hardcoded password in source. The earlier fallback
-        // ("Password=gamekit_owner_dev") was checked into the GPL repo and several test
+        // ("Password=gamekit_owner_dev") was checked into the repo and several test
         // fixtures, propagating a "default" credential that operators might paste into
         // production configs. Require GAMEKIT_MIGRATIONS_CONNECTION explicitly — the
         // scripts/dev-up.sh shell snippet (docs/MIGRATIONS.md) shows how to set it for

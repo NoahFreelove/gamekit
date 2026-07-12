@@ -57,5 +57,5 @@ willing to tune Argon2's parameters for their deployment environment.
 - **Negative:** BCrypt's 72-byte input limit is a known theoretical concern.
   GameKit's credential store is primarily used for device tokens and hashed
   external identifiers — not human-entered passwords — mitigating this in practice.
-- **Dependency:** `Isopoh.Cryptography.Argon2` is MIT-licensed and GPL-compatible.
-  `BCrypt.Net-Next` is MIT-licensed and GPL-compatible.
+- **Dependency:** `Isopoh.Cryptography.Argon2` is MIT-licensed.
+  `BCrypt.Net-Next` is MIT-licensed.

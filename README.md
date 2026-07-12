@@ -1,6 +1,6 @@
 # GameKit
 
-GPL-licensed, self-hostable .NET 10 game-services library. Composable NuGet packages for auth, player management, matchmaking, rankings, sessions, and presence. Install only what you need.
+Apache-2.0-licensed, self-hostable .NET 10 game-services library. Composable NuGet packages for auth, player management, matchmaking, rankings, sessions, and presence. Install only what you need.
 
 **License:** Apache-2.0
 **Runtime:** .NET 10 LTS
@@ -16,7 +16,7 @@ GameKit explicitly does not provide, and will never provide:
 
 - **No AI / LLM integrations** of any kind (moderation, matchmaking, content gen, telemetry analysis).
 - **No cloud-only / SaaS dependencies** — library runs air-gapped.
-- **No hosted / paid components** — all functionality is GPL and free, always; no upsell tier.
+- **No hosted / paid components** — all functionality is open-source (Apache-2.0) and free, always; no upsell tier.
 - **No telemetry / phone-home** — library does not collect or transmit usage data.
 - **No game-server hosting / orchestration** — use Agones, Multiplay, or custom.
 - **No real-time game communication (netcode)** — use Mirror, Fish-Net, WebSockets, or custom.

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageId>GameKit.Core</PackageId>
     <Description>Core entities, DbContext infrastructure, fluent builder, and GDPR service for the GameKit self-hostable game-services library. Every sibling package depends on this.</Description>
-    <PackageTags>gamekit;game-services;ef-core;postgres;self-hosted;gpl</PackageTags>
+    <PackageTags>gamekit;game-services;ef-core;postgres;self-hosted;apache-2.0</PackageTags>
 
     <RootNamespace>GameKit.Core</RootNamespace>
     <AssemblyName>GameKit.Core</AssemblyName>

@@ -112,7 +112,7 @@ Enable: `sudo systemctl enable --now gamekit-pgdump.timer`
 ## Strategy 2 — `pg_basebackup` + WAL archiving (PITR, sub-5-minute RPO)
 
 For sub-5-minute RPO, enable continuous WAL archiving and take a periodic base backup.
-Both WAL-G and Barman are GPL-compatible self-hosted tools that automate WAL archiving and
+Both WAL-G and Barman are permissively licensed self-hosted tools that automate WAL archiving and
 point-in-time recovery — neither requires a cloud service.
 
 ### WAL archiving configuration (`postgresql.conf`)

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>GameKit.Auth</PackageId>
     <Description>Authentication package for GameKit — Steam, Discord, guest, username/password providers with JWT issuance and refresh rotation. Phase 2 deliverable.</Description>
-    <PackageTags>gamekit;auth;jwt;steam;discord;oauth;gpl</PackageTags>
+    <PackageTags>gamekit;auth;jwt;steam;discord;oauth;apache-2.0</PackageTags>
     <RootNamespace>GameKit.Auth</RootNamespace>
     <AssemblyName>GameKit.Auth</AssemblyName>
   </PropertyGroup>

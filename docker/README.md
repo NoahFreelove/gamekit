@@ -61,7 +61,7 @@ Pinned to `postgres:17.9` (GA since late 2024). Postgres 18 data-directory chang
 
 ## Redis version / license
 
-Pinned to `redis:8.6.2` (tri-licensed: RSALv2 / SSPLv1 / AGPLv3). AGPLv3 is GPL-compatible per FSF section 13 (GameKit is GPLv3, combination is valid). Operators preferring BSD-licensed Redis can override with `redis:7.4.8` in their own compose overlay.
+Pinned to `redis:8.6.2` (tri-licensed: RSALv2 / SSPLv1 / AGPLv3). Redis runs as a separate process (not linked), so its AGPLv3 image imposes no license obligation on GameKit's Apache-2.0 code. Operators preferring BSD-licensed Redis can override with `redis:7.4.8` in their own compose overlay.
 
 ## Known operational tasks
 

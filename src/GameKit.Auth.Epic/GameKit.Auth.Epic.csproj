@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>GameKit.Auth.Epic</PackageId>
     <Description>Epic Games OAuth provider for GameKit (custom OAuthHandler, zero NuGet deps) — opt-in sibling package (Phase 7).</Description>
-    <PackageTags>gamekit;auth;oauth;epic;gpl</PackageTags>
+    <PackageTags>gamekit;auth;oauth;epic;apache-2.0</PackageTags>
     <RootNamespace>GameKit.Auth.Epic</RootNamespace>
     <AssemblyName>GameKit.Auth.Epic</AssemblyName>
   </PropertyGroup>

@@ -128,9 +128,9 @@ And update `grafana/provisioning/datasources/datasources.yml` — replace the Te
     access: proxy
 ```
 
-### GPL/AGPL Licensing Note
+### AGPL Licensing Note (third-party observability stack)
 
-GameKit is GPL-licensed. Grafana and Tempo are AGPLv3-licensed. Running them as separately
+GameKit is Apache-2.0-licensed. Grafana and Tempo are AGPLv3-licensed. Running them as separately
 containerized processes does NOT create a "combined work" under the AGPL. GameKit does not
 link against, modify, or distribute Grafana/Tempo — it only references them by container
 image name in a Compose file. Operators who run this stack own their own deployment.

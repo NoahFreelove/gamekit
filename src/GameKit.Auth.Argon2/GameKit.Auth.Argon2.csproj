@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>GameKit.Auth.Argon2</PackageId>
     <Description>Argon2id password hasher for GameKit — optional sibling to the BCrypt default (Phase 7). Install to transparently migrate BCrypt hashes to Argon2id on next login via UseArgon2().</Description>
-    <PackageTags>gamekit;auth;argon2;password;gpl</PackageTags>
+    <PackageTags>gamekit;auth;argon2;password;apache-2.0</PackageTags>
     <RootNamespace>GameKit.Auth.Argon2</RootNamespace>
     <AssemblyName>GameKit.Auth.Argon2</AssemblyName>
   </PropertyGroup>

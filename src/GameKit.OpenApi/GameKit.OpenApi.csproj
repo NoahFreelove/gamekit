@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>GameKit.OpenApi</PackageId>
     <Description>OpenAPI document generation for GameKit. Single combined /openapi/v1.json doc covering every player-facing GameKit HTTP endpoint (auth, sessions, matchmaking, parties, presence). Phase 6 deliverable.</Description>
-    <PackageTags>gamekit;openapi;swagger;gpl</PackageTags>
+    <PackageTags>gamekit;openapi;swagger;apache-2.0</PackageTags>
     <RootNamespace>GameKit.OpenApi</RootNamespace>
     <AssemblyName>GameKit.OpenApi</AssemblyName>
   </PropertyGroup>

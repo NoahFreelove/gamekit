@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>GameKit.Auth.Google</PackageId>
     <Description>Google OAuth provider for GameKit — opt-in sibling package (Phase 7).</Description>
-    <PackageTags>gamekit;auth;oauth;google;gpl</PackageTags>
+    <PackageTags>gamekit;auth;oauth;google;apache-2.0</PackageTags>
     <RootNamespace>GameKit.Auth.Google</RootNamespace>
     <AssemblyName>GameKit.Auth.Google</AssemblyName>
   </PropertyGroup>

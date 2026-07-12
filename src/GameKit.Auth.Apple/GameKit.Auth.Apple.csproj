@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>GameKit.Auth.Apple</PackageId>
     <Description>Sign-In-with-Apple OAuth provider for GameKit — opt-in sibling package (Phase 7).</Description>
-    <PackageTags>gamekit;auth;oauth;apple;gpl</PackageTags>
+    <PackageTags>gamekit;auth;oauth;apple;apache-2.0</PackageTags>
     <RootNamespace>GameKit.Auth.Apple</RootNamespace>
     <AssemblyName>GameKit.Auth.Apple</AssemblyName>
   </PropertyGroup>

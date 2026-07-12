@@ -3,13 +3,13 @@
 
 **GameKit**
 
-GameKit is a self-hostable, GPL-licensed open-source .NET library that gives game developers auth, player management, matchmaking, rankings, and session tracking as composable ASP.NET Core modules. It is **not** a standalone server — it is a set of NuGet packages a game developer integrates into their own ASP.NET Core application to produce a complete, self-hosted backend running on hardware they control.
+GameKit is a self-hostable, Apache-2.0-licensed open-source .NET library that gives game developers auth, player management, matchmaking, rankings, and session tracking as composable ASP.NET Core modules. It is **not** a standalone server — it is a set of NuGet packages a game developer integrates into their own ASP.NET Core application to produce a complete, self-hosted backend running on hardware they control.
 
 **Core Value:** A .NET-native, composable, extensible, fully self-hosted game services backend where every algorithm and strategy is an interface the developer can replace — install only what you need, own the rest, depend on no cloud service.
 
 ### Constraints
 
-- **License:** GPL — fully open-source. No proprietary deps, no telemetry, no phone-home.
+- **License:** Apache-2.0 — fully open-source. No proprietary deps, no telemetry, no phone-home.
 - **Self-hosted only:** Zero cloud-service dependencies. A game developer must be able to stand up a complete, production-capable backend with only this library + Postgres + Redis on hardware they control. No AI integrations, no SaaS APIs, no subscription services anywhere in the runtime path.
 - **Runtime:** .NET 10 (LTS, released 2026-04-14) — required across all packages
 - **Framework:** ASP.NET Core 10 — required
@@ -88,7 +88,7 @@ GameKit is a self-hostable, GPL-licensed open-source .NET library that gives gam
 
 | Package | Version | Source | Purpose |
 |---------|---------|--------|---------|
-| **MudBlazor** | **9.3.0** | MIT (GPL-compatible) | Blazor Server component library — `MudDataGrid`, `MudDialog`, `MudSnackbar`, `MudForm`, `MudAutocomplete`, `MudLayout`. `net10.0` TFM confirmed GA on nuget.org 2026-04-18 (see `.planning/phases/03-admin-ui/03-RESEARCH.md` §Version verification). Acknowledged cost: ~1.8 MB static assets added to the consumer's `_content/MudBlazor/` per D-14. |
+| **MudBlazor** | **9.3.0** | MIT | Blazor Server component library — `MudDataGrid`, `MudDialog`, `MudSnackbar`, `MudForm`, `MudAutocomplete`, `MudLayout`. `net10.0` TFM confirmed GA on nuget.org 2026-04-18 (see `.planning/phases/03-admin-ui/03-RESEARCH.md` §Version verification). Acknowledged cost: ~1.8 MB static assets added to the consumer's `_content/MudBlazor/` per D-14. |
 | **StackExchange.Redis** | 2.8.41 | MIT | Health panel Postgres + Redis probe — `IConnectionMultiplexer.GetDatabase().PingAsync()`. Already pinned repo-wide from Phase 1. |
 | **FluentValidation** + **FluentValidation.DependencyInjectionExtensions** | 12.1.1 | Apache-2.0 | Admin form validators: ban reason (3–512 chars, D-09), create-admin username/password/role. Already pinned from Phase 2. |
 | **Microsoft.AspNetCore.Antiforgery** | 10.0 (shared framework) | MIT | CSRF token generation + `IAntiforgery.ValidateRequestAsync`. Not a NuGet pin — shipped in `Microsoft.AspNetCore.App`. |

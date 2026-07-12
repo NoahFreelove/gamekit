@@ -173,7 +173,7 @@ _(Added in plan 19-05, gated on the GO/NO-GO spike above.)_
   the GameKit repository.
 - AGPLv3 copyleft applies to distributed software that links or incorporates the library. Test
   scripts that invoke the binary as a subprocess (via Docker) are not considered derivative works
-  for the purposes of copyleft propagation — this preserves GameKit's GPL self-hosted posture.
+  for the purposes of copyleft propagation — this preserves GameKit's Apache-2.0 self-hosted posture.
 
 **These scenarios are NEVER run in CI against production.** They target a local Testcontainers
 stack only. The CI benchmark job (if added) runs only on `ubuntu-24.04` against an ephemeral

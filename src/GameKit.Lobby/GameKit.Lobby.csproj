@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>GameKit.Lobby</PackageId>
     <Description>Lobby package for GameKit — ready-checks, ephemeral chat via SignalR, persistent groups (Postgres). Phase 11.</Description>
-    <PackageTags>gamekit;lobby;signalr;redis;gpl</PackageTags>
+    <PackageTags>gamekit;lobby;signalr;redis;apache-2.0</PackageTags>
     <RootNamespace>GameKit.Lobby</RootNamespace>
     <AssemblyName>GameKit.Lobby</AssemblyName>
   </PropertyGroup>

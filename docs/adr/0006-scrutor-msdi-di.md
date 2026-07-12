@@ -52,4 +52,4 @@ Source-generator DI containers are not used.
   validation of discovered types. However, GameKit's `Add*` methods call `Scan`
   during `IHostedService` startup, so misconfigured strategy implementations
   produce startup errors rather than silent runtime failures.
-- **Dependency:** Scrutor is MIT-licensed and GPL-compatible.
+- **Dependency:** Scrutor is MIT-licensed.

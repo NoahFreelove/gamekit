@@ -71,4 +71,4 @@ themselves. The post-action is idempotent (re-running it overwrites the
 ## License
 
 Apache-2.0. The template ships content that itself depends on the
-GameKit family of packages, all of which are also GPL-licensed.
+GameKit family of packages, all of which are also Apache-2.0-licensed.

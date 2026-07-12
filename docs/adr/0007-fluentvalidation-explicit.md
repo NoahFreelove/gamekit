@@ -32,7 +32,7 @@ correctly with minimal APIs.
 
 FluentValidation 12.1.1 targets .NET 8+ and is fully compatible with .NET 10.
 The dependency-injection extensions are in the separate package
-`FluentValidation.DependencyInjectionExtensions` (Apache-2.0; GPL-compatible).
+`FluentValidation.DependencyInjectionExtensions` (Apache-2.0).
 
 ## Decision
 

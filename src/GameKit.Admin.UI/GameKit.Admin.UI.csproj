@@ -2,7 +2,7 @@
   <PropertyGroup>
     <PackageId>GameKit.Admin.UI</PackageId>
     <Description>Admin UI package for GameKit — Blazor Server Razor Class Library with player management, audit log, health dashboard. Phase 3 deliverable.</Description>
-    <PackageTags>gamekit;admin;blazor;dashboard;gpl</PackageTags>
+    <PackageTags>gamekit;admin;blazor;dashboard;apache-2.0</PackageTags>
     <RootNamespace>GameKit.Admin.UI</RootNamespace>
     <AssemblyName>GameKit.Admin.UI</AssemblyName>
     <!-- Required for Blazor Server RCL: link against ASP.NET Core shared framework -->

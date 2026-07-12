@@ -1,0 +1,31 @@
+=== 260712-hdx Task 2: DB-level verification log ===
+Run against gamekit Postgres on :5433 (standalone container, volume gamekit_gamekit-postgres-data).
+
+--- Item 2: admin.player.rank_adjust audit row for UAT-RankAdjustTarget (11111111-1111-1111-1111-111111111111) ---
+          Action          |               TargetId               |               ActorId                |                                      Reason                                      |           CreatedAt           
+--------------------------+--------------------------------------+--------------------------------------+----------------------------------------------------------------------------------+-------------------------------
+ admin.player.rank_adjust | 11111111-1111-1111-1111-111111111111 | 019e5b86-1d0e-79da-9cfa-a8beeea8f3a2 | UAT quick task 260712-hdx browser verification of RankAdjustDialog palette flow. | 2026-07-12 16:55:25.756231+00
+(1 row)
+
+
+--- Item 2: resulting player_ranks row (Rating should be 1800 as submitted in the dialog) ---
+               PlayerId               |               LadderId               | Rating 
+--------------------------------------+--------------------------------------+--------
+ 11111111-1111-1111-1111-111111111111 | 019e381b-11a7-77ed-b7b0-26e1e099429e |   1800
+(1 row)
+
+
+--- Items 3/4: merge tombstone for source player 44444444-4444-4444-4444-444444444444 ---
+                  Id                  |   DisplayName    |          MergedIntoPlayerId          |           DeletedAt           
+--------------------------------------+------------------+--------------------------------------+-------------------------------
+ 44444444-4444-4444-4444-444444444444 | UAT-MergeSource2 | 55555555-5555-5555-5555-555555555555 | 2026-07-12 16:55:26.957269+00
+(1 row)
+
+
+--- Items 3/4: exactly ONE auth.account_merge audit row (TargetId = merge TARGET, not source) + ONE auth.logout.all row (single token revocation) ---
+       Action       |               TargetId               |               ActorId                |           CreatedAt           
+--------------------+--------------------------------------+--------------------------------------+-------------------------------
+ auth.account_merge | 55555555-5555-5555-5555-555555555555 | 019e5b86-1d0e-79da-9cfa-a8beeea8f3a2 | 2026-07-12 16:55:26.957269+00
+ auth.logout.all    | 44444444-4444-4444-4444-444444444444 | 55555555-5555-5555-5555-555555555555 | 2026-07-12 16:55:26.961702+00
+(2 rows)
+

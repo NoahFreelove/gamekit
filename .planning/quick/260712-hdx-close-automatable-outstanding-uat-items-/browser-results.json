@@ -1,0 +1,30 @@
+[
+  {
+    "item": 1,
+    "description": "EndSeasonDialog type-name-to-confirm gate (disabled -> enabled)",
+    "status": "pass",
+    "evidence": "evidence/item1-disabled-state.png, evidence/item1-enabled-state.png",
+    "notes": "Real headless-browser run against live TicTacToeDuel sample (:5000, Postgres :5433, Redis :6379). Authenticated as root/superadmin, opened the admin palette (Ctrl+K), filtered to the end-season verb, selected ladder \"main\" from the live ladder target-pick list, and opened EndSeasonDialog. \"End Season\" button was disabled (disabled=true) before typing the ladder name into the confirm field, and enabled (disabled=false) after typing the exact case-sensitive match. Cancelled the dialog without submitting — the destructive end-season action itself is out of scope for this confirm-gate check."
+  },
+  {
+    "item": 2,
+    "description": "RankAdjustDialog palette flow (ladder selector + rating field + audit row)",
+    "status": "pass",
+    "evidence": "evidence/item2-dialog-opened.png, evidence/item2-after-submit.png, evidence/db-verification-log.txt",
+    "notes": "Opened the palette, filtered to the rank-adjust verb, searched for seeded player \"UAT-RankAdjustTarget\" (11111111-1111-1111-1111-111111111111), selected it — RankAdjustDialog opened with the ladder selector populated from live /admin/api data (2 active ladders: main, tictactoe) and the numeric rating field present with server-configured Min/Max bounds. Submitted New Rating=1800 with a valid 3-512 char reason; dialog closed on success (no validation error surfaced). DB verification (evidence/db-verification-log.txt) confirms exactly ONE admin.player.rank_adjust audit row for the target player with the submitted reason text, and the player_ranks row now shows Rating=1800 (matches submission) on the ladder used."
+  },
+  {
+    "item": 3,
+    "description": "Live account merge via Admin UI (POST /admin/api/players/merge)",
+    "status": "pass",
+    "evidence": "evidence/item3-merge-response.json, evidence/db-verification-log.txt",
+    "notes": "Authenticated via POST /admin/api/login (gk_admin_session cookie), harvested __RequestVerificationToken from GET /admin/login, sent it as X-GameKit-Admin-CSRF. POST /admin/api/players/merge with sourcePlayerId=44444444-4444-4444-4444-444444444444 (UAT-MergeSource2) and targetPlayerId=55555555-5555-5555-5555-555555555555 (UAT-MergeTarget2) returned HTTP 200 {targetPlayerId, status:\"merged\"} (SourcePlayerId correctly absent from the response per SC#5/T-10-04-03). DB verification confirms the source player row is tombstoned (MergedIntoPlayerId set to the target, DeletedAt set) and exactly ONE auth.account_merge audit row exists, keyed by TargetId=<target player id> (not source, per the audit schema)."
+  },
+  {
+    "item": 4,
+    "description": "Idempotent second identical merge (same source+target -> already_merged)",
+    "status": "pass",
+    "evidence": "evidence/item4-merge-response.json, evidence/db-verification-log.txt",
+    "notes": "Repeated the identical POST /admin/api/players/merge (same source+target ids, same CSRF-protected session) immediately after item 3. Returned HTTP 200 {targetPlayerId, status:\"already_merged\"}. DB verification confirms still exactly ONE auth.account_merge audit row (no duplicate created by the second call) and exactly ONE auth.logout.all row for the source player (token revocation happened only once, not re-triggered by the idempotent replay)."
+  }
+]

@@ -1,7 +1,7 @@
 ---
 phase: 10-account-merge
 verified: 2026-06-06T20:00:00Z
-status: human_needed
+status: verified
 score: 5/5 must-haves verified
 overrides_applied: 1
 overrides:
@@ -22,17 +22,19 @@ human_verification:
   - test: "Perform a live account merge via the Admin UI: log in as a superadmin, navigate to a player record, trigger POST /admin/api/players/merge with valid source and target player IDs"
     expected: "HTTP 200 with a JSON body containing TargetPlayerId and status='merged'; the source player is visible as tombstoned in the DB (merged_into_player_id set, deleted_at set); the audit log shows one auth.account_merge entry with before/after JSON"
     why_human: "End-to-end Admin UI flow cannot be verified by grep — requires a running host with Postgres + Redis"
+    result: "pass — evidence: HTTP 200 status=merged, source player tombstoned (MergedIntoPlayerId + DeletedAt set), exactly one auth.account_merge audit row; quick 260712-hdx headless-browser run against live TicTacToeDuel sample, 2026-07-12 (.planning/quick/260712-hdx-close-automatable-outstanding-uat-items-/browser-results.json item 3 + evidence/db-verification-log.txt)"
   - test: "Attempt a second identical merge request (same source + target) after the first succeeds"
     expected: "HTTP 200 with status='already_merged'; exactly one audit row exists (no duplicate); tokens were revoked only once"
     why_human: "Idempotency behavior across the full hosted stack (not just Testcontainers unit) requires a running service"
+    result: "pass — evidence: HTTP 200 status=already_merged, still exactly one auth.account_merge audit row (no duplicate), exactly one auth.logout.all row for the source player (token revocation fired only once); quick 260712-hdx headless-browser run against live TicTacToeDuel sample, 2026-07-12 (.planning/quick/260712-hdx-close-automatable-outstanding-uat-items-/browser-results.json item 4 + evidence/db-verification-log.txt)"
 ---
 
 # Phase 10: Account Merge Verification Report
 
 **Phase Goal:** Two distinct player_ids can be irreversibly merged via a SERIALIZABLE transaction with an idempotency table that enables crash-and-resume; the operation is superadmin-only and fully audited.
 **Verified:** 2026-06-06T20:00:00Z
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Status:** verified
+**Re-verification:** No — initial verification; human-verification items closed 2026-07-12 by quick task 260712-hdx (headless-browser run against live TicTacToeDuel sample — see Human Verification Required section below)
 
 ## Goal Achievement
 
@@ -116,12 +118,14 @@ No `TBD`, `FIXME`, or `XXX` markers found in any phase-modified file. The `retur
 **Test:** Log in to the Admin UI as a superadmin user. Identify two active player accounts. Issue `POST /admin/api/players/merge` with the two player IDs.
 **Expected:** HTTP 200 response with `{ "targetPlayerId": "<guid>", "status": "merged" }`; source player row in DB has `merged_into_player_id` set and `deleted_at` set; one `auth.account_merge` row appears in `admin_audit_log` with non-null `before`/`after` JSONB; no source player ID appears in the HTTP response body.
 **Why human:** Requires a running host (Kestrel + real Postgres + Redis) and browser/curl interaction; not testable by grep or static analysis.
+**Result:** PASS — closed 2026-07-12 by quick task 260712-hdx. Headless-browser run against the live TicTacToeDuel sample (Postgres :5433, Redis :6379): authenticated as superadmin via `POST /admin/api/login` + harvested `__RequestVerificationToken` as `X-GameKit-Admin-CSRF`, issued `POST /admin/api/players/merge` for two seeded UAT players. Got HTTP 200 `{targetPlayerId, status:"merged"}`; DB-verified `MergedIntoPlayerId` + `DeletedAt` set on the source row and exactly one `auth.account_merge` row in `admin_audit_log`. Evidence: `.planning/quick/260712-hdx-close-automatable-outstanding-uat-items-/browser-results.json` (item 3), `evidence/item3-merge-response.json`, `evidence/db-verification-log.txt`.
 
 #### 2. Idempotent re-request verification
 
 **Test:** After a successful merge completes (status = `redis_cleaned`), issue the same `POST /admin/api/players/merge` request again with the same source and target IDs.
 **Expected:** HTTP 200 with `{ "status": "already_merged" }`; still exactly one `auth.account_merge` row in `account_merges`; no second `admin_audit_log` row created; no second token revocation.
 **Why human:** Multi-step HTTP interaction against a live service; the Testcontainers tests prove this at the service layer but the full HTTP stack with antiforgery cookies adds state that only a live host can exercise end-to-end.
+**Result:** PASS — closed 2026-07-12 by quick task 260712-hdx. Immediately repeated the identical `POST /admin/api/players/merge` request; got HTTP 200 `{status:"already_merged"}`. DB-verified still exactly one `auth.account_merge` row (no duplicate) and exactly one `auth.logout.all` row for the source player (token revocation fired only once, not re-triggered by the idempotent replay). Evidence: `.planning/quick/260712-hdx-close-automatable-outstanding-uat-items-/browser-results.json` (item 4), `evidence/item4-merge-response.json`, `evidence/db-verification-log.txt`.
 
 ---
 
@@ -137,9 +141,10 @@ No gaps. All five ROADMAP Success Criteria are verified against the codebase:
 
 All code-review findings (CR-01, CR-02, CR-03, WR-01, WR-02, IN-01) are fixed and the fixes are confirmed present in source. No unreferenced debt markers detected.
 
-Human verification is required solely for the end-to-end live-host flow (items 1–2 above) — automated checks cannot substitute for the full Kestrel + antiforgery-cookie + real-DB interaction.
+Human verification was required solely for the end-to-end live-host flow (items 1–2 above) — automated checks cannot substitute for the full Kestrel + antiforgery-cookie + real-DB interaction. Both items closed PASS on 2026-07-12 via quick task 260712-hdx's headless-browser run against the live TicTacToeDuel sample; status flipped to `verified`.
 
 ---
 
 _Verified: 2026-06-06T20:00:00Z_
 _Verifier: Claude (gsd-verifier)_
+_Human-verification closure: 2026-07-12, quick task 260712-hdx_

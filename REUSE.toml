@@ -84,3 +84,18 @@ path = ["**/*.sh", "**/.gitignore", "**/.gitkeep", "**/*.sln", "src/GameKit.Buil
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 GameKit contributors"
 SPDX-License-Identifier = "Apache-2.0"
+
+# .planning/ process artifacts (plans, research, evidence captures) quote SPDX
+# tags inside code snippets; precedence=override stops embedded GPL examples
+# from registering as declarations, and covers binary evidence files.
+[[annotations]]
+path = [".planning/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = ["site/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 GameKit contributors"
+SPDX-License-Identifier = "Apache-2.0"

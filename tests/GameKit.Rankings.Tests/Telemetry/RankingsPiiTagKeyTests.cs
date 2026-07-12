@@ -80,10 +80,11 @@ public sealed class RankingsPiiTagKeyTests
         // MUST call Start() BEFORE exercising instruments.
         listener.Start();
 
-        // Exercise all rankings instruments (DecayDuration + DecayRowsUpdated).
-        // Neither instrument emits PII tag keys — T-15-04-PII mitigation.
+        // Exercise all rankings instruments (DecayDuration + DecayRowsUpdated +
+        // LockAcquisitionFailures). No instrument emits PII tag keys — T-15-04-PII mitigation.
         RankingsMeter.DecayDuration.Record(1.0);
         RankingsMeter.DecayRowsUpdated.Add(1);
+        RankingsMeter.LockAcquisitionFailures.Add(1);
         listener.RecordObservableInstruments();
 
         Assert.DoesNotContain(emittedTagKeys, k => ForbiddenKeys.Contains(k));

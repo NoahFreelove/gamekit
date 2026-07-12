@@ -135,6 +135,16 @@
     <PackageVersion Include="MessagePack" Version="3.1.7" />
     <PackageVersion Include="MessagePack.Annotations" Version="3.1.7" />
 
+    <!-- Transitive pin to resolve GHSA-24c8-4792-22hx (Scriban.Signed <= 7.1.0 HIGH severity
+         unbounded-allocation DoS in array.insert_at; patched in 7.2.0).
+         WireMock.Net 2.2.0 -> WireMock.Net.Minimal 2.2.0 requires Scriban.Signed 7.0.6;
+         7.2.5 satisfies the constraint and is clean of the advisory.
+         CentralPackageTransitivePinningEnabled=true (line 4) propagates this pin.
+         Test-only reach: WireMock.Net is referenced only by test projects (GameKit.TestFixtures,
+         GameKit.Auth.Epic.Tests, GameKit.Auth.Integration.Tests) — no shipped package is affected.
+         Mirrors the MessagePack SEC-07 precedent above — CVE removed by upgrade, not silenced. -->
+    <PackageVersion Include="Scriban.Signed" Version="7.2.5" />
+
     <!-- Phase 11 Lobby — SignalR test client (test-only; used by HubConnectionBuilder
          in GameKit.Lobby.Integration.Tests Wave 2+ backplane + hub-auth tests).
          Microsoft first-party package; same 10.0.8 release train as StackExchangeRedis. -->

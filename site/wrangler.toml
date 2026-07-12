@@ -1,0 +1,17 @@
+# Cloudflare Pages config for the GameKit marketing site.
+#
+# No-build static site: `public/` is shipped verbatim — no framework, no
+# adapter, no server-side code. Deploy with:
+#
+#     npx wrangler pages deploy            # reads pages_build_output_dir below
+#   or
+#     npm run deploy
+#
+# First-time setup (one-off, in the Cloudflare dashboard after the first deploy):
+#   Pages -> gamekit-site -> Custom domains -> add the chosen
+#   <sub>.noahfreelove.com subdomain. Cloudflare provisions the CNAME; point
+#   the DNS record at the pages.dev host if it isn't already.
+
+name = "gamekit-site"
+compatibility_date = "2026-07-12"
+pages_build_output_dir = "public"

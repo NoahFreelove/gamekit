@@ -3,6 +3,7 @@
 (function () {
   "use strict";
   document.querySelectorAll(".copy-btn").forEach(function (btn) {
+    var label = btn.textContent;
     btn.addEventListener("click", function () {
       var text = btn.getAttribute("data-copy") || "";
       function done() {
@@ -10,7 +11,7 @@
         btn.textContent = "copied";
         setTimeout(function () {
           btn.classList.remove("copied");
-          btn.textContent = "copy";
+          btn.textContent = label;
         }, 1600);
       }
       if (navigator.clipboard && navigator.clipboard.writeText) {

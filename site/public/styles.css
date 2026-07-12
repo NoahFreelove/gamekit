@@ -165,6 +165,8 @@ h1 {
 /* terminal blocks */
 
 .term {
+  display: flex;
+  flex-direction: column;
   background: var(--bg-inset);
   border: 1px solid var(--line-bright);
   max-width: 40rem;
@@ -187,7 +189,7 @@ h1 {
   color: var(--muted);
 }
 
-.term-body { position: relative; }
+.term-body { position: relative; flex: 1 1 auto; }
 
 .term-body pre {
   padding: 1rem 1.1rem;
@@ -196,6 +198,16 @@ h1 {
   font-size: 0.88rem;
   line-height: 1.75;
   color: var(--code-type);
+  /* right-edge fade: signals horizontal scrollability when lines clip */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.25rem), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 2.25rem), transparent);
+}
+
+/* keep hero commands clear of the absolutely-positioned copy button as the
+   hero column narrows; above 1100px the capped wrap width already clears it,
+   and below 621px the button drops out of the overlay position entirely */
+@media (min-width: 621px) and (max-width: 1100px) {
+  .hero-term pre { padding-right: 4.75rem; }
 }
 
 .term-body code { background: none; border: 0; padding: 0; white-space: pre; font-size: 1em; }
@@ -365,7 +377,7 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.5rem;
-  align-items: start;
+  align-items: stretch;   /* panes bottom-align; .term is a flex column */
 }
 
 .term-code { max-width: none; }

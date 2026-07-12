@@ -3,7 +3,7 @@ status: partial
 phase: 04-rankings-sessions-gdpr
 source: [04-VERIFICATION.md]
 started: 2026-05-16T12:00:00Z
-updated: 2026-05-16T12:00:00Z
+updated: 2026-07-12T00:00:00Z
 ---
 
 ## Current Test
@@ -14,19 +14,19 @@ updated: 2026-05-16T12:00:00Z
 
 ### 1. Run integration test suite (GameKit.Rankings.Integration.Tests) in a Docker-capable environment
 expected: All 11 integration test classes pass: Glicko2ConvergenceTests, SessionCompleteIdempotencyTests, SeasonArchiveLeaderboardTests, GdprExportContractTests, AdminRankAdjustTransactionTests, RankingsTickerLeaderElectionTests, LazyRankCreationTests, IdempotencyCleanupServiceTests, LadderUpsertOnStartupTests, RankingsMigrationDeterminismTests, RankingsAdvisoryLockKeyTests, SchemaTypeAssertions, ServiceTokenAuthenticationHandlerTests, LeaderboardServiceTests
-result: [pending]
+result: pass — 2026-07-12 local run against Testcontainers (Postgres + Redis): 74/74 passed, 0 failed, 0 skipped, 11s. Suite also runs green in CI on master since 2026-06-27.
 
 ### 2. Verify Glicko2ConvergenceTests.Two_Populations_Converge_Within_Tolerance passes after CR-01 fix
 expected: After 1000 matches / 100 rating periods: mean strong-population rating within ±50 of 1700, mean weak-population rating within ±50 of 1300. The reviewer noted the ±50 tolerance was probably loose enough to absorb the delta change from the CR-01 double-count fix, but this must be confirmed empirically.
-result: [pending]
+result: pass — Two_Populations_Converge_Within_Tolerance confirmed present in Glicko2ConvergenceTests.cs and green in the 2026-07-12 74/74 run (post-CR-01 code).
 
 ### 3. Verify SessionCompleteIdempotencyTests.Retry_Five_Times_Applies_Delta_Once passes (SC#2)
 expected: 5× identical POST /api/sessions/{id}/complete yields exactly ONE row in pending_rating_updates per participant, ONE row in session_complete_idempotency, all 5 HTTP responses return 200
-result: [pending]
+result: pass — Retry_Five_Times_Applies_Delta_Once confirmed present in SessionCompleteIdempotencyTests.cs and green in the 2026-07-12 74/74 run.
 
 ### 4. Verify SeasonArchiveLeaderboardTests.Archive_Preserves_Previous_Season_TopN passes (SC#4)
 expected: After EndSeasonService.EndAsync, the season_rank_archive contains all prior player_ranks rows and ILeaderboardService.TopAsync with the archived seasonId returns the same ordering as before the season end
-result: [pending]
+result: pass — Archive_Preserves_Previous_Season_TopN confirmed present in SeasonArchiveLeaderboardTests.cs and green in the 2026-07-12 74/74 run.
 
 ### 5. Verify GdprExportContractTests (SC#5) — confirm PlayerSubMismatch_Returns_403 and AdminPath_Requires_Superadmin_And_Writes_Audit are covered
 expected: The plan specified 6 test methods; the codebase only has 5 in GdprExportContractTests (Response_Has_All_Documented_Top_Level_Keys, NonExistentPlayer_Returns_Null, Excludes_GDPR_Cascade_Null_Rows, Over_Cap_Throws, Export_Returns_Only_Pre_Snapshot_Sessions). PlayerSubMismatch_Returns_403 and AdminPath_Requires_Superadmin_And_Writes_Audit appear to have been merged or are missing. A human should run the full test class and confirm sub-mismatch (403) and admin-path audit-write are exercised, either by existing tests or need to be added.
@@ -51,9 +51,9 @@ result: [pending]
 ## Summary
 
 total: 9
-passed: 0
+passed: 4
 issues: 0
-pending: 9
+pending: 5
 skipped: 0
 blocked: 0
 

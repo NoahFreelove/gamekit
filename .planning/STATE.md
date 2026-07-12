@@ -6,9 +6,9 @@ current_phase: 21
 current_phase_name: final-demo-3d-multiplayer-platformer
 status: completed
 stopped_at: Phase 21 complete (merged to master)
-last_updated: "2026-06-26T00:00:00.000Z"
-last_activity: 2026-06-26
-last_activity_desc: Phase 21 complete — inter-party 1v1, no-elo, demo overhaul; merged to master
+last_updated: "2026-07-12T00:00:00.000Z"
+last_activity: 2026-07-12
+last_activity_desc: Completed quick task 260712-hdx — closed automatable UAT items (GDPR-export HTTP tests + headless-browser UAT of admin dialogs and account merge)
 progress:
   total_phases: 10
   completed_phases: 10
@@ -343,6 +343,7 @@ None.
 | 20260515 | Phase 03.1 verification-gap closure: BLOCKER-GAP-01 (PlayerDetailPane admin lookup), Blazor Server ConfigureAwait regression, INFO-GAP-03 (Tweaks panel aria-checked timing); +2 bUnit regression tests; VERIFICATION.md flipped to 6/6 | 2026-05-15 | ded277d | [20260515-phase-031-verification-gaps](./quick/20260515-phase-031-verification-gaps/) |
 | 260607-bri | Close v2.0 backlog gaps: W-1 (Lobby fail-fast clear error when IConnectionMultiplexer unregistered) + W-2 (account-merge re-points lobby_members with same-lobby dedup, raw SQL, no Lobby ref); +5 tests; full suites green (Lobby 18, AccountMerge 29, Auth 46) | 2026-06-07 | 8d355a7 | [260607-bri-close-w1-w2-backlog-gaps](./quick/260607-bri-close-w1-w2-backlog-gaps/) |
 | 260607-j3p | Fix v2.0 Lobby bug found via live sample exercise: lobbies created through the public API were stuck in Open (LOBBY-03 ready-check→matchmaking→InGame unreachable) — added auto-start-when-full Open→ReadyChecking trigger + fixed member-count over-count; +2 lifecycle tests; full Lobby suite green (20). Also wired GameKit.Lobby into the TicTacToeDuel sample (24390c6). | 2026-06-07 | d246978 | [260607-j3p-fix-lobby-open-to-readychecking](./quick/260607-j3p-fix-lobby-open-to-readychecking/) |
+| 260712-hdx | Close automatable outstanding UAT items from cross-phase audit: +3 GDPR-export HTTP tests (04-HUMAN-UAT item 5; Rankings suite 77/77), headless-browser UAT of EndSeasonDialog + RankAdjustDialog + live account merge + idempotent re-merge (all 4 PASS, DB-verified; 10-VERIFICATION flipped to verified), item 6 accepted-with-rationale, 2 NuGetAudit HIGH transitive pins (Scriban.Signed 7.2.5, Microsoft.OpenApi 2.10.0) | 2026-07-12 | 163abac | [260712-hdx-close-automatable-outstanding-uat-items-](./quick/260712-hdx-close-automatable-outstanding-uat-items-/) |
 
 ## Session Continuity
 

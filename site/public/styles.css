@@ -495,3 +495,117 @@ h2 {
   .topnav .in-page { display: none; }
   .wordmark { letter-spacing: 0.12em; }
 }
+
+/* ---------- screenshot lightbox (progressive enhancement) ----------
+   Visibility is class-driven on top of a display:none base so the author
+   display:flex rule can never override the UA [hidden] rule; site.js toggles
+   the hidden attribute AND .is-open together. Without JS this whole section
+   is inert: the dialog keeps its hidden attribute and the zoom affordances
+   below are gated behind the JS-added .lb-enhanced class. */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;                       /* above the sticky topbar (z-index 10) */
+  display: none;
+  background: rgba(10, 14, 12, 0.95); /* --bg at 95% — container is the backdrop */
+}
+
+.lightbox.is-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.lightbox-panel {
+  max-width: min(96vw, 88rem);       /* beats .term's 40rem cap (later in file) */
+  width: 100%;
+  cursor: default;
+}
+
+.lb-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 76vh;
+  object-fit: contain;
+  background: var(--bg-inset);
+}
+
+.lb-counter {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  margin-left: auto;                 /* term-bar is flex — right-align */
+  padding-right: 0.9rem;
+}
+
+.lb-caption {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding: 0.6rem 0.9rem;
+}
+
+.lb-btn {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  min-width: 2.75rem;                /* 44px hit target */
+  min-height: 2.75rem;
+  color: var(--muted);
+  background: var(--bg-raised);
+  border: 1px solid var(--line-bright);
+  cursor: pointer;
+}
+.lb-btn:hover,
+.lb-btn:focus-visible { color: var(--accent); border-color: var(--accent-dim); }
+
+.lb-close { margin-left: 0.5rem; }
+
+.lb-prev,
+.lb-next {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 61;
+}
+.lb-prev { left: 1rem; }
+.lb-next { right: 1rem; }
+
+body.lb-locked { overflow: hidden; }
+
+/* zoom affordances — visible only after site.js adds .lb-enhanced */
+.shots.lb-enhanced .term-shot { cursor: zoom-in; }
+.shots.lb-enhanced .term-bar::after {
+  content: "[+] enlarge";
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  opacity: 0;
+}
+.shots.lb-enhanced .shot:hover .term-bar::after,
+.shots.lb-enhanced .term-shot:focus-visible .term-bar::after {
+  opacity: 1;
+  color: var(--accent);
+}
+
+@media (max-width: 620px) {
+  .lightbox.is-open {
+    padding: 0.75rem;
+    padding-top: 3.5rem;             /* leave the bottom clear for the nav pair */
+    align-items: flex-start;
+  }
+  .lb-prev,
+  .lb-next {
+    top: auto;
+    bottom: 1.25rem;
+    transform: none;
+  }
+  .lb-prev { left: 25%; }
+  .lb-next { right: 25%; }
+}

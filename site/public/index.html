@@ -291,6 +291,23 @@ builder.Services.<span class="f">AddSingleton</span>&lt;
   </div>
 </footer>
 
+<!-- ============ SCREENSHOT LIGHTBOX (progressive enhancement; inert without JS) ============ -->
+<div id="shot-lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Admin console screenshot viewer" tabindex="-1" hidden>
+  <figure class="lightbox-panel term">
+    <div class="term-bar">
+      <span class="term-title" id="lb-title">admin &mdash; players</span>
+      <span class="lb-counter" id="lb-counter">1 / 4</span>
+      <button type="button" class="lb-btn lb-close" aria-label="Close screenshot viewer">&times;</button>
+    </div>
+    <img id="lb-img" class="lb-img" width="1600" height="620" src="img/admin-players.webp" alt="GameKit admin console &mdash; Players page: master-detail player list with search, ban, and GDPR-delete actions">
+    <figcaption id="lb-caption" class="lb-caption">Players &mdash; search, ban, GDPR-delete</figcaption>
+  </figure>
+  <div class="lb-nav">
+    <button type="button" class="lb-btn lb-prev" aria-label="Previous screenshot">&larr;</button>
+    <button type="button" class="lb-btn lb-next" aria-label="Next screenshot">&rarr;</button>
+  </div>
+</div>
+
 <script src="site.js"></script>
 </body>
 </html>

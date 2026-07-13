@@ -2,27 +2,22 @@
 
 ## What This Is
 
-GameKit is a self-hostable, GPL-licensed open-source .NET library that gives game developers auth, player management, matchmaking, rankings, presence, and session tracking as composable ASP.NET Core modules. It is **not** a standalone server — it is a set of NuGet packages a game developer integrates into their own ASP.NET Core app to produce a complete, self-hosted backend running on hardware they control (Postgres + Redis only).
+GameKit is a self-hostable, Apache-2.0-licensed open-source .NET library that gives game developers auth, player management, matchmaking, rankings, presence, lobbies, and session tracking as composable ASP.NET Core modules. It is **not** a standalone server — it is a set of NuGet packages a game developer integrates into their own ASP.NET Core app to produce a complete, self-hosted backend running on hardware they control (Postgres + Redis only).
+
+## Current State (post-v2.1, 2026-07-13)
+
+- **Shipped milestones:** v1.0 (7 packages + CLI + template, 92/92 reqs), v2.0 (providers/lobby/rating-aware play, 29/29), v2.1 (operability & hardening, 47/47) — all phases verified, all milestone audits passed.
+- **Public:** `GameKit.*` packages live on nuget.org via OIDC Trusted Publishing (anonymous `dotnet add package`) since 2026-06-27; marketing site live at https://gamekit.noahfreelove.com (Cloudflare Pages, source in `site/`).
+- **License:** relicensed GPL-3.0-or-later → Apache-2.0 on 2026-07-12 (REUSE-clean); first post-relicense release tag publishes Apache-2.0 package metadata.
+- **Production posture:** full OTel instrumentation + self-hosted Grafana/Prometheus/Tempo stack, K8s live/ready probes, multi-replica correctness proven under churn, backup/DR runbooks + CLI + CI round-trip, sealed security audit (NuGetAudit gates ON), k6 load baselines + benchmark regression gate, DocFX docs + tutorial with CI smoke gate, Platformer3D 3D-multiplayer capstone demo.
 
 ## Core Value
 
 A .NET-native, composable, extensible, fully self-hosted game services backend where every algorithm and strategy is an interface the developer can replace — install only what you need, own the rest, depend on no cloud service.
 
-## Current Milestone: v2.1 — Operability & Hardening (Production-Ready, Self-Hosted)
+## Next Milestone Goals
 
-**Goal:** Make GameKit production-hardened for self-hosters — observable, scalable, recoverable, and proven secure & performant — without yet publishing to NuGet.org.
-
-**Target features:**
-- **Observability** — opt-in OTel traces + metrics (`ActivitySource`/`Meter`) across all packages + a self-hosted sample dashboard (Grafana/Prometheus/Tempo via docker-compose)
-- **Health & readiness** — liveness vs. readiness endpoints with Postgres/Redis/migration dependency probes + startup-gating
-- **Horizontal-scale hardening** — proven + documented multi-replica correctness (leader election under churn, graceful drain/shutdown, distributed-lock edge cases, cross-replica idempotency)
-- **Backup / restore / DR + migration ops** — backup-restore tooling & runbook for Postgres + Redis, migration dry-run / rollback ergonomics, per-package ordering docs
-- **Security audit** — cross-cutting threat-model verification (auth/admin/rate-limit/egress/GDPR) + dependency/CVE supply-chain review
-- **Load / performance testing** — repeatable benchmarks (matchmaking ticker, lobby SignalR fan-out, auth throughput) with documented baselines + tuning guidance
-- **Docs & tutorial** — self-hosted/static docs site (per-package API + concepts) + end-to-end getting-started tutorial + upgrade/compatibility guide
-
-**North star:** Production-hardened, **not yet public** — public NuGet.org publish is deferred to a later milestone.
-**Phase numbering:** continues from **Phase 13** (v2.0 ended at Phase 12).
+Not yet defined — start with `/gsd-new-milestone`. Candidate threads from v2.1 close-out: `GameKit.Social` friends graph (deferred twice), provider abstraction for MySQL/SQL Server, dashboard queue-depth card wiring (stub shows placeholder when Matchmaking installed), Apple/Epic live OAuth round-trip verification (credential-blocked in v2.0/v2.1).
 
 ## Requirements
 
@@ -30,6 +25,7 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 
 <!-- Shipped and confirmed in v1.0 (2026-05-30). 92/92 requirements. Detail archived. -->
 
+- ✓ **v2.1 — Operability & Hardening** (2026-07-13) — Full OTel instrumentation (OBS-01..08) + self-hosted Grafana/Prometheus/Tempo stack; K8s live/ready probes with per-package migration readiness (HLTH-01..06); multi-replica correctness: `ILeaderLease`, shutdown-surviving lease release, idempotency, split-brain + drain CI tests (SCALE-01..06); backup/DR CLI + runbooks + CI round-trip (DR-01..07); sealed security audit + NuGetAudit gates (SEC-01..08); k6 load baselines + benchmark regression gate (PERF-01..06); DocFX docs + tutorial + upgrade guide (DOCS-01..06); Platformer3D capstone demo (DEMO-01..05). 47/47 requirements. Detail: `milestones/v2.1-REQUIREMENTS.md`.
 - ✓ **v2.0 — Expansion: Providers, Lobby & Rating-Aware Play** (2026-06-07) — Core rating seam; Argon2 + Google/Apple/Epic OAuth sibling packages; rating-aware/regional/backfill matchmaking; rank decay + placement; account merge; `GameKit.Lobby` (SignalR+Redis); multi-replica Admin + MinVer release-train close-out. 29/29 requirements. Detail: `milestones/v2.0-REQUIREMENTS.md`.
 
 <!-- v2.0 Active features are now Validated (above). Active is empty until /gsd:new-milestone. -->
@@ -47,37 +43,15 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 
 ### Active
 
-<!-- Current scope: v2.1 — Operability & Hardening. REQ-IDs assigned in REQUIREMENTS.md. -->
+<!-- Empty until /gsd-new-milestone defines the next scope. -->
 
-**Observability**
-- [ ] Opt-in OpenTelemetry traces + metrics (`ActivitySource`/`Meter`) wired across all packages *(foundation laid in Phase 13: `GameKitTelemetry` constants + `AddGameKitObservability()` + canonical Rankings/Matchmaking `ActivitySource`s + GK0001 PII lint gate; per-package instrumentation still pending)*
-- [x] Self-hosted sample dashboard (Grafana/Prometheus/Tempo via docker-compose in the sample) — no SaaS exporter *(Phase 13, OBS-08)*
-
-**Health & readiness**
-- [x] Liveness vs. readiness endpoints with Postgres/Redis/migration dependency probes and startup-gating *(Phase 14, HLTH-01..06: `AddGameKitHealthChecks()` + `MapGameKitHealth()` in Core; `/health/live` process-only, `/health/ready` gated on Postgres + conditional Redis + six `IMigrationReadinessReporter`s; three-state with Degraded-only matchmaking-leader probe (non-acquiring holder+TTL read); PII-safe whitelist payload; Admin.UI `HealthProbeService` delegates to `HealthCheckService`)*
-
-**Horizontal-scale hardening**
-- [ ] Prove + document multi-replica correctness — leader election under churn, graceful drain/shutdown, distributed-lock edge cases, idempotency across concurrent replicas
-
-**Backup / restore / DR + migration ops**
-- [ ] Backup-restore tooling & runbook for Postgres + Redis
-- [ ] Migration ergonomics — dry-run / rollback guidance, per-package ordering docs
-
-**Security audit**
-- [ ] Cross-cutting threat-model verification (auth/admin/rate-limit/egress/GDPR) + dependency/CVE supply-chain review
-
-**Load / performance testing**
-- [ ] Repeatable benchmarks (matchmaking ticker, lobby SignalR fan-out, auth throughput) with documented baselines + tuning guidance
-
-**Docs & tutorial**
-- [ ] Self-hosted/static docs site (per-package API + concepts)
-- [ ] End-to-end getting-started tutorial + upgrade/compatibility guide
+(none — define with `/gsd-new-milestone`)
 
 ### Out of Scope
 
 <!-- Explicit boundaries carried from v1.0. -->
 
-- **AI / LLM integrations of any kind** — GPL self-hosted commitment; no AI moderation, matchmaking, content gen, or telemetry analysis
+- **AI / LLM integrations of any kind** — open-source self-hosted commitment; no AI moderation, matchmaking, content gen, or telemetry analysis
 - **Cloud-only / SaaS dependencies** — library must run air-gapped; SignalR backplane is Redis, not a managed service
 - **Telemetry / phone-home** — library never collects or transmits usage data
 - **Game server hosting / orchestration, netcode, voice chat** — use Agones/Multiplay, Mirror/Fish-Net, Vivox, etc.
@@ -88,16 +62,17 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 
 ## Context
 
-- **Mature v1.0 codebase**: ~34.3k LOC source + ~29.6k LOC tests across 18 projects; 7 shipped NuGet packages + CLI + template + build-time version-stamp generator. v2 extends this same codebase and release train.
+- **Post-v2.1 codebase**: v2.1 alone touched 1,263 files (+155k lines) on top of the v2.0 base; 11+ shipped NuGet packages (Core, Auth, Auth.Argon2, OAuth providers, Matchmaking, Rankings, Presence, Lobby, Admin.UI, OpenApi, Cli) + template + two full sample games (TicTacToeDuel, Platformer3D).
 - **Established patterns** the v2 build must follow: per-package migrations (distinct advisory-lock key + `__ef_migrations_<pkg>` history table + design-time factory + `ExcludeFromMigrations` for prior packages; never mutate Core tables); coordinated MinVer release train with exact-pinned sibling refs `[X.Y.Z]`; `BackgroundService` + `PeriodicTimer` + Polly for periodic jobs (Redis leader election via `SET NX PX`); Scrutor assembly scanning for pluggable strategies; XML docs on every public API (CS1591-as-error).
 - **v2.0 shipped** the full feature expansion (Argon2 + Google/Apple/Epic OAuth + account merge; rating-aware/regional/backfill matchmaking; rank decay + placement; `GameKit.Lobby` SignalR+Redis; multi-replica Admin). v2.1 **adds no new game-services surface** — it hardens and operationalizes what exists.
 - **v2.1 is operability + hardening**: observability, health/readiness, horizontal-scale proof, backup/DR, security audit, load testing, and docs. Much of this builds on existing seams rather than new packages: Core's opt-in OTel **abstractions** (Meter/ActivitySource already present), the admin **health panel**, and the Phase 12 **multi-replica** work (fleet error counter + Redis-backplane admin event hub).
-- **Sample app** `samples/TicTacToeDuel` is the composition-root reference, integration harness, and the home for the self-hosted observability stack + the getting-started tutorial.
-- **Build/run posture**: user wants the build to run **fully autonomously** (`gsd-autonomous`) with automated verification (xUnit + Testcontainers + the GSD verifier/nyquist gates) rather than conversational UAT.
+- **Sample app** `samples/TicTacToeDuel` is the composition-root reference, integration harness, and the home for the self-hosted observability stack + the getting-started tutorial; `samples/Platformer3D` is the customization capstone (custom `IRankingAlgorithm` + `IMatchmakingStrategy`, embedded game server, single-image docker distribution).
+- **Build/run posture**: user wants the build to run **fully autonomously** (`gsd-autonomous`) with automated verification (xUnit + Testcontainers + the GSD verifier/nyquist gates + headless-browser e2e) rather than conversational UAT.
+- **Known rough edges carried out of v2.1**: dashboard Queue-depth card shows a stub placeholder when Matchmaking IS installed (real telemetry lives on `/admin/queues` page); Apple/Epic OAuth live round-trips remain credential-blocked (code paths unit/integration tested); CR-02 product question open (same-rating-period sessions — only latest gets a real RatingDelta).
 
 ## Constraints
 
-- **License**: GPL — fully open-source, no proprietary deps, no telemetry, no phone-home
+- **License**: Apache-2.0 (relicensed from GPL-3.0-or-later on 2026-07-12) — fully open-source, no proprietary deps, no telemetry, no phone-home
 - **Self-hosted only**: zero cloud-service dependencies; complete backend stands up with this library + Postgres + Redis on operator hardware
 - **Runtime**: .NET 10 LTS; ASP.NET Core 10; EF Core 10 + Npgsql (Postgres only); Redis via StackExchange.Redis
 - **Distribution**: every `/src` project ships as its own NuGet package on the coordinated release train (all packages share one version; sibling refs exact-pinned)
@@ -119,8 +94,12 @@ A .NET-native, composable, extensible, fully self-hosted game services backend w
 | Scrutor + MS.DI over source-gen DI | A library cannot dictate the consumer's container | ✓ Good (v1.0) |
 | v2 SignalR backplane MUST be Redis (not Azure SignalR) | Zero-cloud GPL constraint | ✓ Good (v2.0) |
 | Account merge + first-class regional pools enter scope (reversing v1) | User-prioritized for v2.0 | ✓ Shipped (v2.0) |
-| Observability stack must be self-hostable (Grafana/Prometheus/Tempo via docker-compose) — no SaaS exporters | Zero-cloud GPL constraint | — Pending (v2.1) |
-| Public NuGet.org publish deferred past v2.1 | Harden + audit + load-test first; publish once production-proven | — Pending (v2.1) |
+| Observability stack must be self-hostable (Grafana/Prometheus/Tempo via docker-compose) — no SaaS exporters | Zero-cloud constraint | ✓ Shipped (v2.1 Phase 13/15) |
+| Public NuGet.org publish deferred past v2.1 | Harden + audit + load-test first | ⚠ Revised — published early (v0.1.x, 2026-06-27) via nuget.org OIDC Trusted Publishing; hardening continued in public |
+| Relicense GPL-3.0-or-later → Apache-2.0 | Maximize adoption for a library that ships inside consumers' apps; REUSE-clean sweep | ✓ Good (2026-07-12) |
+| Native `BackgroundService` leases unified behind `ILeaderLease` in Core; release with `CancellationToken.None` + CI grep gate | One auditable lease surface; releases must survive SIGTERM | ✓ Good (v2.1 Phase 16) |
+| NuGetAudit gates ON repo-wide (mode=all, level=high) with explicit transitive pins | Supply-chain hygiene as a CI gate, not a habit | ✓ Good (v2.1 Phase 18) |
+| Destructive migration `Down()` bodies sealed with `NotSupportedException` | Restore-from-backup is the rollback story; accidental down-migration is data loss | ✓ Good (v2.1 Phase 17) |
 
 ## Evolution
 
@@ -150,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 - Admin: multi-replica UI (SignalR + Redis backplane) · fix "Rank adjust" stub page
 
 ---
-*Last updated: 2026-06-15 — Phase 14 (Health & Readiness) complete: K8s-correct `/health/live` (process-only) + `/health/ready` (Postgres + conditional Redis + six per-package `IMigrationReadinessReporter`s) via `AddGameKitHealthChecks()`/`MapGameKitHealth()` in Core; three-state health with a Degraded-only, non-acquiring matchmaking-leader probe (holder GUID token + TTL, hostname stripped per HLTH-05); PII-safe whitelist response writer; Admin.UI `HealthProbeService` delegates to Core `HealthCheckService` (HLTH-01..06). Code review hardened the leader-probe hostname leak (CR-01) + 5 warnings. Phase 13 (Observability Foundations) complete: GK0001 PII span-attribute lint gate, `GameKitTelemetry` + `AddGameKitObservability()`, canonical Rankings/Matchmaking `ActivitySource`s, self-hosted OTel/Prometheus/Tempo/Grafana sample stack (OBS-01/02/03/07/08). v2.1 milestone (Operability & Hardening) started 2026-06-07; public NuGet publish deferred. v2.0 shipped 2026-06-07 (Phases 7–12, 29/29 requirements).*
+*Last updated: 2026-07-13 after v2.1 milestone — Operability & Hardening shipped (Phases 13–21, 47/47 requirements, verified_closeout). Also since last update: repo relicensed to Apache-2.0 (2026-07-12), GameKit.* live on nuget.org via Trusted Publishing (2026-06-27), marketing site live at gamekit.noahfreelove.com with admin-console screenshot showcase (2026-07-12).*

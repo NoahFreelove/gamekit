@@ -1,5 +1,24 @@
 # MILESTONES: GameKit
 
+## v2.1 Operability & Hardening (Shipped: 2026-07-13)
+
+**Phases completed:** 9 phases (13–21), 49 plans, 50 tasks
+**Timeline:** 2026-06-14 → 2026-07-12 (28 days) · 1,263 files changed, ~155k insertions
+**Closeout:** verified_closeout — all 9 phases verified, milestone audit passed 47/47 requirements, 8/8 integration points, 3/3 E2E flows
+
+**Delivered:** Production operability for every GameKit package — full OpenTelemetry instrumentation, K8s-grade health probes, multi-replica correctness, backup/DR tooling, a sealed security audit, load-test evidence, complete docs, and a 3D multiplayer demo proving the whole stack end-to-end.
+
+**Key accomplishments:**
+
+- Full observability: ActivitySource/Meter instrumentation across Matchmaking, Rankings, Lobby + `AddGameKitObservability()` builder, W3C trace propagation through Redis tickets, and a self-hosted OTel Collector + Prometheus + Grafana + Tempo compose stack with provisioned dashboards (Phases 13, 15)
+- K8s probe contract: tag-based live/ready health checks with per-package migration-readiness reporters, leader-lease Degraded reporting, and integration tests proving liveness-under-Postgres-down and readiness gating (Phase 14)
+- Multi-replica hardening: unified `ILeaderLease` in Core, shutdown-surviving lease release (`CancellationToken.None` + CI grep gate), idempotent session completion, split-brain and graceful-drain integration tests, SignalR Redis-backplane correctness under replica restart (Phase 16)
+- Backup/DR + migration ops: `gamekit migrations list` / `apply --dry-run`, `gamekit db backup/restore`, Postgres/Redis runbooks, destructive `Down()` migrations sealed, and a CI-verified DR round-trip (backup → drop → restore → health green) (Phase 17)
+- Security audit sealed: NuGetAudit gates ON (mode=all, level=high) with MessagePack/Scriban/OpenApi transitive pins, GDPR-delete extension surface, JWT/admin/rate-limit hardening tests, and a traceable security checklist (Phase 18)
+- Ship-proof: k6 load tests + PERF-06 benchmark regression gate in CI (Phase 19); 12 concept docs, tutorial with CI smoke gate, v2.0→v2.1 upgrade guide, 10 ADRs (Phase 20); Platformer3D 3D multiplayer demo with custom ranking algorithm + matchmaking strategy, verified via two-player headless-browser e2e (Phase 21, merged e1acdeb)
+
+---
+
 ## v2.0 Expansion: Providers, Lobby & Rating-Aware Play (Shipped: 2026-06-07)
 
 **Phases completed:** 6 phases, 26 plans, 48 tasks

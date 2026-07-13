@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v2.1
 milestone_name: — Operability & Hardening
-current_phase: 21
-current_phase_name: final-demo-3d-multiplayer-platformer
-status: completed
-stopped_at: Phase 21 complete (merged to master)
-last_updated: "2026-07-12T20:30:00.000Z"
-last_activity: 2026-07-12
-last_activity_desc: v2.1 milestone audit PASSED 47/47 after same-day gap closure (CI gate wiring, DR test lane, Rankings lease metric, 21-VERIFICATION.md); GameKit marketing site built in site/ (engine-room design, wrangler-ready)
+current_phase: 1
+status: Awaiting next milestone
+stopped_at: v2.1 milestone archived; awaiting next milestone
+last_updated: "2026-07-13T01:15:01.187Z"
+last_activity: 2026-07-13
+last_activity_desc: Milestone v2.1 completed and archived
 progress:
-  total_phases: 10
-  completed_phases: 10
+  total_phases: 9
+  completed_phases: 9
   total_plans: 49
-  completed_plans: 49
+  completed_plans: 53
   percent: 100
+current_phase_name: final-demo-3d-multiplayer-platformer
 ---
 
 # STATE: GameKit
@@ -23,17 +23,17 @@ progress:
 
 **Core Value:** A .NET-native, composable, extensible, fully self-hosted game services backend where every algorithm and strategy is an interface the developer can replace — install only what you need, own the rest, depend on no cloud service.
 
-**License:** GPL
+**License:** Apache-2.0 (relicensed 2026-07-12)
 **Runtime:** .NET 10 LTS (released 2026-04-14)
 **Mode:** YOLO / Quality model profile / parallel execution enabled
-**Current Focus:** Phase 21 — Final Demo — 3D Multiplayer Platformer (COMPLETE)
+**Current Focus:** v2.1 shipped 2026-07-13 (verified_closeout, 47/47) — planning next milestone via /gsd-new-milestone
 
 ## Current Position
 
-Phase: 21 (final-demo-3d-multiplayer-platformer) — COMPLETE (merged to master)
-Plan: 6 of 6
-Status: Phase complete — inter-party 1v1, no-elo, and demo functional overhaul shipped
-Last activity: 2026-07-12 - Completed quick task 260712-n7f: relicensed repo from GPL-3.0-or-later to Apache-2.0
+Phase: Milestone v2.1 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-07-13 — Milestone v2.1 completed and archived
 
 ## Performance Metrics
 
@@ -373,7 +373,7 @@ None.
 
 ## Operator Next Steps
 
-- Run `/gsd:plan-phase 13` to plan Phase 13: Observability Foundations
+- Start the next milestone with /gsd-new-milestone
 
 ## Decisions
 

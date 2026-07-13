@@ -33,7 +33,6 @@
   <section class="hero" id="top">
     <div class="wrap hero-grid">
       <div class="hero-copy">
-        <p class="eyebrow" aria-hidden="true">// self-hosted game services &middot; .NET 10 &middot; Apache-2.0</p>
         <h1>Own your game&rsquo;s<br>backend.</h1>
         <p class="lede">
           GameKit is an Apache-2.0-licensed .NET&nbsp;10 library &mdash; auth, matchmaking, rankings,
@@ -165,10 +164,49 @@
     </div>
   </section>
 
+  <!-- ============ ADMIN CONSOLE ============ -->
+  <section class="section" id="console">
+    <div class="wrap">
+      <h2><span class="sec-num" aria-hidden="true">03</span> Ops console included</h2>
+      <p class="section-sub">GameKit.Admin.UI mounts a Blazor Server console inside your own app &mdash; player ops, audit trail, live queues, health. No separate deployment.</p>
+
+      <div class="shots" role="list">
+        <figure class="shot" role="listitem">
+          <div class="term term-shot">
+            <div class="term-bar"><span class="term-title">admin &mdash; players</span></div>
+            <img src="img/admin-players.webp" width="1600" height="620" loading="lazy" alt="GameKit admin console &mdash; Players page: master-detail player list with search, ban, and GDPR-delete actions">
+          </div>
+          <figcaption>Players &mdash; search, ban, GDPR-delete</figcaption>
+        </figure>
+        <figure class="shot" role="listitem">
+          <div class="term term-shot">
+            <div class="term-bar"><span class="term-title">admin &mdash; audit</span></div>
+            <img src="img/admin-audit.webp" width="1600" height="620" loading="lazy" alt="GameKit admin console &mdash; Audit log: chronological admin actions with action-type filter chips">
+          </div>
+          <figcaption>Audit log &mdash; every admin action recorded</figcaption>
+        </figure>
+        <figure class="shot" role="listitem">
+          <div class="term term-shot">
+            <div class="term-bar"><span class="term-title">admin &mdash; queues</span></div>
+            <img src="img/admin-queues.webp" width="1600" height="620" loading="lazy" alt="GameKit admin console &mdash; Queue depth: live matchmaking pool depths with the leader lease indicator">
+          </div>
+          <figcaption>Queue depth &mdash; live matchmaking telemetry with leader lease</figcaption>
+        </figure>
+        <figure class="shot" role="listitem">
+          <div class="term term-shot">
+            <div class="term-bar"><span class="term-title">admin &mdash; health</span></div>
+            <img src="img/admin-health.webp" width="1600" height="620" loading="lazy" alt="GameKit admin console &mdash; Health page: Postgres, Redis, and error-rate probe cards all reporting OK">
+          </div>
+          <figcaption>Health &mdash; Postgres/Redis/error-rate probes</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ COMPOSE ============ -->
   <section class="section" id="compose">
     <div class="wrap">
-      <h2><span class="sec-num" aria-hidden="true">03</span> Compose it. Then replace any part of it.</h2>
+      <h2><span class="sec-num" aria-hidden="true">04</span> Compose it. Then replace any part of it.</h2>
       <p class="section-sub">One fluent builder wires everything into your own DI container. Real code &mdash; this is the actual API.</p>
 
       <div class="code-cols">
@@ -226,7 +264,7 @@ builder.Services.<span class="f">AddSingleton</span>&lt;
   <!-- ============ PRODUCTION ============ -->
   <section class="section" id="production">
     <div class="wrap">
-      <h2><span class="sec-num" aria-hidden="true">04</span> Built for the boring parts</h2>
+      <h2><span class="sec-num" aria-hidden="true">05</span> Built for the boring parts</h2>
       <div class="ops-grid" role="list">
         <div class="ops-item" role="listitem"><h3>Health &amp; readiness</h3><p><code>/health/live</code> and <code>/health/ready</code> endpoints, wired for your load balancer out of the box.</p></div>
         <div class="ops-item" role="listitem"><h3>Multi-replica safe</h3><p>Leader leases for background tickers and graceful drain &mdash; scale your app horizontally without split-brain matchers.</p></div>
@@ -243,12 +281,6 @@ builder.Services.<span class="f">AddSingleton</span>&lt;
 <!-- ============ FOOTER ============ -->
 <footer class="footer">
   <div class="wrap">
-    <div class="badges" aria-label="Project guarantees">
-      <span class="badge">Apache-2.0</span>
-      <span class="badge">self-hosted</span>
-      <span class="badge">no telemetry</span>
-      <span class="badge">no cloud</span>
-    </div>
     <nav class="footer-links" aria-label="Footer">
       <a href="https://github.com/NoahFreelove/gamekit">GitHub</a>
       <a href="https://www.nuget.org/packages?q=GameKit">NuGet</a>

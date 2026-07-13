@@ -371,6 +371,32 @@ h2 {
   text-transform: uppercase;
 }
 
+/* ---------- admin console shots ---------- */
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 2.25rem;
+}
+
+.term-shot { max-width: none; }
+
+.shot img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.shot figcaption {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-top: 0.6rem;
+}
+
 /* ---------- compose ---------- */
 
 .code-cols {
@@ -444,6 +470,7 @@ h2 {
   .hero-grid { grid-template-columns: minmax(0, 1fr); gap: 2.5rem; }
   .hero-term { max-width: 40rem; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .shots { grid-template-columns: minmax(0, 1fr); }
   .ops-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .code-cols { grid-template-columns: minmax(0, 1fr); }
   .split { grid-template-columns: minmax(0, 1fr); gap: 1.8rem; }

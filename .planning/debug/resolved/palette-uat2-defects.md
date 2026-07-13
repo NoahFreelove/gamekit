@@ -1,8 +1,10 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "Four blocking palette defects from Phase 5 UAT-2: D1 multi-word search, D2 stuck subview on close/reopen, D3 no keyboard/default selection, D4 ladder rows non-clickable"
 created: 2026-05-24T00:00:00Z
-updated: 2026-05-24T00:00:00Z
+updated: 2026-07-13T01:12:00Z
+resolved: 2026-07-13T01:12:00Z
+resolution: "All four defects (D1 tokenized search, D2 DOM snapshot/restore, D3 default selection, D4 target-row dispatch) fixed in commit ec061ce (2026-05-26, Phase 5 close-out); Phase 5 UAT 4/4 PASS. Session file was never flipped from diagnosed — closed retroactively at v2.1 milestone close."
 ---
 
 ## Current Focus

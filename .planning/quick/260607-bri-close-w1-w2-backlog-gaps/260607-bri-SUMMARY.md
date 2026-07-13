@@ -1,4 +1,5 @@
 ---
+status: complete
 phase: quick-260607-bri
 plan: 01
 subsystem: GameKit.Lobby + GameKit.Auth

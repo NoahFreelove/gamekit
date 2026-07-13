@@ -1,4 +1,5 @@
 ---
+status: complete
 phase: 260416-tlm-quick
 plan: 01
 subsystem: sample
